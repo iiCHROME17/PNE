@@ -364,43 +364,56 @@ class NPCFactory:
 if __name__ == "__main__":
     print("=== Creating NPCs ===\n")
     
-    # Create NPC
+    # Create NPCs
     moses = NPCFactory.create_morisson_moses()
-    
-    # Export to JSON
-    moses.to_json("moses.json")
-    print(f"✓ Created {moses.name} (Age: {moses.age})")
-    print(f"  Dominant ideology: {moses.social.get_dominant_ideology()}")
-    print(f"  Faction: {moses.social.faction}")
-    print(f"  Position: {moses.social.social_position.value}")
-    
+    amourie = NPCFactory.create_amourie_othella()
+    krakk = NPCFactory.create_krystian_krakk()
+
+    npcs = [moses, amourie, krakk]
+
+    # Export to JSON and display details
+    for npc in npcs:
+        file_name = f"{npc.name.lower().replace(' ', '_')}.json"
+        npc.to_json(file_name)
+        print(f"✓ Created {npc.name} (Age: {npc.age})")
+        print(f"  Dominant ideology: {npc.social.get_dominant_ideology()}")
+        print(f"  Faction: {npc.social.faction}")
+        print(f"  Position: {npc.social.social_position.value}\n")
+
     # Load from JSON
-    print(f"\n=== Loading from JSON ===")
-    loaded_moses = NPCModel.from_json("moses.json")
-    print(f"✓ Loaded {loaded_moses.name} from file")
-    print(f"  Age: {loaded_moses.age}")
-    print(f"  Self-esteem: {loaded_moses.cognitive.self_esteem}")
-    
+    print("=== Loading from JSON ===\n")
+    loaded_npcs = []
+    for npc in npcs:
+        file_name = f"{npc.name.lower().replace(' ', '_')}.json"
+        loaded_npc = NPCModel.from_json(file_name)
+        loaded_npcs.append(loaded_npc)
+        print(f"✓ Loaded {loaded_npc.name} from file")
+        print(f"  Age: {loaded_npc.age}")
+        print(f"  Self-esteem: {loaded_npc.cognitive.self_esteem}\n")
+
     # Test temporary modifiers
-    print(f"\n=== Testing Temporary Modifiers ===")
-    print(f"Original assertion: {moses.social.assertion}")
-    moses.apply_temp_mod("social.assertion", 0.5)
-    print(f"Modified assertion: {moses.social.assertion}")
-    moses.reset_temp_mods()
-    print(f"Reset assertion: {moses.social.assertion}")
-    
+    print("=== Testing Temporary Modifiers ===\n")
+    for npc in npcs:
+        print(f"Original assertion for {npc.name}: {npc.social.assertion}")
+        npc.apply_temp_mod("social.assertion", 0.5)
+        print(f"Modified assertion: {npc.social.assertion}")
+        npc.reset_temp_mods()
+        print(f"Reset assertion: {npc.social.assertion}\n")
+
     # Test relation updates
-    print(f"\n=== Testing Relation System ===")
-    print(f"Initial relation: {moses.world.player_relation}")
-    moses.world.update_relation(0.2)
-    print(f"After positive interaction: {moses.world.player_relation}")
-    moses.world.update_relation(-0.3)
-    print(f"After negative interaction: {moses.world.player_relation}")
-    
+    print("=== Testing Relation System ===\n")
+    for npc in npcs:
+        print(f"Initial relation for {npc.name}: {npc.world.player_relation}")
+        npc.world.update_relation(0.2)
+        print(f"After positive interaction: {npc.world.player_relation}")
+        npc.world.update_relation(-0.3)
+        print(f"After negative interaction: {npc.world.player_relation}\n")
+
     # Test history updates
-    print(f"\n=== Testing History System ===")
-    moses.world.update_player_history("Helped secure weapons cache")
-    moses.world.update_player_history("Defended Insurgency base")
-    print(f"Player history:\n{moses.world.player_history}")
-    
-    print("\n✓ All tests passed!")
+    print("=== Testing History System ===\n")
+    for npc in npcs:
+        npc.world.update_player_history("Helped secure weapons cache")
+        npc.world.update_player_history("Defended Insurgency base")
+        print(f"Player history for {npc.name}:\n{npc.world.player_history}\n")
+
+    print("✓ All tests passed!")

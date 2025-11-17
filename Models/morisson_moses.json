@@ -1,0 +1,27 @@
+{
+  "name": "Morisson Moses",
+  "age": 35,
+  "cognitive": {
+    "self_esteem": 0.8,
+    "locus_of_control": 0.475,
+    "cog_flexibility": 0.3
+  },
+  "social": {
+    "assertion": 1.0,
+    "conf_indep": 0.7,
+    "empathy": 0.45,
+    "ideology": {
+      "Utilitarianism": 0.8,
+      "Authoritarianism": 0.2
+    },
+    "wildcard": "Martyr",
+    "faction": "Insurgency",
+    "social_position": "Boss"
+  },
+  "world": {
+    "world_history": "Full world history here...",
+    "personal_history": "Moses' personal journey...",
+    "player_history": "",
+    "player_relation": 0.5
+  }
+}

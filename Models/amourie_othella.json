@@ -1,0 +1,27 @@
+{
+  "name": "Amourie Othella",
+  "age": 42,
+  "cognitive": {
+    "self_esteem": 0.9,
+    "locus_of_control": 0.2,
+    "cog_flexibility": 0.8
+  },
+  "social": {
+    "assertion": 0.5,
+    "conf_indep": 0.6,
+    "empathy": 0.25,
+    "ideology": {
+      "Communitarianism": 0.7,
+      "Pragmatism": 0.3
+    },
+    "wildcard": "Napoleon",
+    "faction": "The Commonman",
+    "social_position": "Boss"
+  },
+  "world": {
+    "world_history": "Full world history here...",
+    "personal_history": "Othella's journey...",
+    "player_history": "",
+    "player_relation": 0.5
+  }
+}

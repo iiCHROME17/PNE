@@ -1,0 +1,27 @@
+{
+  "name": "Krystian 'Krakk' Klikowicz",
+  "age": 28,
+  "cognitive": {
+    "self_esteem": 0.5,
+    "locus_of_control": 0.8,
+    "cog_flexibility": 0.4
+  },
+  "social": {
+    "assertion": 0.3,
+    "conf_indep": 0.9,
+    "empathy": 0.8,
+    "ideology": {
+      "Libertarianism": 0.9,
+      "Individualism": 0.1
+    },
+    "wildcard": "Inferiority",
+    "faction": "The Runner Networks",
+    "social_position": "Boss"
+  },
+  "world": {
+    "world_history": "Full world history here...",
+    "personal_history": "Krakk's story...",
+    "player_history": "",
+    "player_relation": 0.5
+  }
+}
