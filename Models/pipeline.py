@@ -1,567 +1,818 @@
 """
-Psychological Narrative Engine - Core Models with Outcome System
-Author: Jerome Bawa
+Psychological Narrative Engine - Dialogue Pipeline (Refactored)
+Name: pipeline.py
+Author: Jerome Bawa 
 
-A modular narrative engine backend for dynamic NPC behavior with outcome handling
-Compatible with Unity, Unreal Engine, and Godot
+Implements Purpose-Output Model with Conversation Containment,
+Interaction Outcomes, and Terminal Outcomes
 """
 
-from dataclasses import dataclass, field, asdict
-from typing import Dict, List, Optional, Any, Tuple
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Any, Tuple, Callable
 from enum import Enum
 import json
+import random
+import requests
+
+# ============================================================================
+# ENUMS
+# ============================================================================
+
+class LanguageArt(Enum):
+    """Player Dialogue Approaches (Rhetoric)"""
+    CHALLENGE = "challenge"
+    DIPLOMATIC = "diplomatic"
+    EMPATHETIC = "empathetic"
+    MANIPULATIVE = "manipulative"
+    NEUTRAL = "neutral"
+
+
+class PlayerSkill(Enum):
+    """Player's skill proficiencies"""
+    AUTHORITY = "authority"
+    DIPLOMACY = "diplomacy"
+    EMPATHY = "empathy"
+    MANIPULATION = "manipulation"
+
+
+class TerminalOutcomeType(Enum):
+    """Terminal outcome types"""
+    SUCCEED = "succeed"
+    FAIL = "fail"
+    NEGOTIATE = "negotiate"
+    DELAY = "delay"
+    ESCALATE = "escalate"
 
 
 # ============================================================================
-# ENUMS & CONSTANTS
-# ============================================================================
-
-class SocialPosition(Enum):
-    """NPC rank within faction"""
-    BOSS = "Boss"
-    VICE = "Vice"
-    HIGHER = "Higher"
-    MEMBER = "Member"
-
-
-class OutcomeType(Enum):
-    """Types of outcomes from dialogue/action choices"""
-    SUCCESS = "Success"
-    FAILURE = "Failure"
-    NEUTRAL = "Neutral"
-    REFUSAL = "Refusal"
-    HELPED = "Helped"
-    ATTACKED = "Attacked"
-
-
-# ============================================================================
-# COGNITIVE MODEL
-# ============================================================================
-
-@dataclass
-class CognitiveModel:
-    """Represents NPC's internal psychological state"""
-    self_esteem: float = 0.5  # 0-1: confidence and self-worth
-    locus_of_control: float = 0.5  # 0=external (blames fate), 1=internal (self-responsible)
-    cog_flexibility: float = 0.5  # 0=rigid/dogmatic, 1=adaptive/open
-    
-    def __post_init__(self):
-        self._validate_ranges()
-    
-    def _validate_ranges(self):
-        """Ensure all values are within 0-1 range"""
-        for attr in ['self_esteem', 'locus_of_control', 'cog_flexibility']:
-            value = getattr(self, attr)
-            if not 0 <= value <= 1:
-                raise ValueError(f"{attr} must be between 0 and 1, got {value}")
-    
-    def to_dict(self) -> Dict[str, float]:
-        return asdict(self)
-    
-    @classmethod
-    def from_dict(cls, data: Dict[str, float]) -> 'CognitiveModel':
-        return cls(**data)
-
-
-# ============================================================================
-# SOCIAL PERSONALITY MODEL
+# CONVERSATION CONTAINMENT MODEL
 # ============================================================================
 
 @dataclass
-class SocialPersonalityModel:
-    """Defines NPC's social behavior and ideological stance"""
-    assertion: float = 0.5  # 0=passive/easily persuaded, 1=assertive/challenges player
-    conf_indep: float = 0.5  # 0=conformist (follows group), 1=independent (autonomous)
-    empathy: float = 0.5  # 0=self-focused, 1=empathetic
+class ConversationModel:
+    """Container for conversation metadata and state"""
+    conversation_id: str
+    stage: str  # Current phase of conversation
+    topic: str  # Active subject being discussed
+    turn_count: int = 0
+    history: List[str] = field(default_factory=list)
     
-    # Ideology as key-value pairs (weights sum to 1.0)
-    ideology: Dict[str, float] = field(default_factory=dict)
+    def advance_turn(self):
+        """Increment turn counter"""
+        self.turn_count += 1
     
-    # Psychological modifier (e.g., "Martyr", "Napoleon Complex", "Inferiority Complex")
-    wildcard: Optional[str] = None
+    def add_exchange(self, player_line: str, npc_line: str):
+        """Add dialogue exchange to history"""
+        self.history.append(f"Player: {player_line}")
+        self.history.append(f"NPC: {npc_line}")
+        self.advance_turn()
     
-    # Faction affiliation
-    faction: Optional[str] = None
-    social_position: SocialPosition = SocialPosition.MEMBER
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'conversation_id': self.conversation_id,
+            'stage': self.stage,
+            'topic': self.topic,
+            'turn_count': self.turn_count,
+            'history': self.history
+        }
+
+
+# ============================================================================
+# NPC INTENT LAYER (Purpose/Meta Layer)
+# ============================================================================
+
+@dataclass
+class NPCIntent:
+    """
+    BDI Model: Beliefs, Desires, Intentions
+    Defines NPC's purpose in the conversation
+    """
+    baseline_belief: str  # Core belief about situation
+    long_term_desire: str  # What NPC ultimately wants
+    immediate_intention: str  # Current goal (e.g., "Protect Door", "Test Player")
+    stakes: str  # What's at risk
     
+    def shift_intention(self, new_intention: str):
+        """Update NPC's immediate intention"""
+        self.immediate_intention = new_intention
+    
+    def to_dict(self) -> Dict[str, str]:
+        return {
+            'baseline_belief': self.baseline_belief,
+            'long_term_desire': self.long_term_desire,
+            'immediate_intention': self.immediate_intention,
+            'stakes': self.stakes
+        }
+
+
+# ============================================================================
+# PLAYER INPUT STRUCTURES
+# ============================================================================
+
+@dataclass
+class PlayerDialogueInput:
+    """Structured Player dialogue"""
+    choice_text: str
+    language_art: LanguageArt
+    contextual_references: List[str] = field(default_factory=list)
+    
+    # Parsed traits from choice text
+    authority_tone: float = 0.5
+    diplomacy_tone: float = 0.5
+    empathy_tone: float = 0.5
+    manipulation_tone: float = 0.5
+    ideology_alignment: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "choice_text": self.choice_text,
+            "language_art": self.language_art.value,
+            "authority_tone": self.authority_tone,
+            "diplomacy_tone": self.diplomacy_tone,
+            "empathy_tone": self.empathy_tone,
+            "manipulation_tone": self.manipulation_tone,
+            "ideology_alignment": self.ideology_alignment,
+            "contextual_references": self.contextual_references
+        }
+
+
+@dataclass
+class PlayerSkillSet:
+    """Player's skill proficiencies (0-10 scale)"""
+    authority: int = 0
+    diplomacy: int = 0
+    empathy: int = 0
+    manipulation: int = 0
+
     def __post_init__(self):
-        self._validate_ranges()
-        self._normalize_ideology()
-    
-    def _validate_ranges(self):
-        """Ensure float values are within 0-1 range"""
-        for attr in ['assertion', 'conf_indep', 'empathy']:
+        for attr in ["authority", "diplomacy", "empathy", "manipulation"]:
             value = getattr(self, attr)
-            if not 0 <= value <= 1:
-                raise ValueError(f"{attr} must be between 0 and 1, got {value}")
+            if not (0 <= value <= 10):
+                raise ValueError(f"{attr} skill must be between 0 and 10, got {value}")
+            
+    def get_skill(self, skill: PlayerSkill) -> int:
+        skill_map = {
+            PlayerSkill.AUTHORITY: self.authority,
+            PlayerSkill.DIPLOMACY: self.diplomacy,
+            PlayerSkill.EMPATHY: self.empathy,
+            PlayerSkill.MANIPULATION: self.manipulation
+        }
+        return skill_map[skill]
     
-    def _normalize_ideology(self):
-        """Ensure ideology weights sum to 1.0"""
-        if self.ideology:
-            total = sum(self.ideology.values())
-            if total > 0:
-                self.ideology = {k: v/total for k, v in self.ideology.items()}
+    def get_skill_normalized(self, skill: PlayerSkill) -> float:
+        return self.get_skill(skill) / 10.0
+
+
+# ============================================================================
+# SKILL CHECK SYSTEM (Preserved from original)
+# ============================================================================
+
+@dataclass
+class SkillCheckResult:
+    """Result of a skill check"""
+    success: bool
+    skill_used: PlayerSkill
+    player_val: int
+    threshold: float
+    margin: float
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "success": self.success,
+            "skill_used": self.skill_used.value,
+            "player_val": self.player_val,
+            "threshold": self.threshold,
+            "margin": self.margin
+        }
+
+
+class SkillCheckSystem:
+    """Handles skill checks based on player input"""
     
-    def get_dominant_ideology(self) -> Optional[str]:
-        """Returns the ideology with highest weight"""
-        if not self.ideology:
+    LANGUAGE_ART_TO_SKILL = {
+        LanguageArt.CHALLENGE: PlayerSkill.AUTHORITY,
+        LanguageArt.DIPLOMATIC: PlayerSkill.DIPLOMACY,
+        LanguageArt.EMPATHETIC: PlayerSkill.EMPATHY,
+        LanguageArt.MANIPULATIVE: PlayerSkill.MANIPULATION,
+        LanguageArt.NEUTRAL: None
+    }
+
+    SKILL_MODIFIERS = {
+        PlayerSkill.AUTHORITY: [
+            ('social.assertion', lambda npc, margin: npc.social.assertion * (1 - margin * 0.5))
+        ],
+        PlayerSkill.MANIPULATION: [
+            ('cognitive.self_esteem', lambda npc, margin: npc.cognitive.self_esteem * (1 - margin * 0.5))
+        ],
+        PlayerSkill.DIPLOMACY: [
+            ('cognitive.cog_flexibility', lambda npc, margin: min(1.0, npc.cognitive.cog_flexibility * (1 + margin * 0.5)))
+        ],
+        PlayerSkill.EMPATHY: [
+            ('social.empathy', lambda npc, margin: min(1.0, npc.social.empathy * (1 + margin * 0.5)))
+        ]
+    }
+
+    @staticmethod
+    def calc_threshold(npc, skill: PlayerSkill) -> float:
+        if skill == PlayerSkill.AUTHORITY:
+            return 0.3 + (npc.social.assertion * 0.4)
+        elif skill == PlayerSkill.MANIPULATION:
+            return 0.2 + (npc.cognitive.self_esteem * 0.5)
+        elif skill == PlayerSkill.EMPATHY:
+            return 0.4 - (npc.social.empathy * 0.2)
+        elif skill == PlayerSkill.DIPLOMACY:
+            return 0.3 - (npc.cognitive.cog_flexibility * 0.3)
+        return 0.5
+
+    @staticmethod
+    def perform_check(
+        player_input: PlayerDialogueInput,
+        player_skills: PlayerSkillSet,
+        npc
+    ) -> Optional[SkillCheckResult]:
+        skill = SkillCheckSystem.LANGUAGE_ART_TO_SKILL.get(player_input.language_art)
+        if skill is None:
             return None
-        return max(self.ideology, key=self.ideology.get)
-    
-    def to_dict(self) -> Dict[str, Any]:
-        data = asdict(self)
-        data['social_position'] = self.social_position.value
-        return data
-    
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'SocialPersonalityModel':
-        if 'social_position' in data:
-            data['social_position'] = SocialPosition(data['social_position'])
-        return cls(**data)
+        
+        player_val = player_skills.get_skill(skill)
+        threshold = SkillCheckSystem.calc_threshold(npc, skill)
+        roll = random.uniform(-0.1, 0.1)
+        eff_val = (player_val / 10.0) + roll
+        success = eff_val >= threshold
+        margin = eff_val - threshold
+
+        return SkillCheckResult(
+            success=success,
+            skill_used=skill,
+            player_val=player_val,
+            threshold=threshold,
+            margin=margin
+        )
+
+    @staticmethod
+    def apply_modifiers(npc, check_result: SkillCheckResult):
+        if not check_result.success:
+            return
+        
+        modifiers = SkillCheckSystem.SKILL_MODIFIERS.get(check_result.skill_used, [])
+        for attr_path, mod_func in modifiers:
+            new_value = mod_func(npc, abs(check_result.margin))
+            npc.apply_temp_mod(attr_path, new_value)
 
 
 # ============================================================================
-# WORLD PERCEPTION MODEL
+# COGNITIVE INTERPRETATION (Stage III)
 # ============================================================================
 
 @dataclass
-class WorldPerceptionModel:
-    """Stores NPC's knowledge and relationship with player"""
-    world_history: str = ""
-    personal_history: str = ""
-    player_history: str = ""
-    player_relation: float = 0.5  # 0=contempt, 0.5=neutral, 1=friendship
-    
-    def __post_init__(self):
-        if not 0 <= self.player_relation <= 1:
-            raise ValueError(f"player_relation must be between 0 and 1, got {self.player_relation}")
-    
-    def update_relation(self, delta: float):
-        """Adjust relation value, clamped to 0-1"""
-        self.player_relation = max(0.0, min(1.0, self.player_relation + delta))
-    
-    def update_personal_history(self, event: str):
-        """Append to personal history"""
-        separator = "\n- " if self.personal_history else "- "
-        self.personal_history += separator + event
-    
-    def update_player_history(self, event: str):
-        """Append to player history"""
-        separator = "\n- " if self.player_history else "- "
-        self.player_history += separator + event
+class ThoughtReaction:
+    """NPC's internal subjective thought (not spoken)"""
+    internal_thought: str  # What NPC thinks privately
+    cognitive_state: Dict[str, float]  # Updated cognitive attributes
+    emotional_valence: float  # -1 (negative) to 1 (positive)
     
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        return {
+            'internal_thought': self.internal_thought,
+            'cognitive_state': self.cognitive_state,
+            'emotional_valence': self.emotional_valence
+        }
+
+
+class CognitiveInterpreter:
+    """Processes input through NPC's cognitive model"""
     
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'WorldPerceptionModel':
-        return cls(
-            world_history=data.get('world_history', ""),
-            personal_history=data.get('personal_history', ""),
-            player_history=data.get('player_history', ""),
-            player_relation=data.get('player_relation', 0.5)
+    def __init__(self, base_url: str = "http://localhost:11434", model: str = "qwen2.5:3b"):
+        """Initialize cognitive interpreter with LLM connection"""
+        self.base_url = base_url
+        self.model = model
+        self.api_url = f"{base_url}/api/generate"
+    
+    def interpret(self, player_input: PlayerDialogueInput, npc) -> ThoughtReaction:
+        """
+        Generate subjective thought using LLM based on cognitive distortions
+        """
+        # Generate internal thought via LLM
+        internal_thought = self._generate_subjective_thought(player_input, npc)
+        
+        # Calculate emotional valence from tone analysis
+        emotional_valence = self._calculate_emotional_valence(player_input, npc)
+        
+        cognitive_state = {
+            'self_esteem': npc.cognitive.self_esteem,
+            'locus_of_control': npc.cognitive.locus_of_control,
+            'cog_flexibility': npc.cognitive.cog_flexibility
+        }
+        
+        return ThoughtReaction(
+            internal_thought=internal_thought,
+            cognitive_state=cognitive_state,
+            emotional_valence=emotional_valence
+        )
+    
+    def _generate_subjective_thought(self, player_input: PlayerDialogueInput, npc) -> str:
+        """Generate NPC's private interpretation of player's words using LLM"""
+        
+        prompt = self._build_thought_prompt(player_input, npc)
+        
+        try:
+            response = requests.post(
+                self.api_url,
+                json={
+                    "model": self.model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.8,
+                        "top_p": 0.9,
+                        "num_predict": 30  # Keep thoughts brief
+                    }
+                },
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                thought = result.get("response", "").strip()
+                # Truncate to 75 chars max
+                if len(thought) > 75:
+                    thought = thought[:72] + "..."
+                return thought if thought else "I need to think about this..."
+            else:
+                return "I need to process what they said..."
+        
+        except Exception as e:
+            print(f"[Cognitive Interpreter Error: {str(e)}]")
+            return "What are they really saying...?"
+    
+    def _build_thought_prompt(self, player_input: PlayerDialogueInput, npc) -> str:
+        """Build prompt for generating subjective thought"""
+        
+        prompt_parts = []
+        prompt_parts.append("Generate ONLY the NPC's private internal thought (max 75 characters). This is what they THINK, not what they SAY.MAKE IT FIRST PERSON, FOCAL ON THEIR IMMEDIATE EMOTIONAL REACTION.\n")
+        
+        prompt_parts.append(f"NPC Cognitive State:")
+        prompt_parts.append(f"- Self-Esteem: {npc.cognitive.self_esteem:.2f} (low=insecure, high=confident)")
+        prompt_parts.append(f"- Locus of Control: {npc.cognitive.locus_of_control:.2f} (low=blames others, high=self-responsible)")
+        prompt_parts.append(f"- Cognitive Flexibility: {npc.cognitive.cog_flexibility:.2f} (low=rigid, high=open-minded)")
+        
+        prompt_parts.append(f"\nPlayer said: \"{player_input.choice_text}\"")
+        prompt_parts.append(f"Rhetoric style: {player_input.language_art.value}")
+        
+        # Cognitive distortion hints
+        if npc.cognitive.self_esteem < 0.4:
+            prompt_parts.append("\nNPC has LOW self-esteem: likely to interpret negatively, feel threatened or inadequate")
+        if npc.cognitive.locus_of_control < 0.5:
+            prompt_parts.append("NPC has EXTERNAL locus: likely to blame others, see player as controlling")
+        if npc.cognitive.cog_flexibility < 0.4:
+            prompt_parts.append("NPC is RIGID: likely to resist change, see challenge as attack")
+        
+        prompt_parts.append("\nGenerate NPC's private thought (under 75 chars):")
+        
+        return "\n".join(prompt_parts)
+    
+    def _calculate_emotional_valence(self, player_input: PlayerDialogueInput, npc) -> float:
+        """Calculate emotional reaction based on cognitive state and input tones"""
+        valence = 0.0
+        
+        # Low self-esteem reacts negatively to authority/manipulation
+        if npc.cognitive.self_esteem < 0.4:
+            valence -= (player_input.authority_tone * 0.3)
+            valence -= (player_input.manipulation_tone * 0.5)
+        
+        # External locus attributes hostility to others
+        if npc.cognitive.locus_of_control < 0.5:
+            valence -= (player_input.authority_tone * 0.4)
+        
+        # High flexibility responds positively to diplomacy
+        if npc.cognitive.cog_flexibility > 0.6:
+            valence += (player_input.diplomacy_tone * 0.4)
+            valence += (player_input.empathy_tone * 0.3)
+        
+        # Rigid thinking resists persuasion
+        if npc.cognitive.cog_flexibility < 0.4:
+            valence -= (player_input.diplomacy_tone * 0.2)
+        
+        return max(-1.0, min(1.0, valence))
+
+
+# ============================================================================
+# SOCIALISATION FILTER (Stage IV - Behavioural Intention)
+# ============================================================================
+
+@dataclass
+class BehaviouralIntention:
+    """NPC's intended response behavior (not yet dialogue)"""
+    intention_type: str  # "Challenge Back", "De-escalate", "Seek Compromise", etc.
+    confrontation_level: float  # 0-1 scale
+    emotional_expression: str  # "suppressed", "direct", "explosive"
+    wildcard_triggered: bool = False
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'intention_type': self.intention_type,
+            'confrontation_level': self.confrontation_level,
+            'emotional_expression': self.emotional_expression,
+            'wildcard_triggered': self.wildcard_triggered
+        }
+
+
+class SocialisationFilter:
+    """Converts internal thought into socially viable behaviour"""
+    
+    @staticmethod
+    def filter(
+        thought_reaction: ThoughtReaction,
+        player_input: PlayerDialogueInput,
+        npc
+    ) -> BehaviouralIntention:
+        """
+        Determine how NPC will behaviourally respond
+        """
+        confrontation_level = 0.5
+        intention_type = "neutral"
+        emotional_expression = "direct"
+        wildcard_triggered = False
+        
+        # High assertion + challenging input = challenge back
+        if npc.social.assertion > 0.7:
+            if player_input.authority_tone > 0.6:
+                confrontation_level = 0.8
+                intention_type = "Challenge Back"
+        
+        # High empathy + empathetic input = connect
+        if npc.social.empathy > 0.6:
+            if player_input.empathy_tone > 0.6:
+                confrontation_level = 0.2
+                intention_type = "Seek Connection"
+        
+        # Low conformity (high independence) = more unpredictable
+        if npc.social.conf_indep > 0.7:
+            confrontation_level += 0.2
+        
+        # Wildcard triggers
+        if npc.social.wildcard:
+            if npc.social.wildcard == "Martyr" and thought_reaction.emotional_valence < -0.3:
+                wildcard_triggered = True
+                intention_type = "Martyr Defense"
+                emotional_expression = "explosive"
+            elif npc.social.wildcard == "Napoleon" and player_input.authority_tone > 0.5:
+                wildcard_triggered = True
+                intention_type = "Assert Dominance"
+                confrontation_level = 0.9
+            elif npc.social.wildcard == "Inferiority" and player_input.authority_tone > 0.5:
+                wildcard_triggered = True
+                intention_type = "Submit"
+                confrontation_level = 0.1
+                emotional_expression = "suppressed"
+        
+        # Faction pressure
+        if npc.social.faction and npc.social.social_position.value == "Boss":
+            confrontation_level += 0.1  # Leaders more assertive
+        
+        return BehaviouralIntention(
+            intention_type=intention_type,
+            confrontation_level=min(1.0, confrontation_level),
+            emotional_expression=emotional_expression,
+            wildcard_triggered=wildcard_triggered
         )
 
 
 # ============================================================================
-# OUTCOME SYSTEM
+# INTERACTION OUTCOME (Stage V - Micro Outcomes)
 # ============================================================================
 
 @dataclass
-class Outcome:
+class InteractionOutcome:
     """
-    Represents a single possible outcome from a dialogue choice or action
+    Micro-outcome: immediate conversational effect
+    NOT terminal - just shifts NPC state
     """
-    id: str  # Identifier like "door_interaction", "npc_encouragement"
-    outcome_type: OutcomeType  # SUCCESS, FAILURE, NEUTRAL, etc.
-    min_response: str  # Worst-case or hostile reaction
-    max_response: str  # Best-case or cooperative reaction
-    scripted: bool = False  # If true, only use min or max with no interpolation
+    outcome_id: str
+    stance_delta: Dict[str, float]  # Adjusts NPC attributes
+    relation_delta: float  # Change to player_relation
+    intention_shift: Optional[str]  # New NPC intention
+    min_response: str  # Negative reaction variant
+    max_response: str  # Positive reaction variant
+    scripted: bool = False  # If true, no interpolation
     
-    # Optional: Relation change triggered by this outcome
-    relation_delta: Optional[float] = None
-    
-    # Optional: Attribute modifiers applied when this outcome triggers
-    attribute_modifiers: Dict[str, float] = field(default_factory=dict)
-    
-    def __post_init__(self):
-        if isinstance(self.outcome_type, str):
-            self.outcome_type = OutcomeType(self.outcome_type)
-    
-    def get_interpolated_response(self, npc_model: 'NPCModel') -> str:
+    def get_response(self, emotional_valence: float) -> str:
         """
-        Generate a response based on NPC's psychological state
-        If scripted=True, returns min or max based on relation
-        If scripted=False, interpolates between min and max
+        Interpolate between min/max based on emotional valence
         """
         if self.scripted:
-            # Use relation to pick min or max
-            return self.max_response if npc_model.world.player_relation > 0.5 else self.min_response
+            return self.max_response if emotional_valence > 0 else self.min_response
         
-        # Calculate interpolation factor based on NPC psychology
-        factor = self._calculate_response_factor(npc_model)
-        
-        # For now, return weighted choice (in production, this could blend text)
-        return self.max_response if factor > 0.5 else self.min_response
-    
-    def _calculate_response_factor(self, npc_model: 'NPCModel') -> float:
-        """
-        Calculate 0-1 factor for response interpolation based on NPC state
-        Higher values favor max_response, lower values favor min_response
-        """
-        # Weight factors
-        relation_weight = 0.4
-        empathy_weight = 0.2
-        assertion_weight = 0.2
-        flexibility_weight = 0.2
-        
-        # Calculate weighted average
-        factor = (
-            npc_model.world.player_relation * relation_weight +
-            npc_model.social.empathy * empathy_weight +
-            (1.0 - npc_model.social.assertion) * assertion_weight +
-            npc_model.cognitive.cog_flexibility * flexibility_weight
-        )
-        
-        return max(0.0, min(1.0, factor))
-    
-    def apply_effects(self, npc_model: 'NPCModel'):
-        """Apply relation changes and attribute modifiers to NPC"""
-        if self.relation_delta is not None:
-            npc_model.world.update_relation(self.relation_delta)
-        
-        for attr_path, value in self.attribute_modifiers.items():
-            npc_model.apply_temp_mod(attr_path, value)
+        # Simple interpolation (can be enhanced)
+        if emotional_valence > 0.3:
+            return self.max_response
+        elif emotional_valence < -0.3:
+            return self.min_response
+        else:
+            return f"{self.min_response} But... {self.max_response}"
     
     def to_dict(self) -> Dict[str, Any]:
-        data = asdict(self)
-        data['outcome_type'] = self.outcome_type.value
-        return data
-    
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Outcome':
-        if 'outcome_type' in data:
-            data['outcome_type'] = OutcomeType(data['outcome_type'])
-        return cls(**data)
+        return {
+            'outcome_id': self.outcome_id,
+            'stance_delta': self.stance_delta,
+            'relation_delta': self.relation_delta,
+            'intention_shift': self.intention_shift,
+            'min_response': self.min_response,
+            'max_response': self.max_response,
+            'scripted': self.scripted
+        }
 
+
+# ============================================================================
+# TERMINAL OUTCOME (Stage VI - End State)
+# ============================================================================
+
+@dataclass
+class TerminalOutcome:
+    """
+    Terminal outcome: final result of conversation
+    """
+    terminal_id: TerminalOutcomeType
+    condition: Callable  # Function that evaluates if this outcome triggers
+    result: str  # What actually happens in game world
+    final_dialogue: str  # NPC's closing line
+    
+    def evaluate(self, npc, conversation: ConversationModel) -> bool:
+        """Check if this terminal outcome should trigger"""
+        return self.condition(npc, conversation)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'terminal_id': self.terminal_id.value,
+            'result': self.result,
+            'final_dialogue': self.final_dialogue
+        }
+
+
+# ============================================================================
+# OUTCOME INDEX
+# ============================================================================
 
 @dataclass
 class OutcomeIndex:
     """
-    Maps a dialogue choice or action to its possible outcomes
+    Maps dialogue choices to possible outcomes
     """
-    choice_id: str  # Identifier for the choice triggering these outcomes
-    outcomes: List[Outcome] = field(default_factory=list)
+    choice_id: str
+    interaction_outcomes: List[InteractionOutcome]
+    terminal_outcomes: List[TerminalOutcome]
     
-    # Optional: Conditions that must be met for this choice to be available
-    requires_relation_min: Optional[float] = None
-    requires_faction: Optional[str] = None
-    
-    def add_outcome(self, outcome: Outcome):
-        """Add an outcome to this choice"""
-        self.outcomes.append(outcome)
-    
-    def get_outcome_by_type(self, outcome_type: OutcomeType) -> Optional[Outcome]:
-        """Retrieve a specific outcome by type"""
-        for outcome in self.outcomes:
-            if outcome.outcome_type == outcome_type:
+    def get_interaction_outcome(self, behavioural_intention: BehaviouralIntention) -> InteractionOutcome:
+        """
+        Select appropriate interaction outcome based on NPC's behavioural intention
+        """
+        # Match intention type to outcome
+        for outcome in self.interaction_outcomes:
+            if behavioural_intention.intention_type.lower() in outcome.outcome_id.lower():
                 return outcome
+        
+        # Default to first outcome
+        return self.interaction_outcomes[0] if self.interaction_outcomes else None
+    
+    def check_terminal_outcomes(self, npc, conversation: ConversationModel) -> Optional[TerminalOutcome]:
+        """
+        Check if any terminal outcome condition is met
+        """
+        for terminal in self.terminal_outcomes:
+            if terminal.evaluate(npc, conversation):
+                return terminal
         return None
-    
-    def is_available(self, npc_model: 'NPCModel') -> bool:
-        """Check if this choice is available based on NPC state"""
-        if self.requires_relation_min is not None:
-            if npc_model.world.player_relation < self.requires_relation_min:
-                return False
-        
-        if self.requires_faction is not None:
-            if npc_model.social.faction != self.requires_faction:
-                return False
-        
-        return True
-    
-    def execute_outcome(self, outcome_type: OutcomeType, npc_model: 'NPCModel') -> Optional[str]:
-        """
-        Execute a specific outcome and return the response text
-        Returns None if outcome type doesn't exist
-        """
-        outcome = self.get_outcome_by_type(outcome_type)
-        if not outcome:
-            return None
-        
-        response = outcome.get_interpolated_response(npc_model)
-        outcome.apply_effects(npc_model)
-        
-        return response
-    
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            'choice_id': self.choice_id,
-            'outcomes': [o.to_dict() for o in self.outcomes],
-            'requires_relation_min': self.requires_relation_min,
-            'requires_faction': self.requires_faction
-        }
-    
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'OutcomeIndex':
-        outcomes = [Outcome.from_dict(o) for o in data.get('outcomes', [])]
-        return cls(
-            choice_id=data['choice_id'],
-            outcomes=outcomes,
-            requires_relation_min=data.get('requires_relation_min'),
-            requires_faction=data.get('requires_faction')
-        )
 
 
 # ============================================================================
-# COMPLETE NPC MODEL
+# OLLAMA INTEGRATION (Preserved)
 # ============================================================================
 
-@dataclass
-class NPCModel:
-    """Complete NPC personality and state"""
-    name: str
-    age: int
-    cognitive: CognitiveModel
-    social: SocialPersonalityModel
-    world: WorldPerceptionModel
+class OllamaResponseGenerator:
+    """Generates NPC dialogue responses using Ollama"""
     
-    # Temporary modifiers (reset after conversation)
-    _temp_modifiers: Dict[str, float] = field(default_factory=dict, repr=False)
+    def __init__(self, base_url: str = "http://localhost:11434", model: str = "qwen2.5:3b"):
+        self.base_url = base_url
+        self.model = model
+        self.api_url = f"{base_url}/api/generate"
     
-    def get_attribute(self, attr_path: str) -> Any:
-        """
-        Retrieve attribute using dot notation
-        Example: 'cognitive.self_esteem' or 'social.assertion'
-        """
-        parts = attr_path.split('.')
-        obj = self
-        for part in parts:
-            obj = getattr(obj, part)
-        return obj
-    
-    def apply_temp_mod(self, attr_path: str, modifier: float):
-        """Apply temporary modifier to an attribute (conversation-scoped)"""
-        original = self.get_attribute(attr_path)
-        if attr_path not in self._temp_modifiers:
-            self._temp_modifiers[attr_path] = original
+    def generate_response(
+        self,
+        npc,
+        thought_reaction: ThoughtReaction,
+        behavioural_intention: BehaviouralIntention,
+        interaction_outcome: InteractionOutcome,
+        conversation_history: List[str] = None
+    ) -> str:
+        """Generate NPC response using Ollama with full pipeline context"""
         
-        # Apply modifier
-        parts = attr_path.split('.')
-        obj = self
-        for part in parts[:-1]:
-            obj = getattr(obj, part)
-        
-        final_attr = parts[-1]
-        new_value = max(0.0, min(1.0, modifier))  # Clamp to 0-1
-        setattr(obj, final_attr, new_value)
-    
-    def reset_temp_mods(self):
-        """Reset all temporary modifiers after conversation"""
-        for attr_path, original_value in self._temp_modifiers.items():
-            parts = attr_path.split('.')
-            obj = self
-            for part in parts[:-1]:
-                obj = getattr(obj, part)
-            setattr(obj, parts[-1], original_value)
-        self._temp_modifiers.clear()
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Serialize to dictionary"""
-        return {
-            'name': self.name,
-            'age': self.age,
-            'cognitive': self.cognitive.to_dict(),
-            'social': self.social.to_dict(),
-            'world': self.world.to_dict()
-        }
-    
-    def to_json(self, filepath: Optional[str] = None) -> str:
-        """Serialize to JSON string or file"""
-        data = self.to_dict()
-        json_str = json.dumps(data, indent=2)
-        
-        if filepath:
-            with open(filepath, 'w') as f:
-                f.write(json_str)
-        
-        return json_str
-    
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'NPCModel':
-        """Deserialize from dictionary"""
-        return cls(
-            name=data['name'],
-            age=data.get('age', 30),
-            cognitive=CognitiveModel.from_dict(data['cognitive']),
-            social=SocialPersonalityModel.from_dict(data['social']),
-            world=WorldPerceptionModel.from_dict(data['world'])
+        prompt = self._build_prompt(
+            npc, thought_reaction, behavioural_intention, 
+            interaction_outcome, conversation_history
         )
-    
-    @classmethod
-    def from_json(cls, json_source: str) -> 'NPCModel':
-        """
-        Deserialize from JSON string or file path
-        Automatically detects if input is filepath or JSON string
-        """
+        
         try:
-            with open(json_source, 'r') as f:
-                data = json.load(f)
-        except (FileNotFoundError, OSError):
-            data = json.loads(json_source)
+            print(f"  → Connecting to Ollama at {self.base_url}...")
+            response = requests.post(
+                self.api_url,
+                json={
+                    "model": self.model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.7,
+                        "top_p": 0.9,
+                        "top_k": 40,
+                        "repeat_penalty": 1.1,
+                        "num_predict": 150
+                    }
+                },
+                timeout=60
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                generated = result.get("response", "").strip()
+                if not generated:
+                    return interaction_outcome.get_response(thought_reaction.emotional_valence)
+                return generated
+            else:
+                return interaction_outcome.get_response(thought_reaction.emotional_valence)
         
-        return cls.from_dict(data)
+        except Exception as e:
+            print(f"[Ollama Error: {str(e)}]")
+            return interaction_outcome.get_response(thought_reaction.emotional_valence)
+    
+    def _build_prompt(
+        self,
+        npc,
+        thought_reaction: ThoughtReaction,
+        behavioural_intention: BehaviouralIntention,
+        interaction_outcome: InteractionOutcome,
+        conversation_history: List[str] = None
+    ) -> str:
+        """Build prompt with pipeline context"""
+        
+        prompt_parts = []
+        prompt_parts.append("You are generating dialogue for an NPC. Respond only as the NPC.\n")
+        
+        prompt_parts.append(f"## NPC: {npc.name}")
+        prompt_parts.append(f"Faction: {npc.social.faction}")
+        prompt_parts.append(f"Dominant Ideology: {npc.social.get_dominant_ideology()}")
+        
+        prompt_parts.append(f"\n## INTERNAL STATE")
+        prompt_parts.append(f"Private Thought: \"{thought_reaction.internal_thought}\"")
+        prompt_parts.append(f"Intended Behavior: {behavioural_intention.intention_type}")
+        prompt_parts.append(f"Confrontation Level: {behavioural_intention.confrontation_level:.2f}")
+        
+        prompt_parts.append(f"\n## RESPONSE GUIDANCE")
+        prompt_parts.append(f"Negative variant: \"{interaction_outcome.min_response}\"")
+        prompt_parts.append(f"Positive variant: \"{interaction_outcome.max_response}\"")
+        prompt_parts.append(f"\nGenerate response as {npc.name} based on the above context:")
+        
+        return "\n".join(prompt_parts)
 
 
 # ============================================================================
-# DIALOGUE MANAGER
+# DIALOGUE PROCESSOR (Refactored Pipeline)
 # ============================================================================
 
-class DialogueManager:
+class DialogueProcessor:
     """
-    Manages dialogue choices and outcomes for NPCs
+    Main processor implementing Purpose-Output Model:
+    Purpose → Input → Cognitive → Social → Interaction → Terminal
     """
-    def __init__(self):
-        self.outcome_indices: Dict[str, OutcomeIndex] = {}
     
-    def register_choice(self, outcome_index: OutcomeIndex):
-        """Register a dialogue choice with its outcomes"""
-        self.outcome_indices[outcome_index.choice_id] = outcome_index
-    
-    def get_available_choices(self, npc_model: NPCModel) -> List[str]:
-        """Get list of choice IDs available for this NPC"""
-        return [
-            choice_id for choice_id, index in self.outcome_indices.items()
-            if index.is_available(npc_model)
-        ]
-    
-    def execute_choice(
+    def __init__(
         self, 
-        choice_id: str, 
-        outcome_type: OutcomeType, 
-        npc_model: NPCModel
-    ) -> Optional[str]:
-        """
-        Execute a dialogue choice with specific outcome type
-        Returns the NPC's response or None if invalid
-        """
-        if choice_id not in self.outcome_indices:
-            return None
+        npc, 
+        player_skills: PlayerSkillSet,
+        npc_intent: NPCIntent,
+        outcome_index: OutcomeIndex,
+        conversation_id: str,
+        use_ollama: bool = True,
+        ollama_url: str = "http://localhost:11434",
+        ollama_model: str = "qwen2.5:3b"
+    ):
+        self.npc = npc
+        self.player_skills = player_skills
+        self.npc_intent = npc_intent
+        self.outcome_index = outcome_index
         
-        outcome_index = self.outcome_indices[choice_id]
-        return outcome_index.execute_outcome(outcome_type, npc_model)
-    
-    def load_from_json(self, filepath: str):
-        """Load dialogue choices from JSON file"""
-        with open(filepath, 'r') as f:
-            data = json.load(f)
+        # Conversation containment
+        self.conversation = ConversationModel(
+            conversation_id=conversation_id,
+            stage="opening",
+            topic=npc_intent.immediate_intention
+        )
         
-        for choice_data in data.get('choices', []):
-            outcome_index = OutcomeIndex.from_dict(choice_data)
-            self.register_choice(outcome_index)
+        # Ollama integration
+        self.use_ollama = use_ollama
+        if use_ollama:
+            self.ollama = OllamaResponseGenerator(ollama_url, ollama_model)
+            self.cognitive_interpreter = CognitiveInterpreter(ollama_url, ollama_model)
+        else:
+            self.ollama = None
+            self.cognitive_interpreter = None
     
-    def save_to_json(self, filepath: str):
-        """Save all dialogue choices to JSON file"""
-        data = {
-            'choices': [idx.to_dict() for idx in self.outcome_indices.values()]
+    def process_dialogue(
+        self, 
+        player_input: PlayerDialogueInput,
+        generate_with_ollama: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Complete pipeline: Purpose → Input → Cognitive → Social → Interaction → Terminal
+        """
+        
+        # Stage I: Purpose (already set in __init__ via npc_intent)
+        
+        # Stage II: Input / Rhetoric Parsing (already done via player_input)
+        
+        # Skill Check (auxiliary)
+        skill_check = SkillCheckSystem.perform_check(
+            player_input, self.player_skills, self.npc
+        )
+        if skill_check and skill_check.success:
+            SkillCheckSystem.apply_modifiers(self.npc, skill_check)
+        
+        # Stage III: Cognitive Interpretation
+        if self.cognitive_interpreter:
+            thought_reaction = self.cognitive_interpreter.interpret(player_input, self.npc)
+        else:
+            # Fallback if Ollama not available
+            thought_reaction = ThoughtReaction(
+                internal_thought="What are they really saying...?",
+                cognitive_state={
+                    'self_esteem': self.npc.cognitive.self_esteem,
+                    'locus_of_control': self.npc.cognitive.locus_of_control,
+                    'cog_flexibility': self.npc.cognitive.cog_flexibility
+                },
+                emotional_valence=0.0
+            )
+        
+        # Stage IV: Socialisation Filter
+        behavioural_intention = SocialisationFilter.filter(
+            thought_reaction, player_input, self.npc
+        )
+        
+        # Stage V: Interaction Outcome
+        interaction_outcome = self.outcome_index.get_interaction_outcome(behavioural_intention)
+        
+        # Apply interaction outcome effects
+        if interaction_outcome:
+            # Apply stance deltas
+            for attr_path, delta in interaction_outcome.stance_delta.items():
+                current = self.npc.get_attribute(attr_path)
+                new_val = max(0.0, min(1.0, current + delta))
+                self.npc.apply_temp_mod(attr_path, new_val)
+            
+            # Apply relation delta
+            self.npc.world.update_relation(interaction_outcome.relation_delta)
+            
+            # Shift intention if needed
+            if interaction_outcome.intention_shift:
+                self.npc_intent.shift_intention(interaction_outcome.intention_shift)
+        
+        # Generate NPC response
+        if generate_with_ollama and self.use_ollama and self.ollama and interaction_outcome:
+            npc_response = self.ollama.generate_response(
+                self.npc,
+                thought_reaction,
+                behavioural_intention,
+                interaction_outcome,
+                self.conversation.history
+            )
+        elif interaction_outcome:
+            npc_response = interaction_outcome.get_response(thought_reaction.emotional_valence)
+        else:
+            npc_response = "..."
+        
+        # Add to conversation history
+        self.conversation.add_exchange(player_input.choice_text, npc_response)
+        
+        # Stage VI: Check Terminal Outcomes
+        terminal_outcome = self.outcome_index.check_terminal_outcomes(self.npc, self.conversation)
+        
+        # Build response context
+        response_context = {
+            'conversation_id': self.conversation.conversation_id,
+            'turn': self.conversation.turn_count,
+            'npc_intent': self.npc_intent.to_dict(),
+            'skill_check': skill_check.to_dict() if skill_check else None,
+            'thought_reaction': thought_reaction.to_dict(),
+            'behavioural_intention': behavioural_intention.to_dict(),
+            'interaction_outcome': interaction_outcome.to_dict() if interaction_outcome else None,
+            'npc_response': npc_response,
+            'terminal_outcome': terminal_outcome.to_dict() if terminal_outcome else None,
+            'conversation_complete': terminal_outcome is not None
         }
         
-        with open(filepath, 'w') as f:
-            json.dumps(data, f, indent=2)
-
-
-# ============================================================================
-# EXAMPLE FACTORIES
-# ============================================================================
-
-class NPCFactory:
-    """Factory for creating predefined NPCs"""
+        return response_context
     
-    @staticmethod
-    def create_morisson_moses() -> NPCModel:
-        """Creates Morisson Moses with documented attributes"""
-        return NPCModel(
-            name="Morisson Moses",
-            age=35,
-            cognitive=CognitiveModel(
-                self_esteem=0.8,
-                locus_of_control=0.475,
-                cog_flexibility=0.3
-            ),
-            social=SocialPersonalityModel(
-                assertion=1.0,
-                conf_indep=0.7,
-                empathy=0.45,
-                ideology={
-                    "Utilitarianism": 0.8,
-                    "Authoritarianism": 0.2
-                },
-                wildcard="Martyr",
-                faction="Insurgency",
-                social_position=SocialPosition.BOSS
-            ),
-            world=WorldPerceptionModel(
-                world_history="Full world history here...",
-                personal_history="Moses' personal journey...",
-                player_history="",
-                player_relation=0.5
-            )
-        )
-
-
-class OutcomeFactory:
-    """Factory for creating example outcome indices"""
-    
-    @staticmethod
-    def create_door_interaction() -> OutcomeIndex:
-        """Example: Player tries to get NPC to open a door"""
-        index = OutcomeIndex(choice_id="ask_open_door")
-        
-        index.add_outcome(Outcome(
-            id="door_success",
-            outcome_type=OutcomeType.SUCCESS,
-            min_response="Fine. I'll open it. But you owe me.",
-            max_response="Of course! Let me get that for you right away.",
-            relation_delta=0.05
-        ))
-        
-        index.add_outcome(Outcome(
-            id="door_refusal",
-            outcome_type=OutcomeType.REFUSAL,
-            min_response="Absolutely not. I don't trust you.",
-            max_response="I'm sorry, I can't do that right now.",
-            relation_delta=-0.05
-        ))
-        
-        return index
-    
-    @staticmethod
-    def create_faction_recruitment() -> OutcomeIndex:
-        """Example: Player tries to recruit NPC to their faction"""
-        index = OutcomeIndex(
-            choice_id="recruit_to_faction",
-            requires_relation_min=0.6
-        )
-        
-        index.add_outcome(Outcome(
-            id="recruit_success",
-            outcome_type=OutcomeType.SUCCESS,
-            min_response="I'll join you, but I have conditions.",
-            max_response="I've been waiting for you to ask. Count me in!",
-            scripted=False,
-            relation_delta=0.15,
-            attribute_modifiers={"social.conf_indep": 0.4}
-        ))
-        
-        index.add_outcome(Outcome(
-            id="recruit_failure",
-            outcome_type=OutcomeType.FAILURE,
-            min_response="You must be joking. I would never betray my people.",
-            max_response="I appreciate the offer, but my loyalty lies elsewhere.",
-            relation_delta=-0.1
-        ))
-        
-        return index
+    def end_conversation(self):
+        """Reset temporary modifiers after conversation ends"""
+        self.npc.reset_temp_mods()
+        self.conversation.history.clear()
 
 
 # ============================================================================
@@ -569,66 +820,92 @@ class OutcomeFactory:
 # ============================================================================
 
 if __name__ == "__main__":
-    print("=== Narrative Engine with Outcome System ===\n")
+    import sys
+    from PNE_Models import NPCFactory
     
     # Create NPC
     moses = NPCFactory.create_morisson_moses()
-    print(f"✓ Created {moses.name}")
-    print(f"  Faction: {moses.social.faction}")
-    print(f"  Initial Relation: {moses.world.player_relation}\n")
     
-    # Create dialogue manager
-    dialogue_mgr = DialogueManager()
-    
-    # Register dialogue choices
-    door_choice = OutcomeFactory.create_door_interaction()
-    recruit_choice = OutcomeFactory.create_faction_recruitment()
-    
-    dialogue_mgr.register_choice(door_choice)
-    dialogue_mgr.register_choice(recruit_choice)
-    
-    print("=== Testing Door Interaction ===\n")
-    
-    # Try door interaction (should work)
-    response = dialogue_mgr.execute_choice(
-        "ask_open_door",
-        OutcomeType.SUCCESS,
-        moses
+    # Define NPC Intent (Purpose Layer)
+    npc_intent = NPCIntent(
+        baseline_belief="The Insurgency must be protected at all costs",
+        long_term_desire="Secure the future of the Insurgency",
+        immediate_intention="Test Player's Loyalty",
+        stakes="Trust and alliance with player"
     )
-    print(f"Player asks Moses to open door...")
-    print(f"Moses: \"{response}\"")
-    print(f"Relation after: {moses.world.player_relation}\n")
     
-    print("=== Testing Recruitment (Insufficient Relation) ===\n")
+    # Define Outcome Index
+    interaction_outcomes = [
+        InteractionOutcome(
+            outcome_id="challenge_back",
+            stance_delta={'social.assertion': 0.1},
+            relation_delta=-0.1,
+            intention_shift="Resist Player",
+            min_response="You think you can intimidate me? Think again.",
+            max_response="I respect your boldness, but I won't be pushed around.",
+            scripted=False
+        ),
+        InteractionOutcome(
+            outcome_id="seek_connection",
+            stance_delta={'social.empathy': 0.1},
+            relation_delta=0.2,
+            intention_shift="Evaluate Player",
+            min_response="I hear what you're saying...",
+            max_response="You make a compelling point. I'm listening.",
+            scripted=False
+        )
+    ]
     
-    # Check available choices (recruitment shouldn't be available yet)
-    available = dialogue_mgr.get_available_choices(moses)
-    print(f"Available choices: {available}")
-    print(f"Note: 'recruit_to_faction' requires relation >= 0.6\n")
+    terminal_outcomes = [
+        TerminalOutcome(
+            terminal_id=TerminalOutcomeType.SUCCEED,
+            condition=lambda npc, conv: npc.world.player_relation > 0.7,
+            result="Moses trusts the player and opens the door",
+            final_dialogue="Alright. You've proven yourself. Come in."
+        ),
+        TerminalOutcome(
+            terminal_id=TerminalOutcomeType.FAIL,
+            condition=lambda npc, conv: npc.world.player_relation < 0.3,
+            result="Moses refuses entry",
+            final_dialogue="I don't trust you. Leave."
+        )
+    ]
     
-    # Improve relation
-    print("=== Improving Relation ===\n")
-    moses.world.update_relation(0.15)
-    print(f"Relation improved to: {moses.world.player_relation}")
-    
-    # Now recruitment should be available
-    available = dialogue_mgr.get_available_choices(moses)
-    print(f"Available choices: {available}\n")
-    
-    print("=== Testing Recruitment (Success) ===\n")
-    response = dialogue_mgr.execute_choice(
-        "recruit_to_faction",
-        OutcomeType.SUCCESS,
-        moses
+    outcome_index = OutcomeIndex(
+        choice_id="test_loyalty",
+        interaction_outcomes=interaction_outcomes,
+        terminal_outcomes=terminal_outcomes
     )
-    print(f"Player: 'Join our cause, Moses.'")
-    print(f"Moses: \"{response}\"")
-    print(f"Relation after: {moses.world.player_relation}")
-    print(f"Independence modified: {moses.social.conf_indep}\n")
     
-    # Reset temporary modifiers
-    moses.reset_temp_mods()
-    print(f"After conversation reset:")
-    print(f"Independence restored: {moses.social.conf_indep}\n")
+    # Create player skills
+    player_skills = PlayerSkillSet(authority=2, manipulation=10, empathy=2, diplomacy=2)
     
-    print("✓ All tests passed!")
+    # Initialize processor
+    processor = DialogueProcessor(
+        npc=moses,
+        player_skills=player_skills,
+        npc_intent=npc_intent,
+        outcome_index=outcome_index,
+        conversation_id="conv_001",
+        use_ollama=True
+    )
+    
+    # Test dialogue
+    print("=" * 70)
+    print("REFACTORED PIPELINE TEST")
+    print("=" * 70)
+    
+    player_choice = PlayerDialogueInput(
+        choice_text="Listen, I'm trying to help. The land is fucked because no one listened.",
+        language_art=LanguageArt.EMPATHETIC,
+        empathy_tone=0.8,
+        manipulation_tone=0.3
+    )
+    
+    context = processor.process_dialogue(player_choice, generate_with_ollama=True)
+    
+    print(f"\n[Turn {context['turn']}]")
+    print(f"Player: {player_choice.choice_text}")
+    print(f"\n[Internal Thought]: {context['thought_reaction']['internal_thought']}")
+    print(f"[Intention]: {context['behavioural_intention']['intention_type']}")
+    print(f"\nMoses: {context['npc_response']}")

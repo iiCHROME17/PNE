@@ -1,0 +1,219 @@
+{
+    "id": "recruitment_scenario",
+    "title": "Faction Recruitment",
+    "description": "Player attempts to recruit an NPC to their faction",
+    "opening": "You find the NPC at their usual spot. This might be your chance to bring them to your side.",
+    
+    "choices": [
+      {
+        "choice_id": "recruit_to_faction",
+        "requires_relation_min": 0.6,
+        "outcomes": [
+          {
+            "id": "recruit_success",
+            "outcome_type": "Success",
+            "min_response": "I'll join you, but I have conditions.",
+            "max_response": "I've been waiting for you to ask. Count me in!",
+            "scripted": false,
+            "relation_delta": 0.15,
+            "attribute_modifiers": {
+              "social.conf_indep": 0.4
+            }
+          },
+          {
+            "id": "recruit_failure",
+            "outcome_type": "Failure",
+            "min_response": "You must be joking. I would never betray my people.",
+            "max_response": "I appreciate the offer, but my loyalty lies elsewhere.",
+            "scripted": false,
+            "relation_delta": -0.1
+          }
+        ]
+      },
+      {
+        "choice_id": "discuss_ideology",
+        "outcomes": [
+          {
+            "id": "ideology_agree",
+            "outcome_type": "Success",
+            "min_response": "I see your point. We might have more in common than I thought.",
+            "max_response": "Exactly! That's precisely what I believe too.",
+            "scripted": false,
+            "relation_delta": 0.12
+          },
+          {
+            "id": "ideology_disagree",
+            "outcome_type": "Failure",
+            "min_response": "We clearly see the world very differently. I don't think this will work.",
+            "max_response": "I respect your view, but I can't agree with that philosophy.",
+            "scripted": false,
+            "relation_delta": -0.08
+          }
+        ]
+      },
+      {
+        "choice_id": "promise_power",
+        "outcomes": [
+          {
+            "id": "power_interested",
+            "outcome_type": "Success",
+            "min_response": "A leadership position? That's... intriguing. Tell me more.",
+            "max_response": "Now you're speaking my language. What's the role?",
+            "scripted": false,
+            "relation_delta": 0.07,
+            "attribute_modifiers": {
+              "cognitive.self_esteem": 0.7
+            }
+          },
+          {
+            "id": "power_offended",
+            "outcome_type": "Refusal",
+            "min_response": "You think you can buy me with promises of power? I'm insulted.",
+            "max_response": "I'm not motivated by personal ambition. Try again.",
+            "scripted": false,
+            "relation_delta": -0.12
+          }
+        ]
+      },
+      {
+        "choice_id": "appeal_greater_good",
+        "outcomes": [
+          {
+            "id": "good_persuaded",
+            "outcome_type": "Helped",
+            "min_response": "You make a compelling argument. The greater good does matter.",
+            "max_response": "You're absolutely right. This is bigger than any of us.",
+            "scripted": false,
+            "relation_delta": 0.1
+          },
+          {
+            "id": "good_skeptical",
+            "outcome_type": "Neutral",
+            "min_response": "The 'greater good' is just rhetoric. Show me real action.",
+            "max_response": "I've heard those words before. They rarely mean what you think.",
+            "scripted": false,
+            "relation_delta": 0.02
+          }
+        ]
+      },
+      {
+        "choice_id": "share_intel",
+        "requires_relation_min": 0.4,
+        "outcomes": [
+          {
+            "id": "intel_valued",
+            "outcome_type": "Success",
+            "min_response": "That information changes things. I'll need to think about this.",
+            "max_response": "I had no idea. Thank you for trusting me with this.",
+            "scripted": false,
+            "relation_delta": 0.15
+          }
+        ]
+      }
+    ],
+    
+    "nodes": [
+      {
+        "id": "start",
+        "npc_dialogue": "What brings you here? We don't usually speak.",
+        "choices": [
+          {
+            "choice_id": "discuss_ideology",
+            "text": "I wanted to talk about our shared beliefs.",
+            "outcome_type": "Success",
+            "next_node": "ideology_discussed"
+          },
+          {
+            "choice_id": "appeal_greater_good",
+            "text": "I need your help for something important - for everyone.",
+            "outcome_type": "Helped",
+            "next_node": "good_discussed"
+          },
+          {
+            "choice_id": "recruit_to_faction",
+            "text": "I want you to join our faction.",
+            "outcome_type": "Success",
+            "next_node": "end"
+          }
+        ]
+      },
+      {
+        "id": "ideology_discussed",
+        "npc_dialogue": "Go on, I'm listening.",
+        "choices": [
+          {
+            "choice_id": "promise_power",
+            "text": "Join us and you'll have real influence.",
+            "outcome_type": "Success",
+            "next_node": "power_discussed"
+          },
+          {
+            "choice_id": "appeal_greater_good",
+            "text": "Together we can make a real difference.",
+            "outcome_type": "Helped",
+            "next_node": "good_discussed"
+          },
+          {
+            "choice_id": "recruit_to_faction",
+            "text": "So, will you join us?",
+            "outcome_type": "Success",
+            "next_node": "end"
+          }
+        ]
+      },
+      {
+        "id": "power_discussed",
+        "npc_dialogue": "You're offering me quite a bit. What's the catch?",
+        "choices": [
+          {
+            "choice_id": "share_intel",
+            "text": "Let me tell you what's really going on...",
+            "outcome_type": "Success",
+            "next_node": "intel_shared"
+          },
+          {
+            "choice_id": "recruit_to_faction",
+            "text": "No catch. I need capable people. Are you in?",
+            "outcome_type": "Success",
+            "next_node": "end"
+          }
+        ]
+      },
+      {
+        "id": "good_discussed",
+        "npc_dialogue": "I want to believe you. But I need more than words.",
+        "choices": [
+          {
+            "choice_id": "share_intel",
+            "text": "Here's what I know...",
+            "outcome_type": "Success",
+            "next_node": "intel_shared"
+          },
+          {
+            "choice_id": "promise_power",
+            "text": "You'll have a leadership role in shaping our future.",
+            "outcome_type": "Success",
+            "next_node": "power_discussed"
+          },
+          {
+            "choice_id": "recruit_to_faction",
+            "text": "Trust me. Join us.",
+            "outcome_type": "Failure",
+            "next_node": "end"
+          }
+        ]
+      },
+      {
+        "id": "intel_shared",
+        "npc_dialogue": "That's... significant. You've given me a lot to think about.",
+        "choices": [
+          {
+            "choice_id": "recruit_to_faction",
+            "text": "So, will you join us?",
+            "outcome_type": "Success",
+            "next_node": "end"
+          }
+        ]
+      }
+    ]
+  }

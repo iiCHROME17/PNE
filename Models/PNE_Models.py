@@ -1,5 +1,6 @@
 """
 Psychological Narrative Engine - Core Models
+name: PNE_Models.py
 Author: Jerome Bawa
 
 A modular narrative engine backend for dynamic NPC behavior

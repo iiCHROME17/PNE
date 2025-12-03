@@ -1,0 +1,172 @@
+{
+    "id": "door_scenario",
+    "title": "The Locked Door",
+    "description": "Player encounters an NPC guarding a locked door and must convince them to open it",
+    "opening": "You approach a heavy steel door. A figure stands guard, arms crossed, watching you approach.",
+    
+    "choices": [
+      {
+        "choice_id": "ask_open_door",
+        "outcomes": [
+          {
+            "id": "door_success",
+            "outcome_type": "Success",
+            "min_response": "Fine. I'll open it. But you owe me.",
+            "max_response": "Of course! Let me get that for you right away.",
+            "scripted": false,
+            "relation_delta": 0.05
+          },
+          {
+            "id": "door_refusal",
+            "outcome_type": "Refusal",
+            "min_response": "Absolutely not. I don't trust you.",
+            "max_response": "I'm sorry, I can't do that right now.",
+            "scripted": false,
+            "relation_delta": -0.05
+          }
+        ]
+      },
+      {
+        "choice_id": "threaten_guard",
+        "outcomes": [
+          {
+            "id": "threat_success",
+            "outcome_type": "Success",
+            "min_response": "*steps aside nervously* Alright, alright... just don't hurt me.",
+            "max_response": "I... I suppose I don't have a choice. Go ahead.",
+            "scripted": false,
+            "relation_delta": -0.15,
+            "attribute_modifiers": {
+              "cognitive.self_esteem": 0.3
+            }
+          },
+          {
+            "id": "threat_failure",
+            "outcome_type": "Failure",
+            "min_response": "You dare threaten me? Get out of my sight before I make you regret it!",
+            "max_response": "Threats won't work on me. Leave now.",
+            "scripted": false,
+            "relation_delta": -0.25
+          }
+        ]
+      },
+      {
+        "choice_id": "appeal_empathy",
+        "outcomes": [
+          {
+            "id": "empathy_success",
+            "outcome_type": "Helped",
+            "min_response": "Your situation does sound difficult. I'll make an exception this time.",
+            "max_response": "I understand completely. Let me help you with that.",
+            "scripted": false,
+            "relation_delta": 0.1
+          },
+          {
+            "id": "empathy_failure",
+            "outcome_type": "Failure",
+            "min_response": "Everyone has problems. That doesn't change the rules.",
+            "max_response": "I'm sorry, but I can't help you with that.",
+            "scripted": false,
+            "relation_delta": 0.0
+          }
+        ]
+      },
+      {
+        "choice_id": "offer_trade",
+        "requires_relation_min": 0.3,
+        "outcomes": [
+          {
+            "id": "trade_success",
+            "outcome_type": "Success",
+            "min_response": "That's... acceptable. We have a deal.",
+            "max_response": "That's very generous! I accept your offer.",
+            "scripted": false,
+            "relation_delta": 0.08
+          },
+          {
+            "id": "trade_refusal",
+            "outcome_type": "Refusal",
+            "min_response": "I'm not interested in your bribe.",
+            "max_response": "I appreciate the offer, but I can't accept.",
+            "scripted": false,
+            "relation_delta": -0.05
+          }
+        ]
+      }
+    ],
+    
+    "nodes": [
+      {
+        "id": "start",
+        "npc_dialogue": "This door is restricted. State your business.",
+        "choices": [
+          {
+            "choice_id": "ask_open_door",
+            "text": "I need to get through this door. Can you help me?",
+            "outcome_type": "Success",
+            "next_node": "after_ask"
+          },
+          {
+            "choice_id": "threaten_guard",
+            "text": "Open this door or else.",
+            "outcome_type": "Failure",
+            "next_node": "after_threat"
+          },
+          {
+            "choice_id": "appeal_empathy",
+            "text": "Please, I really need to get through. It's urgent.",
+            "outcome_type": "Helped",
+            "next_node": "after_empathy"
+          }
+        ]
+      },
+      {
+        "id": "after_ask",
+        "npc_dialogue": "Is there anything else you need?",
+        "choices": [
+          {
+            "choice_id": "offer_trade",
+            "text": "I could offer you something in exchange for your help.",
+            "outcome_type": "Success",
+            "next_node": "end"
+          },
+          {
+            "choice_id": "ask_open_door",
+            "text": "Actually, I need another favor...",
+            "outcome_type": "Refusal",
+            "next_node": "end"
+          }
+        ]
+      },
+      {
+        "id": "after_threat",
+        "npc_dialogue": "You should think carefully about your next move.",
+        "choices": [
+          {
+            "choice_id": "appeal_empathy",
+            "text": "Wait, I'm sorry. I didn't mean to be hostile.",
+            "outcome_type": "Helped",
+            "next_node": "end"
+          },
+          {
+            "choice_id": "threaten_guard",
+            "text": "I'm not backing down.",
+            "outcome_type": "Failure",
+            "next_node": "end"
+          }
+        ]
+      },
+      {
+        "id": "after_empathy",
+        "npc_dialogue": "I've done what I can for you.",
+        "choices": [
+          {
+            "choice_id": "offer_trade",
+            "text": "Thank you. Here, take this as a token of appreciation.",
+            "outcome_type": "Success",
+            "next_node": "end"
+          }
+        ]
+      }
+    ]
+  }
