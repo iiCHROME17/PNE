@@ -3,6 +3,8 @@ Conversation Simulator for Psychological Narrative Engine
 name: ConversationSimulator.py
 Author: Jerome Bawa
 
+OLD PROTOTYPE! COMPLETELY DEPRECATED. EXEMPLAR FOR narrative_engine.py
+
 Simulates dialogue interactions between player and NPCs using JSON-defined scenarios
 """
 
