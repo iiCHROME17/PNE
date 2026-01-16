@@ -11,7 +11,50 @@ from dataclasses import dataclass, field, asdict
 from typing import Dict, List, Optional, Any
 from enum import Enum
 import json
+import os
 
+# Wildcard configuration index.
+# Primary source: external JSON file under /home/jerome/Programs/cs3ip/Config/wildcards.json
+# Falls back to the in-code defaults below if loading fails.
+_DEFAULT_WILDCARD_OLLAMA_CONFIG: Dict[str, Dict[str, Any]] = {
+    "Martyr": {
+        "temp_offset": 0.1,
+        "repeat_penalty": 1.15,
+        "num_predict": 150,
+    },
+    "Berserker": {
+        "temperature": 1.2,
+        "top_p": 0.95,
+        "top_k": 100,
+        "stop": ["."],
+    },
+    "Logician": {
+        "temperature": 0.1,
+        "top_p": 0.1,
+        "repeat_penalty": 1.0,
+    },
+}
+
+def _load_wildcard_config_from_json() -> Dict[str, Dict[str, Any]]:
+    """
+    Attempt to load wildcard → Ollama-config mapping from JSON.
+    If anything goes wrong, return the in-code default mapping.
+    """
+    # Adjust this path if you move the JSON later.
+    config_path = "/home/jerome/Programs/cs3ip/Config/wildcards.json"
+    try:
+        if not os.path.exists(config_path):
+            return _DEFAULT_WILDCARD_OLLAMA_CONFIG
+        with open(config_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        # Ensure it's a dict of dicts; otherwise fall back.
+        if isinstance(data, dict):
+            return data
+    except Exception:
+        pass
+    return _DEFAULT_WILDCARD_OLLAMA_CONFIG
+
+WILDCARD_OLLAMA_CONFIG: Dict[str, Dict[str, Any]] = _load_wildcard_config_from_json()
 
 # ============================================================================
 # ENUMS & CONSTANTS
@@ -98,6 +141,18 @@ class SocialPersonalityModel:
         if not self.ideology:
             return None
         return max(self.ideology, key=self.ideology.get)
+    
+    def get_wildcard_config(self) -> Dict[str, Any]:
+        """
+        Look up this NPC's wildcard in the global wildcard→Ollama-config index.
+
+        Returns a (possibly empty) dict which may contain:
+        - absolute overrides: temperature, top_p, top_k, repeat_penalty, num_predict, stop
+        - relative modifiers: temp_offset (float added to base temperature)
+        """
+        if not self.wildcard:
+            return {}
+        return WILDCARD_OLLAMA_CONFIG.get(self.wildcard, {})
     
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)

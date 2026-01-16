@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 # Import from pipeline and models
-from pipeline import (
+from pne import (
     DialogueProcessor, NPCIntent, OutcomeIndex, InteractionOutcome,
     TerminalOutcome, TerminalOutcomeType, PlayerDialogueInput,
     PlayerSkillSet, LanguageArt, ConversationModel
