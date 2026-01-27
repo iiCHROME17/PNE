@@ -5,7 +5,7 @@ Author: Jerome Bawa
 """
 
 from dataclasses import dataclass
-from typing import Dict, Any
+from typing import Dict, Any, Tuple
 import requests
 from .player_input import PlayerDialogueInput
 
@@ -13,13 +13,15 @@ from .player_input import PlayerDialogueInput
 @dataclass
 class ThoughtReaction:
     """NPC's internal subjective thought (not spoken)"""
-    internal_thought: str  # What NPC thinks privately
+    internal_thought: str  # First-person emotional reaction
+    subjective_belief: str  # What NPC interprets is happening
     cognitive_state: Dict[str, float]  # Updated cognitive attributes
     emotional_valence: float  # -1 (negative) to 1 (positive)
     
     def to_dict(self) -> Dict[str, Any]:
         return {
             'internal_thought': self.internal_thought,
+            'subjective_belief': self.subjective_belief,
             'cognitive_state': self.cognitive_state,
             'emotional_valence': self.emotional_valence
         }
@@ -36,10 +38,10 @@ class CognitiveInterpreter:
     
     def interpret(self, player_input: PlayerDialogueInput, npc) -> ThoughtReaction:
         """
-        Generate subjective thought using LLM based on cognitive distortions
+        Generate subjective thought and belief using LLM based on cognitive distortions
         """
-        # Generate internal thought via LLM
-        internal_thought = self._generate_subjective_thought(player_input, npc)
+        # Generate internal thought + belief via LLM
+        internal_thought, subjective_belief = self._generate_subjective_thought(player_input, npc)
         
         # Calculate emotional valence from tone analysis
         emotional_valence = self._calculate_emotional_valence(player_input, npc)
@@ -52,12 +54,16 @@ class CognitiveInterpreter:
         
         return ThoughtReaction(
             internal_thought=internal_thought,
+            subjective_belief=subjective_belief,
             cognitive_state=cognitive_state,
             emotional_valence=emotional_valence
         )
     
-    def _generate_subjective_thought(self, player_input: PlayerDialogueInput, npc) -> str:
-        """Generate NPC's private interpretation of player's words using LLM"""
+    def _generate_subjective_thought(self, player_input: PlayerDialogueInput, npc) -> Tuple[str, str]:
+        """
+        Generate NPC's private interpretation of player's words using LLM
+        Returns: (internal_thought, subjective_belief)
+        """
         
         prompt = self._build_thought_prompt(player_input, npc)
         
@@ -71,7 +77,7 @@ class CognitiveInterpreter:
                     "options": {
                         "temperature": 0.8,
                         "top_p": 0.9,
-                        "num_predict": 30  # Keep thoughts brief
+                        "num_predict": 80  # Increased for two outputs
                     }
                 },
                 timeout=30
@@ -79,41 +85,68 @@ class CognitiveInterpreter:
             
             if response.status_code == 200:
                 result = response.json()
-                thought = result.get("response", "").strip()
-                # Truncate to 75 chars max
-                if len(thought) > 75:
-                    thought = thought[:72] + "..."
-                return thought if thought else "I need to think about this..."
+                raw_response = result.get("response", "").strip()
+                
+                # Parse structured output
+                thought = "What are they really saying...?"
+                belief = "Their intentions are unclear"
+                
+                if "THOUGHT:" in raw_response and "BELIEF:" in raw_response:
+                    lines = raw_response.split("\n")
+                    for line in lines:
+                        if line.startswith("THOUGHT:"):
+                            thought = line.replace("THOUGHT:", "").strip()
+                            if len(thought) > 75:
+                                thought = thought[:72] + "..."
+                        elif line.startswith("BELIEF:"):
+                            belief = line.replace("BELIEF:", "").strip()
+                            if len(belief) > 100:
+                                belief = belief[:97] + "..."
+                
+                return thought, belief
             else:
-                return "I need to process what they said..."
+                return "I need to process what they said...", "Their intentions are unclear"
         
         except Exception as e:
             print(f"[Cognitive Interpreter Error: {str(e)}]")
-            return "What are they really saying...?"
+            return "What are they really saying...?", "Their intentions are unclear"
     
     def _build_thought_prompt(self, player_input: PlayerDialogueInput, npc) -> str:
-        """Build prompt for generating subjective thought"""
+        """Build prompt for generating subjective thought + belief"""
         
-        prompt_parts = []
-        prompt_parts.append("Generate ONLY the NPC's private internal thought (max 75 characters). This is what they THINK, not what they SAY.MAKE IT FIRST PERSON, FOCAL ON THEIR IMMEDIATE EMOTIONAL REACTION.\n")
-        
-        prompt_parts.append(f"NPC Cognitive State:")
-        prompt_parts.append(f"- Self-Esteem: {npc.cognitive.self_esteem:.2f} (low=insecure, high=confident)")
-        prompt_parts.append(f"- Locus of Control: {npc.cognitive.locus_of_control:.2f} (low=blames others, high=self-responsible)")
-        prompt_parts.append(f"- Cognitive Flexibility: {npc.cognitive.cog_flexibility:.2f} (low=rigid, high=open-minded)")
-        
-        prompt_parts.append(f"\nPlayer said: \"{player_input.choice_text}\"")
-        prompt_parts.append(f"Rhetoric style: {player_input.language_art.value}")
+        prompt_parts = [
+            "Generate NPC's internal reaction in this EXACT format:",
+            "THOUGHT: [First-person emotional reaction, max 75 chars]",
+            "BELIEF: [What NPC interprets is happening, max 100 chars]",
+            "",
+            f"NPC: {npc.name}",
+            f"NPC Cognitive State:",
+            f"- Self-Esteem: {npc.cognitive.self_esteem:.2f} (low=insecure, high=confident)",
+            f"- Locus of Control: {npc.cognitive.locus_of_control:.2f} (low=blames others, high=self-responsible)",
+            f"- Cognitive Flexibility: {npc.cognitive.cog_flexibility:.2f} (low=rigid thinking, high=open-minded)",
+            "",
+            f"Player said: \"{player_input.choice_text}\"",
+            f"Rhetoric style: {player_input.language_art.value}",
+            f"Empathy tone: {player_input.empathy_tone:.2f}",
+            ""
+        ]
         
         # Cognitive distortion hints
         if npc.cognitive.self_esteem < 0.4:
-            prompt_parts.append("\nNPC has LOW self-esteem: likely to interpret negatively, feel threatened or inadequate")
+            prompt_parts.append("⚠ NPC has LOW self-esteem → interprets messages negatively, feels threatened")
         if npc.cognitive.locus_of_control < 0.5:
-            prompt_parts.append("NPC has EXTERNAL locus: likely to blame others, see player as controlling")
+            prompt_parts.append("⚠ NPC has EXTERNAL locus → blames others, sees player as manipulative")
         if npc.cognitive.cog_flexibility < 0.4:
-            prompt_parts.append("NPC is RIGID: likely to resist change, see challenge as attack")
+            prompt_parts.append("⚠ NPC is RIGID → resists new ideas, sees challenges as attacks")
         
-        prompt_parts.append("\nGenerate NPC's private thought (under 75 chars):")
+        prompt_parts.append("\nExamples:")
+        prompt_parts.append("THOUGHT: Pretty words, but can I trust them?")
+        prompt_parts.append("BELIEF: They claim empathy but may be opportunistic")
+        prompt_parts.append("")
+        prompt_parts.append("THOUGHT: They sound genuine... maybe.")
+        prompt_parts.append("BELIEF: They seem sincere but words are cheap")
+        prompt_parts.append("")
+        prompt_parts.append("Now generate for this NPC:")
         
         return "\n".join(prompt_parts)
     

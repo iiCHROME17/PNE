@@ -13,6 +13,7 @@ from .intent import NPCIntent
 from .player_input import PlayerDialogueInput, PlayerSkillSet
 from .skill_check import SkillCheckSystem
 from .cognitive import CognitiveInterpreter, ThoughtReaction
+from .desire import DesireFormation, DesireState
 from .social import SocialisationFilter
 from .outcomes import OutcomeIndex
 from .ollama_integration import OllamaResponseGenerator
@@ -20,8 +21,8 @@ from .ollama_integration import OllamaResponseGenerator
 
 class DialogueProcessor:
     """
-    Main processor implementing Purpose-Output Model:
-    Purpose → Input → Cognitive → Social → Interaction → Terminal
+    Main processor implementing Purpose-Output Model with BDI architecture:
+    Purpose → Input → COGNITIVE (Belief) → DESIRE (Want) → SOCIAL (Intention) → Output
     """
     
     def __init__(
@@ -62,12 +63,17 @@ class DialogueProcessor:
         generate_with_ollama: bool = True
     ) -> Dict[str, Any]:
         """
-        Complete pipeline: Purpose → Input → Cognitive → Social → Interaction → Terminal
+        Complete BDI pipeline:
+        Purpose → Input → COGNITIVE (Belief) → DESIRE (Want) → SOCIAL (Intention) → Interaction → Terminal
         """
         
-        # Stage I: Purpose (already set in __init__ via npc_intent)
+        # ═══════════════════════════════════════════════════════════
+        # STAGE I: Purpose (already set in __init__ via npc_intent)
+        # ═══════════════════════════════════════════════════════════
         
-        # Stage II: Input / Rhetoric Parsing (already done via player_input)
+        # ═══════════════════════════════════════════════════════════
+        # STAGE II: Input / Rhetoric Parsing (already done via player_input)
+        # ═══════════════════════════════════════════════════════════
         
         # Skill Check (auxiliary)
         skill_check = SkillCheckSystem.perform_check(
@@ -76,13 +82,16 @@ class DialogueProcessor:
         if skill_check and skill_check.success:
             SkillCheckSystem.apply_modifiers(self.npc, skill_check)
         
-        # Stage III: Cognitive Interpretation
+        # ═══════════════════════════════════════════════════════════
+        # STAGE III: COGNITIVE INTERPRETATION → BELIEF
+        # ═══════════════════════════════════════════════════════════
         if self.cognitive_interpreter:
             thought_reaction = self.cognitive_interpreter.interpret(player_input, self.npc)
         else:
             # Fallback if Ollama not available
             thought_reaction = ThoughtReaction(
                 internal_thought="What are they really saying...?",
+                subjective_belief="Their intentions are unclear",
                 cognitive_state={
                     'self_esteem': self.npc.cognitive.self_esteem,
                     'locus_of_control': self.npc.cognitive.locus_of_control,
@@ -91,12 +100,29 @@ class DialogueProcessor:
                 emotional_valence=0.0
             )
         
-        # Stage IV: Socialisation Filter
-        behavioural_intention = SocialisationFilter.filter(
-            thought_reaction, player_input, self.npc
+        # ═══════════════════════════════════════════════════════════
+        # STAGE IV: DESIRE FORMATION → WANT
+        # ═══════════════════════════════════════════════════════════
+        desire_state = DesireFormation.form_desire(
+            thought_reaction,
+            player_input,
+            self.npc,
+            self.npc_intent
         )
         
-        # Stage V: Interaction Outcome
+        # ═══════════════════════════════════════════════════════════
+        # STAGE V: SOCIALISATION FILTER → INTENTION
+        # ═══════════════════════════════════════════════════════════
+        behavioural_intention = SocialisationFilter.filter(
+            thought_reaction,
+            desire_state,
+            player_input,
+            self.npc
+        )
+        
+        # ═══════════════════════════════════════════════════════════
+        # STAGE VI: INTERACTION OUTCOME
+        # ═══════════════════════════════════════════════════════════
         interaction_outcome = self.outcome_index.get_interaction_outcome(behavioural_intention)
         
         # Apply interaction outcome effects
@@ -131,7 +157,9 @@ class DialogueProcessor:
         # Add to conversation history
         self.conversation.add_exchange(player_input.choice_text, npc_response)
         
-        # Stage VI: Check Terminal Outcomes
+        # ═══════════════════════════════════════════════════════════
+        # STAGE VII: CHECK TERMINAL OUTCOMES
+        # ═══════════════════════════════════════════════════════════
         terminal_outcome = self.outcome_index.check_terminal_outcomes(self.npc, self.conversation)
         
         # Build response context
@@ -141,6 +169,7 @@ class DialogueProcessor:
             'npc_intent': self.npc_intent.to_dict(),
             'skill_check': skill_check.to_dict() if skill_check else None,
             'thought_reaction': thought_reaction.to_dict(),
+            'desire_state': desire_state.to_dict(),  # NEW
             'behavioural_intention': behavioural_intention.to_dict(),
             'interaction_outcome': interaction_outcome.to_dict() if interaction_outcome else None,
             'npc_response': npc_response,
@@ -154,105 +183,3 @@ class DialogueProcessor:
         """Reset temporary modifiers after conversation ends"""
         self.npc.reset_temp_mods()
         self.conversation.history.clear()
-
-
-# ============================================================================
-# USAGE EXAMPLE
-# ============================================================================
-
-if __name__ == "__main__":
-    import sys
-    sys.path.append('..')  # Allow imports from parent directory
-    
-    from PNE_Models import NPCFactory
-    from .enums import LanguageArt, TerminalOutcomeType
-    from .intent import NPCIntent
-    from .player_input import PlayerDialogueInput, PlayerSkillSet
-    from .outcomes import InteractionOutcome, TerminalOutcome, OutcomeIndex
-    
-    # Create NPC
-    moses = NPCFactory.create_morisson_moses()
-    
-    # Define NPC Intent (Purpose Layer)
-    npc_intent = NPCIntent(
-        baseline_belief="The Insurgency must be protected at all costs",
-        long_term_desire="Secure the future of the Insurgency",
-        immediate_intention="Test Player's Loyalty",
-        stakes="Trust and alliance with player"
-    )
-    
-    # Define Outcome Index
-    interaction_outcomes = [
-        InteractionOutcome(
-            outcome_id="challenge_back",
-            stance_delta={'social.assertion': 0.1},
-            relation_delta=-0.1,
-            intention_shift="Resist Player",
-            min_response="You think you can intimidate me? Think again.",
-            max_response="I respect your boldness, but I won't be pushed around.",
-            scripted=False
-        ),
-        InteractionOutcome(
-            outcome_id="seek_connection",
-            stance_delta={'social.empathy': 0.1},
-            relation_delta=0.2,
-            intention_shift="Evaluate Player",
-            min_response="I hear what you're saying...",
-            max_response="You make a compelling point. I'm listening.",
-            scripted=False
-        )
-    ]
-    
-    terminal_outcomes = [
-        TerminalOutcome(
-            terminal_id=TerminalOutcomeType.SUCCEED,
-            condition=lambda npc, conv: npc.world.player_relation > 0.7,
-            result="Moses trusts the player and opens the door",
-            final_dialogue="Alright. You've proven yourself. Come in."
-        ),
-        TerminalOutcome(
-            terminal_id=TerminalOutcomeType.FAIL,
-            condition=lambda npc, conv: npc.world.player_relation < 0.3,
-            result="Moses refuses entry",
-            final_dialogue="I don't trust you. Leave."
-        )
-    ]
-    
-    outcome_index = OutcomeIndex(
-        choice_id="test_loyalty",
-        interaction_outcomes=interaction_outcomes,
-        terminal_outcomes=terminal_outcomes
-    )
-    
-    # Create player skills
-    player_skills = PlayerSkillSet(authority=2, manipulation=10, empathy=2, diplomacy=2)
-    
-    # Initialize processor
-    processor = DialogueProcessor(
-        npc=moses,
-        player_skills=player_skills,
-        npc_intent=npc_intent,
-        outcome_index=outcome_index,
-        conversation_id="conv_001",
-        use_ollama=True
-    )
-    
-    # Test dialogue
-    print("=" * 70)
-    print("REFACTORED PIPELINE TEST")
-    print("=" * 70)
-    
-    player_choice = PlayerDialogueInput(
-        choice_text="Listen, I'm trying to help. The land is fucked because no one listened.",
-        language_art=LanguageArt.EMPATHETIC,
-        empathy_tone=0.8,
-        manipulation_tone=0.3
-    )
-    
-    context = processor.process_dialogue(player_choice, generate_with_ollama=True)
-    
-    print(f"\n[Turn {context['turn']}]")
-    print(f"Player: {player_choice.choice_text}")
-    print(f"\n[Internal Thought]: {context['thought_reaction']['internal_thought']}")
-    print(f"[Intention]: {context['behavioural_intention']['intention_type']}")
-    print(f"\nMoses: {context['npc_response']}")
