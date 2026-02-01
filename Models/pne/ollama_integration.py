@@ -14,7 +14,7 @@ from .outcomes import InteractionOutcome
 class OllamaResponseGenerator:
     """Generates NPC dialogue responses using Ollama"""
     
-    def __init__(self, base_url: str = "http://localhost:11434", model: str = "phi3:mini"):
+    def __init__(self, base_url: str = "http://localhost:11434", model: str = "qwen2.5:3b"):
         self.base_url = base_url
         self.model = model
         self.api_url = f"{base_url}/api/generate"

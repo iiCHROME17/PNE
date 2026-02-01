@@ -8,11 +8,14 @@ Fallout-style psychological narrative engine where:
 - NPC responses are generated via the BDI+LLM pipeline in pne/
 - Scenarios are NPC-agnostic; NPC individuality is injected at runtime
 - Multiple NPCs can participate independently in the same scenario
+- Routing between nodes is DYNAMIC: driven by NPC BDI state + player_relation,
+  not hardcoded next_node per choice.
 """
 
 from typing import Dict, List, Optional, Any
 import json
 from dataclasses import dataclass, field
+import math
 
 from pne import (
     DialogueProcessor,
@@ -78,7 +81,7 @@ class ScenarioLoader:
         """
         Build an OutcomeIndex from choice metadata.
 
-        This is NPC-agnostic: it defines *potential* micro- and terminal outcomes.
+        NPC-agnostic: defines *potential* micro- and terminal outcomes.
         The DialogueProcessor + NPC state decide which ones actually trigger.
         """
         interaction_outcomes: List[InteractionOutcome] = []
@@ -95,12 +98,13 @@ class ScenarioLoader:
                 )
             )
 
+        # Terminal outcomes are now resolved at the NODE level via transitions,
+        # not per-choice. Choices no longer carry terminal_outcomes.
+        # This list will typically be empty.
         terminal_outcomes: List[TerminalOutcome] = []
         for terminal_data in choice_data.get("terminal_outcomes", []):
             condition_str = terminal_data.get("condition", "lambda npc, conv: False")
-            # Trusted scenario authoring; this is intentionally flexible.
             condition_func = eval(condition_str)  # noqa: S307
-
             terminal_outcomes.append(
                 TerminalOutcome(
                     terminal_id=TerminalOutcomeType(terminal_data["terminal_id"]),
@@ -115,6 +119,180 @@ class ScenarioLoader:
             interaction_outcomes=interaction_outcomes,
             terminal_outcomes=terminal_outcomes,
         )
+
+
+# ============================================================================
+# TRANSITION RESOLVER (OUTCOME-BASED SIMILARITY MATCHING)
+# ============================================================================
+
+
+@dataclass
+class OutcomeSignature:
+    """Target outcome profile for a transition."""
+    intention_keywords: List[str] = field(default_factory=list)  # ["Accept", "Ally", "Trust"]
+    desire_types: List[str] = field(default_factory=list)        # ["approach", "cooperate"]
+    stance_profile: Dict[str, float] = field(default_factory=dict)  # {"social.empathy": 0.1, "social.assertion": -0.05}
+    relation_target: Optional[float] = None  # Ideal relation value (0.0-1.0)
+    relation_tolerance: float = 0.2  # How far from target is acceptable
+    min_desire_intensity: float = 0.0  # Minimum emotional intensity
+
+    # Weights for scoring (should sum to 1.0)
+    weights: Dict[str, float] = field(default_factory=lambda: {
+        "intention": 0.30,
+        "desire": 0.25,
+        "stance": 0.25,
+        "relation": 0.20,
+    })
+
+
+class OutcomeMatchingResolver:
+    """
+    Routes to the next node based on similarity between actual outcome
+    and target outcome signatures.
+    """
+
+    @staticmethod
+    def resolve(
+        transitions: List[Dict[str, Any]],
+        context: Dict[str, Any],  # The full context from DialogueProcessor
+        npc_state: "NPCConversationState",
+    ) -> Optional[str]:
+        """
+        Score each transition by how well it matches the actual outcome.
+        Returns the target node with highest confidence above threshold.
+        """
+        if not transitions:
+            return None
+
+        actual_outcome = context.get("interaction_outcome", {}) or {}
+        desire_state = context.get("desire_state", {}) or {}
+        intention = context.get("behavioural_intention", {}) or {}
+
+        best_match: Optional[str] = None
+        best_score: float = -1.0
+        min_threshold: float = 0.5  # Default minimum match score
+
+        for trans in transitions:
+            signature_data = trans.get("outcome_match", {})
+            if not signature_data:
+                continue
+
+            signature = OutcomeSignature(**signature_data)
+            score = OutcomeMatchingResolver._calculate_score(
+                signature=signature,
+                actual_outcome=actual_outcome,
+                desire_state=desire_state,
+                intention=intention,
+                npc_state=npc_state,
+            )
+
+            confidence_threshold = trans.get("min_confidence", min_threshold)
+
+            if score >= confidence_threshold and score > best_score:
+                best_score = score
+                best_match = trans["target"]
+
+        if best_match is not None:
+            print(f"  [Transition] Matched with confidence {best_score:.2f} → {best_match}")
+
+        return best_match
+
+    @staticmethod
+    def _calculate_score(
+        signature: OutcomeSignature,
+        actual_outcome: Dict[str, Any],
+        desire_state: Dict[str, Any],
+        intention: Dict[str, Any],
+        npc_state: "NPCConversationState",
+    ) -> float:
+        """Calculate weighted similarity score (0.0 - 1.0)."""
+        scores: Dict[str, float] = {}
+
+        # 1. Intention Shift Matching (Keyword overlap on interaction outcome intention_shift OR behavioural intention)
+        if signature.intention_keywords:
+            actual_intention_text = (
+                (actual_outcome.get("intention_shift") or "")
+                + " "
+                + (intention.get("intention_type") or "")
+            ).lower()
+            if actual_intention_text.strip():
+                matches = sum(
+                    1 for k in signature.intention_keywords if k.lower() in actual_intention_text
+                )
+                scores["intention"] = matches / len(signature.intention_keywords)
+
+        # 2. Desire Type & Intensity Matching
+        if signature.desire_types:
+            actual_desire_type = desire_state.get("desire_type", "")
+            type_match = 1.0 if actual_desire_type in signature.desire_types else 0.0
+
+            intensity = float(desire_state.get("intensity", 0.5))
+            if signature.min_desire_intensity > 0:
+                intensity_match = (
+                    1.0
+                    if intensity >= signature.min_desire_intensity
+                    else intensity / signature.min_desire_intensity
+                )
+            else:
+                intensity_match = intensity  # normalized 0-1, as provided by the engine
+
+            scores["desire"] = (type_match * 0.7) + (intensity_match * 0.3)
+
+        # 3. Stance Delta Similarity (Cosine similarity on stance_delta)
+        if signature.stance_profile:
+            actual_stance = actual_outcome.get("stance_delta", {}) or {}
+            scores["stance"] = OutcomeMatchingResolver._cosine_similarity(
+                signature.stance_profile,
+                actual_stance,
+            )
+
+        # 4. Relation Proximity (Gaussian falloff from target)
+        if signature.relation_target is not None:
+            current_relation = getattr(
+                npc_state.processor.conversation, "player_relation", 0.5
+            )
+            distance = abs(current_relation - float(signature.relation_target))
+            scores["relation"] = math.exp(
+                -((distance ** 2) / (2 * (signature.relation_tolerance ** 2)))
+            )
+
+        total_weight = sum(signature.weights.get(k, 0.0) for k in scores.keys())
+        if total_weight <= 0.0:
+            return 0.0
+
+        weighted_sum = sum(
+            scores[k] * signature.weights.get(k, 0.0) for k in scores.keys()
+        )
+        return weighted_sum / total_weight
+
+    @staticmethod
+    def _cosine_similarity(dict1: Dict[str, float], dict2: Dict[str, float]) -> float:
+        """Calculate cosine similarity between two sparse vectors."""
+        keys = set(dict1.keys()) | set(dict2.keys())
+        if not keys:
+            return 0.0
+
+        dot = sum(dict1.get(k, 0.0) * dict2.get(k, 0.0) for k in keys)
+        norm1 = math.sqrt(sum(v ** 2 for v in dict1.values()))
+        norm2 = math.sqrt(sum(v ** 2 for v in dict2.values()))
+
+        if norm1 == 0.0 or norm2 == 0.0:
+            return 0.0
+
+        return dot / (norm1 * norm2)
+
+
+class TransitionResolver:
+    """
+    Minimal helper to keep terminal-node detection.
+    Old eval-based condition logic has been removed in favor of
+    OutcomeMatchingResolver above.
+    """
+
+    @staticmethod
+    def is_terminal(node: Dict[str, Any]) -> bool:
+        """A node is terminal if it has no choices and is explicitly marked."""
+        return node.get("terminal", False)
 
 
 # ============================================================================
@@ -180,7 +358,7 @@ class ConversationSession:
 
     - Scenario is NPC-agnostic.
     - Each NPC has its own BDI/LLM pipeline and memory.
-    - Player choices are shared; outcomes are evaluated per-NPC.
+    - Player choices are shared; routing is resolved per-NPC via TransitionResolver.
     """
 
     scenario_id: str
@@ -195,13 +373,19 @@ class ConversationSession:
 
 
 # ============================================================================
-# NARRATIVE ENGINE (MODULAR, MULTI-NPC)
+# NARRATIVE ENGINE (MODULAR, MULTI-NPC, DYNAMIC ROUTING)
 # ============================================================================
 
 
 class NarrativeEngine:
     """
     High-level orchestrator for Fallout-style conversations using pne's BDI engine.
+
+    Key difference from the previous version:
+    - Choices no longer have next_node.
+    - After a choice is processed, each NPC's state is evaluated against
+      the CURRENT node's transitions to determine where that NPC goes next.
+    - Different NPCs can end up on different nodes after the same player choice.
     """
 
     def __init__(self, use_ollama: bool = True, ollama_url: str = "http://localhost:11434"):
@@ -331,7 +515,7 @@ class NarrativeEngine:
         return visible_choices
 
     # ------------------------------------------------------------------
-    # Core Turn Step: apply one player choice across NPCs
+    # Core Turn Step: apply one player choice, then resolve per-NPC routing
     # ------------------------------------------------------------------
 
     def apply_choice(
@@ -342,7 +526,13 @@ class NarrativeEngine:
     ) -> Dict[str, Any]:
         """
         Apply a single player choice (by index) to all active NPCs.
-        Returns npc_id -> response context from DialogueProcessor.
+
+        Flow per NPC:
+          1. Parse choice → PlayerDialogueInput
+          2. Run through DialogueProcessor (BDI + LLM)
+          3. Evaluate current node's transitions against updated NPC state
+             using outcome similarity matching
+          4. Route NPC to the resolved target node (or default)
         """
         node = self.get_node(session, node_id)
         if not node:
@@ -371,18 +561,26 @@ class NarrativeEngine:
 
         responses: Dict[str, Any] = {}
         outcome_index = ScenarioLoader.parse_outcome_index(choice_data)
+        transitions = node.get("transitions", [])
 
         for state in session.active_npcs():
             print(f"\nPlayer → {state.npc.name}: {player_input.choice_text}")
             state.add_exchange("Player", player_input.choice_text)
             state.choices_made.append(choice_data["choice_id"])
 
+            # --- Step 1-2: Process dialogue through BDI pipeline ---
             state.processor.outcome_index = outcome_index
-
             context = state.processor.process_dialogue(
                 player_input,
                 generate_with_ollama=self.use_ollama,
             )
+
+            # Extract actual outcome for relation updates
+            actual_outcome = context.get("interaction_outcome", {}) or {}
+            delta = float(actual_outcome.get("relation_delta", 0.0))
+            # Initialize player_relation if missing
+            current_rel = getattr(state.processor.conversation, "player_relation", 0.5)
+            state.processor.conversation.player_relation = current_rel + delta
 
             thought = context["thought_reaction"]
             desire = context["desire_state"]
@@ -405,26 +603,63 @@ class NarrativeEngine:
                     "thought": thought,
                     "desire": desire,
                     "intention": intention,
-                    "interaction_outcome": context.get("interaction_outcome"),
-                    "terminal_outcome": context.get("terminal_outcome"),
+                    "interaction_outcome": actual_outcome,
                 },
             )
 
-            if context["conversation_complete"] and context["terminal_outcome"]:
-                terminal = context["terminal_outcome"]
-                state.is_complete = True
-                state.terminal_outcome = terminal
+            # --- NEW: Outcome-based routing ---
+            resolved_node = OutcomeMatchingResolver.resolve(
+                transitions=transitions,
+                context=context,
+                npc_state=state,
+            )
 
-                print(f"\n{'=' * 70}")
-                print(f"TERMINAL OUTCOME for {state.npc.name}: {terminal['terminal_id'].upper()}")
-                print(f"Result: {terminal['result']}")
-                print(f"{state.npc.name}: {terminal['final_dialogue']}")
-                print(f"{'=' * 70}\n")
+            if resolved_node:
+                target_node = self.get_node(session, resolved_node)
 
-                state.processor.end_conversation()
+                # Terminal node reached
+                if target_node and TransitionResolver.is_terminal(target_node):
+                    terminal_id = target_node.get("terminal_id", "unknown")
+                    terminal_result = target_node.get("terminal_result", "")
+                    terminal_dialogue = npc_response  # could be regenerated with a terminal prompt
 
-            state.current_node = choice_data.get("next_node", "end")
-            responses[state.npc_id] = context
+                    state.is_complete = True
+                    state.terminal_outcome = {
+                        "terminal_id": terminal_id,
+                        "result": terminal_result,
+                        "final_dialogue": terminal_dialogue,
+                    }
+                    state.current_node = resolved_node
+
+                    print(f"\n{'=' * 70}")
+                    print(f"TERMINAL OUTCOME for {state.npc.name}: {terminal_id.upper()}")
+                    print(f"Result: {terminal_result}")
+                    print(f"{state.npc.name}: {terminal_dialogue}")
+                    print(f"{'=' * 70}\n")
+
+                    state.processor.end_conversation()
+                else:
+                    # Non-terminal: advance normally
+                    state.current_node = resolved_node
+                    print(f"  [{state.npc.name}] → routed to node: {resolved_node}")
+            else:
+                # Fallback: if no outcome matched, check for default "stay" or drift to probing
+                default_node = node.get("default_transition", "probing")
+                if self.get_node(session, default_node):
+                    state.current_node = default_node
+                    print(
+                        f"  [{state.npc.name}] → no outcome match, defaulting to: {default_node}"
+                    )
+                else:
+                    print(
+                        f"  [{state.npc.name}] → no outcome match and no default; staying on: {node_id}"
+                    )
+
+            responses[state.npc_id] = {
+                "context": context,
+                "resolved_node": state.current_node,
+                # For now we don't expose raw confidence; add later if needed.
+            }
 
         return responses
 
@@ -433,10 +668,8 @@ class NarrativeEngine:
     # ------------------------------------------------------------------
 
     def is_session_complete(self, session: ConversationSession) -> bool:
-        """Session ends when all NPCs are complete or at node 'end'."""
-        if not session.active_npcs():
-            return True
-        return all(s.current_node == "end" for s in session.active_npcs())
+        """Session ends when all NPCs are complete."""
+        return len(session.active_npcs()) == 0
 
     def export_session_log(self, session: ConversationSession, filepath: str) -> None:
         """
@@ -466,7 +699,7 @@ class NarrativeEngine:
 
 
 # ============================================================================
-# SIMPLE CLI (single-NPC for quick testing)
+# SIMPLE CLI (multi-NPC aware)
 # ============================================================================
 
 
@@ -475,7 +708,11 @@ def main() -> None:
     Minimal CLI entry-point.
 
     Usage:
-        python narrative_engine.py <npc_file.json> <scenario_file.json> [--no-ollama]
+        python narrative_engine.py <npc_file1.json> [npc_file2.json ...] <scenario_file.json> [--no-ollama]
+
+    NPCs can diverge to different nodes after the same player choice.
+    The CLI tracks per-NPC current nodes and only shows choices for nodes
+    that still have active NPCs on them.
     """
     import sys
 
@@ -484,14 +721,14 @@ def main() -> None:
     print("=" * 70)
 
     if len(sys.argv) < 3:
-        print("\nUsage: python narrative_engine.py <npc_file.json> <scenario_file.json> [--no-ollama]")
+        print("\nUsage: python narrative_engine.py <npc1.json> [npc2.json ...] <scenario.json> [--no-ollama]")
         print("\nExample:")
         print("  python narrative_engine.py morisson_moses.json door_guard_scenario.json")
+        print("  python narrative_engine.py moses.json taylor.json door_guard_scenario.json")
         print("\nOptional flags:")
         print("  --no-ollama : Disable Ollama integration (use fallback responses)")
         return
 
-    # All args except last and flags are NPC files; last non-flag is scenario
     raw_args = [a for a in sys.argv[1:] if not a.startswith("--")]
     if len(raw_args) < 2:
         print("Error: need at least one NPC file and one scenario file.")
@@ -518,16 +755,33 @@ def main() -> None:
 
         session = engine.start_session(npc_ids, scenario_id, player_skills)
 
-        current_node = "start"
-        while not engine.is_session_complete(session) and current_node != "end":
-            choices = engine.get_available_choices(session, current_node)
-            if not choices:
-                print("\n[No available choices; conversation ends.]")
+        # CLI loop: all active NPCs share choices from a common node.
+        # If NPCs diverge, we pick the node of the first active NPC.
+        # (For a richer multi-NPC UI, you'd want per-NPC choice prompts.)
+        while not engine.is_session_complete(session):
+            active = session.active_npcs()
+            if not active:
                 break
 
-            print("\nAvailable choices:")
+            # Use the first active NPC's current node as the shared choice node.
+            # In practice, if NPCs diverge you'd want a more sophisticated UI.
+            current_node = active[0].current_node
+            choices = engine.get_available_choices(session, current_node)
+
+            if not choices:
+                print("\n[No available choices at this node; conversation ends.]")
+                break
+
+            print(f"\n--- Node: {current_node} ---")
+            print("Available choices:")
             for c in choices:
                 print(f"  [{c['index']}] {c['text']}")
+
+            # Show which NPCs are active and where they are
+            if len(active) > 1:
+                print("\n  Active NPCs:")
+                for s in active:
+                    print(f"    {s.npc.name} → node: {s.current_node}")
 
             try:
                 user_input = input("\nYour choice (number or 'quit'): ").strip()
@@ -537,8 +791,6 @@ def main() -> None:
 
                 choice_num = int(user_input)
                 engine.apply_choice(session, current_node, choice_num)
-                # All NPCs share the same scenario graph node id
-                current_node = choices[choice_num - 1]["raw"].get("next_node", "end")
 
             except (ValueError, IndexError):
                 print("Please enter a valid choice number.")
@@ -564,4 +816,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

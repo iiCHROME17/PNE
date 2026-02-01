@@ -37,6 +37,12 @@ from .cognitive import (
     CognitiveInterpreter
 )
 
+# Desire Layer
+from .desire import (
+    DesireState,
+    DesireFormation,
+)
+
 # Social Layer
 from .social import (
     BehaviouralIntention,
@@ -79,6 +85,10 @@ __all__ = [
     # Cognitive
     'ThoughtReaction',
     'CognitiveInterpreter',
+
+    # Desire
+    'DesireState',
+    'DesireFormation',
     
     # Social
     'BehaviouralIntention',

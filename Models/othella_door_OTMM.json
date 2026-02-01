@@ -1,0 +1,262 @@
+{
+  "scenario_id": "door_guard_scenario",
+  "player_choice_log": [
+    {
+      "node_id": "start",
+      "choice_id": "diplomatic_reasoning",
+      "text": "I understand your caution. Let me explain why our goals align and how we can help each other."
+    },
+    {
+      "node_id": "probing",
+      "choice_id": "specific_offer",
+      "text": "I can get supplies from the outside. Food, medicine, weapons. Things you need."
+    },
+    {
+      "node_id": "probing_deep",
+      "choice_id": "reaffirm_commitment",
+      "text": "I'm not here to waste your time. Put me where I'm most useful and I'll prove it."
+    },
+    {
+      "node_id": "negotiate",
+      "choice_id": "accept_terms",
+      "text": "Fair enough. What do you need me to do?"
+    }
+  ],
+  "npcs": {
+    "amourie_othella": {
+      "name": "Amourie Othella",
+      "conversation": {
+        "conversation_id": "door_guard_scenario:amourie_othella",
+        "stage": "opening",
+        "topic": "Test Player's Loyalty and Intentions",
+        "turn_count": 4,
+        "history": [
+          "Player: I understand your caution. Let me explain why our goals align and how we can help each other.",
+          "NPC: \"You're thinking strategically. I appreciate that. Keep talking.\" \n\nThis response aligns with my intent to carefully question motives while maintaining a positive and open dialogue, which is in line with my communitarian ideology of mutual benefit for all parties involved.",
+          "Player: I can get supplies from the outside. Food, medicine, weapons. Things you need.",
+          "NPC: \"Now you're speaking my language. Supplies are always useful.\"",
+          "Player: I'm not here to waste your time. Put me where I'm most useful and I'll prove it.",
+          "NPC: \"You keep saying the right things. Maybe you're worth the risk.\"",
+          "Player: Fair enough. What do you need me to do?",
+          "NPC: \"Reasonable. I'll brief you on what's needed.\" \n\nThis response allows for further dialogue and information sharing without escalating tension, which aligns with my faction\u2019s ideology of Communitarianism that emphasizes cooperation and mutual understanding over confrontation."
+        ]
+      },
+      "choices_made": [
+        "diplomatic_reasoning",
+        "specific_offer",
+        "reaffirm_commitment",
+        "accept_terms"
+      ],
+      "history": [
+        {
+          "turn": 0,
+          "speaker": "Narrator",
+          "text": "A figure stands before the reinforced door to the Insurgency hideout. Arms crossed, eyes assessing you with cold calculation. The air is tense."
+        },
+        {
+          "turn": 0,
+          "speaker": "Player",
+          "text": "I understand your caution. Let me explain why our goals align and how we can help each other."
+        },
+        {
+          "turn": 1,
+          "speaker": "Amourie Othella",
+          "text": "\"You're thinking strategically. I appreciate that. Keep talking.\" \n\nThis response aligns with my intent to carefully question motives while maintaining a positive and open dialogue, which is in line with my communitarian ideology of mutual benefit for all parties involved.",
+          "metadata": {
+            "thought": {
+              "internal_thought": "What are they really saying...?",
+              "subjective_belief": "Their intentions are unclear",
+              "cognitive_state": {
+                "self_esteem": 0.9,
+                "locus_of_control": 0.2,
+                "cog_flexibility": 0.9400128230758743
+              },
+              "emotional_valence": 0.36000000000000004
+            },
+            "desire": {
+              "immediate_desire": "Test their commitment and sincerity",
+              "desire_type": "information-seeking",
+              "intensity": 0.7
+            },
+            "intention": {
+              "intention_type": "Carefully Question Motives",
+              "confrontation_level": 0.43999999999999995,
+              "emotional_expression": "measured",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "consider_alliance",
+              "stance_delta": {
+                "cognitive.cog_flexibility": 0.05
+              },
+              "relation_delta": 0.1,
+              "intention_shift": "Consider Strategic Partnership",
+              "min_response": "Mutual benefit? Everyone says that until it costs them something.",
+              "max_response": "You're thinking strategically. I appreciate that. Keep talking.",
+              "scripted": false
+            }
+          }
+        },
+        {
+          "turn": 1,
+          "speaker": "Player",
+          "text": "I can get supplies from the outside. Food, medicine, weapons. Things you need."
+        },
+        {
+          "turn": 2,
+          "speaker": "Amourie Othella",
+          "text": "\"Now you're speaking my language. Supplies are always useful.\"",
+          "metadata": {
+            "thought": {
+              "internal_thought": "What are they really saying...?",
+              "subjective_belief": "Their intentions are unclear",
+              "cognitive_state": {
+                "self_esteem": 0.9,
+                "locus_of_control": 0.2,
+                "cog_flexibility": 1.0
+              },
+              "emotional_valence": 0.21999999999999997
+            },
+            "desire": {
+              "immediate_desire": "Test their commitment and sincerity",
+              "desire_type": "information-seeking",
+              "intensity": 0.7
+            },
+            "intention": {
+              "intention_type": "Carefully Question Motives",
+              "confrontation_level": 0.43999999999999995,
+              "emotional_expression": "measured",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "transactional_acceptance",
+              "stance_delta": {},
+              "relation_delta": 0.15,
+              "intention_shift": "Consider Transactional Relationship",
+              "min_response": "Supplies? We'll see. Actions speak louder than words.",
+              "max_response": "Now you're speaking my language. Supplies are always useful.",
+              "scripted": false
+            }
+          }
+        },
+        {
+          "turn": 2,
+          "speaker": "Player",
+          "text": "I'm not here to waste your time. Put me where I'm most useful and I'll prove it."
+        },
+        {
+          "turn": 3,
+          "speaker": "Amourie Othella",
+          "text": "\"You keep saying the right things. Maybe you're worth the risk.\"",
+          "metadata": {
+            "thought": {
+              "internal_thought": "What are they really saying...?",
+              "subjective_belief": "Their intentions are unclear",
+              "cognitive_state": {
+                "self_esteem": 0.9,
+                "locus_of_control": 0.2,
+                "cog_flexibility": 1.0
+              },
+              "emotional_valence": 0.19999999999999996
+            },
+            "desire": {
+              "immediate_desire": "Test their commitment and sincerity",
+              "desire_type": "information-seeking",
+              "intensity": 0.7
+            },
+            "intention": {
+              "intention_type": "Carefully Question Motives",
+              "confrontation_level": 0.43999999999999995,
+              "emotional_expression": "measured",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "pressured_commitment",
+              "stance_delta": {
+                "social.assertion": 0.05,
+                "social.empathy": 0.05
+              },
+              "relation_delta": 0.2,
+              "intention_shift": "Test Under Pressure",
+              "min_response": "You sound sure of yourself. We'll see if that holds.",
+              "max_response": "You keep saying the right things. Maybe you're worth the risk.",
+              "scripted": false
+            }
+          }
+        },
+        {
+          "turn": 3,
+          "speaker": "Player",
+          "text": "Fair enough. What do you need me to do?"
+        },
+        {
+          "turn": 4,
+          "speaker": "Amourie Othella",
+          "text": "\"Reasonable. I'll brief you on what's needed.\" \n\nThis response allows for further dialogue and information sharing without escalating tension, which aligns with my faction\u2019s ideology of Communitarianism that emphasizes cooperation and mutual understanding over confrontation.",
+          "metadata": {
+            "thought": {
+              "internal_thought": "What are they really saying...?",
+              "subjective_belief": "Their intentions are unclear",
+              "cognitive_state": {
+                "self_esteem": 0.9,
+                "locus_of_control": 0.2,
+                "cog_flexibility": 1.0
+              },
+              "emotional_valence": 0.27999999999999997
+            },
+            "desire": {
+              "immediate_desire": "Test their commitment and sincerity",
+              "desire_type": "information-seeking",
+              "intensity": 0.7
+            },
+            "intention": {
+              "intention_type": "Carefully Question Motives",
+              "confrontation_level": 0.43999999999999995,
+              "emotional_expression": "measured",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "agree_to_trial",
+              "stance_delta": {
+                "social.empathy": 0.05
+              },
+              "relation_delta": 0.2,
+              "intention_shift": "Accept Player for Trial",
+              "min_response": "Good. We'll see if you can back it up.",
+              "max_response": "Reasonable. I'll brief you on what's needed.",
+              "scripted": false
+            }
+          }
+        }
+      ],
+      "terminal_outcome": null,
+      "final_npc_state": {
+        "name": "Amourie Othella",
+        "age": 42,
+        "cognitive": {
+          "self_esteem": 0.9,
+          "locus_of_control": 0.2,
+          "cog_flexibility": 1.0
+        },
+        "social": {
+          "assertion": 0.55,
+          "conf_indep": 0.6,
+          "empathy": 0.35,
+          "ideology": {
+            "Communitarianism": 0.7,
+            "Pragmatism": 0.3
+          },
+          "wildcard": "Napoleon",
+          "faction": "The Commonman",
+          "social_position": "Boss"
+        },
+        "world": {
+          "world_history": "Full world history here...",
+          "personal_history": "Othella's journey...",
+          "player_history": "",
+          "player_relation": 1.0
+        }
+      }
+    }
+  }
+}

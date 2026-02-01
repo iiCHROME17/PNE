@@ -5,7 +5,7 @@
 # ===========================
 
 # Set defaults
-DEFAULT_NPC="morisson_moses.json"
+DEFAULT_NPC="amourie_othella.json"
 DEFAULT_SCENARIO="door_guard_scenario.json"
 
 # Use arguments if provided, otherwise defaults
