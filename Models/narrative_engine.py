@@ -15,7 +15,6 @@ Fallout-style psychological narrative engine where:
 from typing import Dict, List, Optional, Any
 import json
 from dataclasses import dataclass, field
-import math
 
 from pne import (
     DialogueProcessor,
@@ -61,6 +60,16 @@ class ScenarioLoader:
             immediate_intention=data.get("immediate_intention", ""),
             stakes=data.get("stakes", ""),
         )
+
+    @staticmethod
+    def parse_npc_role(data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Lightweight role metadata for how the NPC is presented in this scenario.
+        This is NPC-agnostic; it just names the 'role' (e.g., 'Door Guard').
+        """
+        return {
+            "display_name": data.get("display_name", "NPC"),
+        }
 
     @staticmethod
     def parse_player_input(choice_data: Dict[str, Any]) -> PlayerDialogueInput:
@@ -122,172 +131,53 @@ class ScenarioLoader:
 
 
 # ============================================================================
-# TRANSITION RESOLVER (OUTCOME-BASED SIMILARITY MATCHING)
+# TRANSITION RESOLVER
 # ============================================================================
-
-
-@dataclass
-class OutcomeSignature:
-    """Target outcome profile for a transition."""
-    intention_keywords: List[str] = field(default_factory=list)  # ["Accept", "Ally", "Trust"]
-    desire_types: List[str] = field(default_factory=list)        # ["approach", "cooperate"]
-    stance_profile: Dict[str, float] = field(default_factory=dict)  # {"social.empathy": 0.1, "social.assertion": -0.05}
-    relation_target: Optional[float] = None  # Ideal relation value (0.0-1.0)
-    relation_tolerance: float = 0.2  # How far from target is acceptable
-    min_desire_intensity: float = 0.0  # Minimum emotional intensity
-
-    # Weights for scoring (should sum to 1.0)
-    weights: Dict[str, float] = field(default_factory=lambda: {
-        "intention": 0.30,
-        "desire": 0.25,
-        "stance": 0.25,
-        "relation": 0.20,
-    })
-
-
-class OutcomeMatchingResolver:
-    """
-    Routes to the next node based on similarity between actual outcome
-    and target outcome signatures.
-    """
-
-    @staticmethod
-    def resolve(
-        transitions: List[Dict[str, Any]],
-        context: Dict[str, Any],  # The full context from DialogueProcessor
-        npc_state: "NPCConversationState",
-    ) -> Optional[str]:
-        """
-        Score each transition by how well it matches the actual outcome.
-        Returns the target node with highest confidence above threshold.
-        """
-        if not transitions:
-            return None
-
-        actual_outcome = context.get("interaction_outcome", {}) or {}
-        desire_state = context.get("desire_state", {}) or {}
-        intention = context.get("behavioural_intention", {}) or {}
-
-        best_match: Optional[str] = None
-        best_score: float = -1.0
-        min_threshold: float = 0.5  # Default minimum match score
-
-        for trans in transitions:
-            signature_data = trans.get("outcome_match", {})
-            if not signature_data:
-                continue
-
-            signature = OutcomeSignature(**signature_data)
-            score = OutcomeMatchingResolver._calculate_score(
-                signature=signature,
-                actual_outcome=actual_outcome,
-                desire_state=desire_state,
-                intention=intention,
-                npc_state=npc_state,
-            )
-
-            confidence_threshold = trans.get("min_confidence", min_threshold)
-
-            if score >= confidence_threshold and score > best_score:
-                best_score = score
-                best_match = trans["target"]
-
-        if best_match is not None:
-            print(f"  [Transition] Matched with confidence {best_score:.2f} → {best_match}")
-
-        return best_match
-
-    @staticmethod
-    def _calculate_score(
-        signature: OutcomeSignature,
-        actual_outcome: Dict[str, Any],
-        desire_state: Dict[str, Any],
-        intention: Dict[str, Any],
-        npc_state: "NPCConversationState",
-    ) -> float:
-        """Calculate weighted similarity score (0.0 - 1.0)."""
-        scores: Dict[str, float] = {}
-
-        # 1. Intention Shift Matching (Keyword overlap on interaction outcome intention_shift OR behavioural intention)
-        if signature.intention_keywords:
-            actual_intention_text = (
-                (actual_outcome.get("intention_shift") or "")
-                + " "
-                + (intention.get("intention_type") or "")
-            ).lower()
-            if actual_intention_text.strip():
-                matches = sum(
-                    1 for k in signature.intention_keywords if k.lower() in actual_intention_text
-                )
-                scores["intention"] = matches / len(signature.intention_keywords)
-
-        # 2. Desire Type & Intensity Matching
-        if signature.desire_types:
-            actual_desire_type = desire_state.get("desire_type", "")
-            type_match = 1.0 if actual_desire_type in signature.desire_types else 0.0
-
-            intensity = float(desire_state.get("intensity", 0.5))
-            if signature.min_desire_intensity > 0:
-                intensity_match = (
-                    1.0
-                    if intensity >= signature.min_desire_intensity
-                    else intensity / signature.min_desire_intensity
-                )
-            else:
-                intensity_match = intensity  # normalized 0-1, as provided by the engine
-
-            scores["desire"] = (type_match * 0.7) + (intensity_match * 0.3)
-
-        # 3. Stance Delta Similarity (Cosine similarity on stance_delta)
-        if signature.stance_profile:
-            actual_stance = actual_outcome.get("stance_delta", {}) or {}
-            scores["stance"] = OutcomeMatchingResolver._cosine_similarity(
-                signature.stance_profile,
-                actual_stance,
-            )
-
-        # 4. Relation Proximity (Gaussian falloff from target)
-        if signature.relation_target is not None:
-            current_relation = getattr(
-                npc_state.processor.conversation, "player_relation", 0.5
-            )
-            distance = abs(current_relation - float(signature.relation_target))
-            scores["relation"] = math.exp(
-                -((distance ** 2) / (2 * (signature.relation_tolerance ** 2)))
-            )
-
-        total_weight = sum(signature.weights.get(k, 0.0) for k in scores.keys())
-        if total_weight <= 0.0:
-            return 0.0
-
-        weighted_sum = sum(
-            scores[k] * signature.weights.get(k, 0.0) for k in scores.keys()
-        )
-        return weighted_sum / total_weight
-
-    @staticmethod
-    def _cosine_similarity(dict1: Dict[str, float], dict2: Dict[str, float]) -> float:
-        """Calculate cosine similarity between two sparse vectors."""
-        keys = set(dict1.keys()) | set(dict2.keys())
-        if not keys:
-            return 0.0
-
-        dot = sum(dict1.get(k, 0.0) * dict2.get(k, 0.0) for k in keys)
-        norm1 = math.sqrt(sum(v ** 2 for v in dict1.values()))
-        norm2 = math.sqrt(sum(v ** 2 for v in dict2.values()))
-
-        if norm1 == 0.0 or norm2 == 0.0:
-            return 0.0
-
-        return dot / (norm1 * norm2)
 
 
 class TransitionResolver:
     """
-    Minimal helper to keep terminal-node detection.
-    Old eval-based condition logic has been removed in favor of
-    OutcomeMatchingResolver above.
+    Evaluates a node's transition list against live NPC state to determine
+    which node to route to next.
+
+    Transitions are evaluated in order — first match wins.
+    This is where the scenario becomes truly NPC-agnostic: same choices,
+    different NPC states, different paths.
     """
+
+    # Simple expression evaluator for transition conditions.
+    # Supports: player_relation, turn_count, and basic comparisons.
+    SAFE_NAMES = {"player_relation", "turn_count"}
+
+    @staticmethod
+    def resolve(
+        transitions: List[Dict[str, Any]],
+        npc_state: "NPCConversationState",
+    ) -> Optional[str]:
+        """
+        Walk the transition list. Return the target node_id for the first
+        condition that evaluates True, or None if nothing matches.
+        """
+        player_relation = npc_state.npc.world.player_relation
+        turn_count = npc_state.turn_count
+
+        context = {
+            "player_relation": player_relation,
+            "turn_count": turn_count,
+        }
+
+        for transition in transitions:
+            condition_str = transition.get("condition", "False")
+            try:
+                # Restrict eval to known safe variables only
+                result = eval(condition_str, {"__builtins__": {}}, context)  # noqa: S307
+                if result:
+                    return transition["target"]
+            except Exception as e:
+                print(f"  [TransitionResolver] Failed to evaluate condition '{condition_str}': {e}")
+                continue
+
+        return None
 
     @staticmethod
     def is_terminal(node: Dict[str, Any]) -> bool:
@@ -396,6 +286,16 @@ class NarrativeEngine:
         self.npcs: Dict[str, NPCModel] = {}
         self.sessions: Dict[str, ConversationSession] = {}
 
+    @staticmethod
+    def _format_with_npc(text: str, npc_name: str) -> str:
+        """
+        Replace simple parsewords in scenario text.
+
+        Currently supported:
+          {{NPC_NAME}} -> concrete NPC model name (e.g. 'Moses', 'Taylor')
+        """
+        return text.replace("{{NPC_NAME}}", npc_name)
+
     # ------------------------------------------------------------------
     # Loading NPCs & Scenarios
     # ------------------------------------------------------------------
@@ -432,6 +332,10 @@ class NarrativeEngine:
 
         scenario = self.scenarios[scenario_id]
         npc_intent = ScenarioLoader.parse_npc_intent(scenario.get("npc_intent", {}))
+        npc_role = ScenarioLoader.parse_npc_role(scenario.get("npc_role", {}))
+
+        # attach parsed npc_role onto the scenario object for later use
+        scenario["_npc_role_meta"] = npc_role
 
         if player_skills is None:
             player_skills = PlayerSkillSet(authority=5, diplomacy=5, empathy=5, manipulation=5)
@@ -479,15 +383,25 @@ class NarrativeEngine:
     def _display_opening(self, session: ConversationSession) -> None:
         scenario = session.scenario
         opening = scenario.get("opening", "Conversation begins...")
+        npc_role = scenario.get("_npc_role_meta", {})
+        role_name = npc_role.get("display_name", "NPC")
 
         print(f"\n{'=' * 70}")
         print(f"CONVERSATION: {scenario.get('title', 'Untitled')}")
         print(f"NPCs: {', '.join(s.npc.name for s in session.npc_states.values())}")
         print(f"{'=' * 70}\n")
-        print(f"Narrator: {opening}\n")
 
+
+        # Opening text is per-NPC and can use {{NPC_NAME}}
+        # Print once, using the first NPC's name for substitution
+        first_state = next(iter(session.npc_states.values()))
+        opening_visible = self._format_with_npc(opening, first_state.npc.name)
+        print(opening_visible + "\n")
+
+        # Log opening per NPC (with their own name substituted)
         for state in session.npc_states.values():
-            state.add_exchange("Narrator", opening)
+            opening_for_npc = self._format_with_npc(opening, state.npc.name)
+            state.add_exchange("Narrator", opening_for_npc)
 
     # ------------------------------------------------------------------
     # Turn Helpers
@@ -531,8 +445,9 @@ class NarrativeEngine:
           1. Parse choice → PlayerDialogueInput
           2. Run through DialogueProcessor (BDI + LLM)
           3. Evaluate current node's transitions against updated NPC state
-             using outcome similarity matching
-          4. Route NPC to the resolved target node (or default)
+          4. Route NPC to the resolved target node (or stay if no match)
+
+        Returns npc_id -> { context, resolved_node }
         """
         node = self.get_node(session, node_id)
         if not node:
@@ -575,17 +490,14 @@ class NarrativeEngine:
                 generate_with_ollama=self.use_ollama,
             )
 
-            # Extract actual outcome for relation updates
-            actual_outcome = context.get("interaction_outcome", {}) or {}
-            delta = float(actual_outcome.get("relation_delta", 0.0))
-            # Initialize player_relation if missing
-            current_rel = getattr(state.processor.conversation, "player_relation", 0.5)
-            state.processor.conversation.player_relation = current_rel + delta
-
             thought = context["thought_reaction"]
             desire = context["desire_state"]
             intention = context["behavioural_intention"]
             npc_response = context["npc_response"]
+
+            # If npc_response comes from scenario prompts containing parsewords,
+            # run it through the formatter for this NPC.
+            npc_response = self._format_with_npc(npc_response, state.npc.name)
 
             print(f"\n[{state.npc.name} | Internal Thought]: {thought['internal_thought']}")
             print(
@@ -603,25 +515,23 @@ class NarrativeEngine:
                     "thought": thought,
                     "desire": desire,
                     "intention": intention,
-                    "interaction_outcome": actual_outcome,
+                    "interaction_outcome": context.get("interaction_outcome"),
                 },
             )
 
-            # --- NEW: Outcome-based routing ---
-            resolved_node = OutcomeMatchingResolver.resolve(
-                transitions=transitions,
-                context=context,
-                npc_state=state,
-            )
+            # --- Step 3: Resolve transitions against this NPC's live state ---
+            resolved_node = TransitionResolver.resolve(transitions, state)
 
             if resolved_node:
                 target_node = self.get_node(session, resolved_node)
 
-                # Terminal node reached
+                # --- Step 4a: Terminal node reached ---
                 if target_node and TransitionResolver.is_terminal(target_node):
                     terminal_id = target_node.get("terminal_id", "unknown")
                     terminal_result = target_node.get("terminal_result", "")
-                    terminal_dialogue = npc_response  # could be regenerated with a terminal prompt
+                    # Terminal dialogue is generated by the NPC via its prompt,
+                    # not hardcoded. Use npc_dialogue_prompt as the LLM's guide.
+                    terminal_dialogue = npc_response  # already formatted above
 
                     state.is_complete = True
                     state.terminal_outcome = {
@@ -638,27 +548,24 @@ class NarrativeEngine:
                     print(f"{'=' * 70}\n")
 
                     state.processor.end_conversation()
+
+                # --- Step 4b: Non-terminal node; advance normally ---
                 else:
-                    # Non-terminal: advance normally
                     state.current_node = resolved_node
                     print(f"  [{state.npc.name}] → routed to node: {resolved_node}")
             else:
-                # Fallback: if no outcome matched, check for default "stay" or drift to probing
-                default_node = node.get("default_transition", "probing")
+                # No transition matched. Stay on current node if it has choices,
+                # or fall through to 'probing' as a default continuation.
+                default_node = "probing"
                 if self.get_node(session, default_node):
                     state.current_node = default_node
-                    print(
-                        f"  [{state.npc.name}] → no outcome match, defaulting to: {default_node}"
-                    )
+                    print(f"  [{state.npc.name}] → no transition matched, defaulting to: {default_node}")
                 else:
-                    print(
-                        f"  [{state.npc.name}] → no outcome match and no default; staying on: {node_id}"
-                    )
+                    print(f"  [{state.npc.name}] → no transition matched, staying on: {node_id}")
 
             responses[state.npc_id] = {
                 "context": context,
                 "resolved_node": state.current_node,
-                # For now we don't expose raw confidence; add later if needed.
             }
 
         return responses

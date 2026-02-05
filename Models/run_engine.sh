@@ -6,7 +6,7 @@
 
 # Set defaults
 DEFAULT_NPC="amourie_othella.json"
-DEFAULT_SCENARIO="door_guard_scenario.json"
+DEFAULT_SCENARIO="door_guard_scenario_filtered.json"
 
 # Use arguments if provided, otherwise defaults
 NPC="${1:-$DEFAULT_NPC}"

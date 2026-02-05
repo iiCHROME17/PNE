@@ -16,38 +16,14 @@
       "npc_dialogue_prompt": "The guard is sizing you up for the first time. They have not yet revealed much about themselves.",
       "transitions": [
         {
-          "outcome_match": {
-            "intention_keywords": ["Accept", "Ally", "Trust", "Partner"],
-            "desire_types": ["approach", "cooperate"],
-            "relation_target": 0.75,
-            "relation_tolerance": 0.15,
-            "stance_profile": { "social.empathy": 0.05 }
-          },
-          "min_confidence": 0.6,
+          "condition": "player_relation > 0.7 and turn_count >= 3",
           "target": "succeed"
         },
         {
-          "outcome_match": {
-            "intention_keywords": ["Reject", "Dismiss", "Threaten", "Close"],
-            "desire_types": ["avoid", "resist", "attack"],
-            "relation_target": 0.1,
-            "relation_tolerance": 0.25
-          },
-          "min_confidence": 0.6,
+          "condition": "player_relation < 0.2",
           "target": "fail"
-        },
-        {
-          "outcome_match": {
-            "intention_keywords": ["Question", "Probe", "Evaluate"],
-            "desire_types": ["assess", "monitor"],
-            "relation_target": 0.5,
-            "relation_tolerance": 0.3
-          },
-          "min_confidence": 0.55,
-          "target": "probing"
         }
       ],
-      "default_transition": "probing",
       "choices": [
         {
           "choice_id": "empathetic_approach",
@@ -144,46 +120,18 @@
       "npc_dialogue_prompt": "The guard is not yet satisfied. They push back on whatever the player said, wanting more. Their tone reflects their current BDI state.",
       "transitions": [
         {
-          "outcome_match": {
-            "intention_keywords": ["Accept", "Ally", "Trust", "Partner"],
-            "desire_types": ["approach", "cooperate"],
-            "relation_target": 0.75,
-            "relation_tolerance": 0.15,
-            "stance_profile": { "social.empathy": 0.1, "social.assertion": -0.05 }
-          },
-          "min_confidence": 0.65,
+          "condition": "player_relation > 0.7 and turn_count >= 3",
           "target": "succeed"
         },
         {
-          "outcome_match": {
-            "intention_keywords": ["Reject", "Dismiss", "Threaten", "Close"],
-            "desire_types": ["avoid", "resist", "attack"],
-            "relation_target": 0.1,
-            "relation_tolerance": 0.2
-          },
-          "min_confidence": 0.6,
+          "condition": "player_relation < 0.2",
           "target": "fail"
         },
         {
-          "outcome_match": {
-            "intention_keywords": ["Consider", "Evaluate", "Test", "Trial"],
-            "desire_types": ["assess", "monitor"],
-            "relation_target": 0.5,
-            "relation_tolerance": 0.25
-          },
-          "min_confidence": 0.7,
+          "condition": "player_relation >= 0.45 and player_relation <= 0.65 and turn_count >= 3",
           "target": "negotiate"
-        },
-        {
-          "outcome_match": {
-            "intention_keywords": ["Question", "Probe", "Deflect"],
-            "min_desire_intensity": 0.3
-          },
-          "min_confidence": 0.5,
-          "target": "probing_deep"
         }
       ],
-      "default_transition": "probing_deep",
       "choices": [
         {
           "choice_id": "personal_sacrifice",
@@ -318,67 +266,6 @@
     },
 
     {
-      "id": "probing_deep",
-      "npc_dialogue_prompt": "The guard pushes back harder, circling your answers and looking for cracks in your story.",
-      "transitions": [
-        {
-          "outcome_match": {
-            "intention_keywords": ["Accept", "Ally", "Trust", "Partner"],
-            "desire_types": ["approach", "cooperate"],
-            "relation_target": 0.8,
-            "relation_tolerance": 0.15
-          },
-          "min_confidence": 0.65,
-          "target": "succeed"
-        },
-        {
-          "outcome_match": {
-            "intention_keywords": ["Reject", "Dismiss", "Threaten", "Close"],
-            "desire_types": ["avoid", "resist", "attack"],
-            "relation_target": 0.1,
-            "relation_tolerance": 0.2
-          },
-          "min_confidence": 0.6,
-          "target": "fail"
-        },
-        {
-          "outcome_match": {
-            "intention_keywords": ["Consider", "Evaluate", "Test", "Trial"],
-            "desire_types": ["assess", "monitor"],
-            "relation_target": 0.5,
-            "relation_tolerance": 0.3
-          },
-          "min_confidence": 0.65,
-          "target": "negotiate"
-        }
-      ],
-      "default_transition": "negotiate",
-      "choices": [
-        {
-          "choice_id": "reaffirm_commitment",
-          "text": "I'm not here to waste your time. Put me where I'm most useful and I'll prove it.",
-          "language_art": "diplomatic",
-          "authority_tone": 0.5,
-          "diplomacy_tone": 0.7,
-          "empathy_tone": 0.4,
-          "manipulation_tone": 0.2,
-          "interaction_outcomes": [
-            {
-              "outcome_id": "pressured_commitment",
-              "stance_delta": { "social.assertion": 0.05, "social.empathy": 0.05 },
-              "relation_delta": 0.2,
-              "intention_shift": "Test Under Pressure",
-              "min_response": "You sound sure of yourself. We'll see if that holds.",
-              "max_response": "You keep saying the right things. Maybe you're worth the risk.",
-              "scripted": false
-            }
-          ],
-          "terminal_outcomes": []
-        }
-      ]
-    },
-
-    {
       "id": "succeed",
       "npc_dialogue_prompt": "The guard has decided to trust the player. Their final words reflect their own personality and the specific path the conversation took.",
       "transitions": [],
@@ -413,27 +300,14 @@
       "npc_dialogue_prompt": "The guard is not fully convinced but sees potential. They offer a conditional path forward. The specific condition reflects their personality.",
       "transitions": [
         {
-          "outcome_match": {
-            "intention_keywords": ["Accept", "Ally", "Trust", "Partner"],
-            "desire_types": ["approach", "cooperate"],
-            "relation_target": 0.75,
-            "relation_tolerance": 0.15
-          },
-          "min_confidence": 0.6,
+          "condition": "player_relation > 0.7",
           "target": "succeed"
         },
         {
-          "outcome_match": {
-            "intention_keywords": ["Reject", "Dismiss", "Threaten", "Close"],
-            "desire_types": ["avoid", "resist", "attack"],
-            "relation_target": 0.1,
-            "relation_tolerance": 0.25
-          },
-          "min_confidence": 0.6,
+          "condition": "player_relation < 0.2",
           "target": "fail"
         }
       ],
-      "default_transition": "succeed",
       "choices": [
         {
           "choice_id": "accept_terms",
@@ -468,10 +342,10 @@
             {
               "outcome_id": "counter_negotiate",
               "stance_delta": { "social.assertion": 0.05 },
-              "relation_delta": -0.05,
-              "intention_shift": "Negotiate Terms Cautiously",
-              "min_response": "Careful. Push too hard and the deal's off.",
-              "max_response": "You drive a hard bargain. We'll see what can be arranged.",
+              "relation_delta": 0.05,
+              "intention_shift": "Respect Player's Boldness",
+              "min_response": "You're pushing it. But I respect the nerve.",
+              "max_response": "Bold ask. Earn it first, then we'll talk about access.",
               "scripted": false
             }
           ],
