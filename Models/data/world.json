@@ -1,0 +1,93 @@
+{
+  "world_history": "Angelia collapsed after the Azraelean-Seraphimean War (2502–2510). Cherubian and Metatronian populations fled to aerial and oceanic cities. Romance City, built in the upper atmosphere, became the primary Cherubian civic district — but has since fallen under Romancian Isola administrative control, triggering systemic Dysphoria and growing insurgent resistance.",
+
+  "timeline": [
+    { "id": "azraelean_war",       "year": 2502, "summary": "The Azraelean-Seraphimean War begins." },
+    { "id": "great_separation",    "year": 2533, "summary": "Angelia dissolves. The Land of Hearts and Land of Youth are founded." },
+    { "id": "hop_creation",        "year": 2544, "summary": "Moore and Vick create the Heart of Passion." },
+    { "id": "romance_city_founded","year": 2580, "summary": "Romance City designated primary civic district." },
+    { "id": "romancian_takeover",  "year": 2599, "summary": "Romancian Isola consolidates administrative control." },
+    { "id": "dysphoria_onset",     "year": 2600, "summary": "HoP calibration degrades. Dysphoria begins spreading." },
+    { "id": "moses_defection",     "year": 2679, "summary": "Moses exposes corruption and defects." },
+    { "id": "commonman_formed",    "year": 2690, "summary": "Amourie formalizes the Commonman." },
+    { "id": "hop_removal",         "year": 2703, "summary": "The Heart of Passion is removed." },
+    { "id": "dysphoria_expansion", "year": 2705, "summary": "Dysphoria cases multiply." },
+    { "id": "runner_coordination", "year": 2708, "summary": "Runner networks formalize coordination." }
+  ],
+
+  "figures": {
+    "the_envisioned": {
+      "name": "The Envisioned",
+      "era": "Pre-Separation",
+      "role": "Archprophet of Angelia",
+      "description": "A visionary philosopher credited with articulating the metaphysical unity between emotional energy and civic stability. Revered across Cherubian tradition as the intellectual ancestor of Passion-Core theory.",
+      "ideological_legacy": "Emotion is infrastructure."
+    },
+
+    "clark_tolie": {
+      "name": "Clark Tolie",
+      "era": "Post-Separation (early Land of Hearts)",
+      "role": "Civic Artist and Cultural Architect",
+      "description": "Pioneered the concept of art as civic maintenance rather than rebellion. Established early district-based mural diagnostics.",
+      "ideological_legacy": "Culture prevents decay."
+    },
+
+    "jessa_reid_othella": {
+      "name": "Jessa Reid-Othella",
+      "era": "Post-Separation (Romance City early era)",
+      "role": "Cultural Steward",
+      "description": "Disciple of Chautlier, friend of Tolie. Advocated community ownership of artistic expression. Reinforced the belief that public emotion must be collectively maintained.",
+      "ideological_legacy": "Emotion belongs to the people."
+    },
+
+    "jean_pope_chautlier": {
+  "name": "Jean Pope Chautlier",
+  "era": "Late Romance City pre-takeover",
+  "role": "Preacher",
+  "description": "A fierce cultural visionary and uncompromising public intellectual who transformed artist circles into ideological cells. Chautlier rejected passive stewardship and argued that culture without sovereignty was merely decoration for power. He reframed Dysphoria as systemic pacification rather than accidental decline, accusing centralized governance of consuming emotion while severing communities from control over it. His speeches were sharp, confrontational, and mobilizing — demanding that civic art evolve from maintenance into disciplined resistance.",
+  "ideological_legacy": "Collective agency is non-negotiable. Emotion without control becomes sedation. Culture must defend its own sovereignty."
+  },
+
+    "moore": {
+      "name": "Moore",
+      "era": 2544,
+      "role": "Co-Creator of the Heart of Passion",
+      "description": "Cherubian engineer who co-developed the Passion-Core central system."
+    },
+
+    "vick": {
+      "name": "Vick",
+      "era": 2544,
+      "role": "Co-Creator of the Heart of Passion",
+      "description": "Collaborator in Passion-Core stabilization and emotional energy conversion."
+    },
+
+    "morisson_moses": {
+      "name": "Morisson Moses",
+      "era": 2679,
+      "role": "Military Officer / Founder of Insurgency",
+      "description": "Exposed Romancian corruption and initiated armed resistance."
+    },
+
+    "serotonin_junkie": {
+      "name": "Serotonin Junkie",
+      "era": 2703,
+      "role": "Unknown Operative",
+      "description": "Removed the Heart of Passion, destabilizing Romance City's energy infrastructure."
+    }
+  },
+
+  "concepts": {
+    "Dysphoria": "Reduced emotional responsiveness caused by Passion-Core destabilization.",
+    "Heart of Passion": "Centralized Passion-Core created in 2544. Removed in 2703.",
+    "Passion-Core": "Cherubian technology converting emotional energy into distributed civic power.",
+    "Runners": "Rooftop traversal networks using graffiti communication.",
+    "Land of Hearts": "Aerial Cherubian settlement founded in 2533."
+  },
+
+  "locations": {
+    "Romance City": "Primary civic district of the Land of Hearts.",
+    "Land of Youth": "Metatronian underwater settlement.",
+    "Angelia": "Former terrestrial homeland dissolved in 2533."
+  }
+}

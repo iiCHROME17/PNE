@@ -19,8 +19,10 @@
     "social_position": "Boss"
   },
   "world": {
-    "world_history": "Full world history here...",
-    "personal_history": "Moses' personal journey...",
+    "world_history_ref": "data/world.json",
+    "personal_history": "Moses served as a military officer under Romancian command before witnessing firsthand the corruption he later exposed. In 2679 he killed a senior official and vanished from formal record, becoming the founding martyr-figure of the Insurgency. He has operated in the shadows since, building the resistance from defectors, artists, and Runners.",
+    "faction_ref": "Insurgency",
+    "known_events": ["moses_defection", "hop_removal", "dysphoria_expansion", "romancian_takeover", "commonman_formed"],
     "player_history": "",
     "player_relation": 0.5
   }

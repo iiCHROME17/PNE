@@ -1,0 +1,2201 @@
+
+# ===== File: pne/__init__.py =====
+
+"""
+Psychological Narrative Engine (PNE) – Package Initialization
+Author: Jerome Bawa
+
+PNE is a modular, layered dialogue system for games and simulations. It models
+NPC conversations as psychological processes rather than simple script trees.
+
+At a high level, the engine:
+- Accepts structured player dialogue input and skill information.
+- Interprets NPC intent, cognition, desires, and social stance.
+- Produces interaction outcomes and terminal outcomes for each dialogue turn.
+
+Architecture overview
+---------------------
+The package is organised into several layers that form a processing pipeline:
+
+- Enums (:mod:`pne.enums`)
+  Core enumerations such as :class:`LanguageArt`, :class:`PlayerSkill`,
+  and :class:`TerminalOutcomeType` used across the system.
+
+- Conversation model (:mod:`pne.conversation`)
+  :class:`ConversationModel` holds conversation state, history, and configuration.
+
+- Intent layer (:mod:`pne.intent`)
+  :class:`NPCIntent` captures what the NPC is currently trying to achieve or express.
+
+- Player input (:mod:`pne.player_input`)
+  :class:`PlayerDialogueInput` represents what the player said.
+  :class:`PlayerSkillSet` represents their relevant skills for checks.
+
+- Skill checks (:mod:`pne.skill_check`)
+  :class:`SkillCheckSystem` runs checks based on :class:`PlayerSkillSet`,
+  returning :class:`SkillCheckResult` objects that influence NPC responses.
+
+- Cognitive layer (:mod:`pne.cognitive`)
+  :class:`CognitiveInterpreter` converts dialogue context into internal
+  :class:`ThoughtReaction` objects, modelling how the NPC thinks about the exchange.
+
+- Desire layer (:mod:`pne.desire`)
+  :class:`DesireState` tracks the NPC's current goals/motivations.
+  :class:`DesireFormation` updates those desires over time from thoughts and outcomes.
+
+- Social layer (:mod:`pne.social`)
+  :class:`BehaviouralIntention` represents how the NPC plans to act socially.
+  :class:`SocialisationFilter` adjusts intents and responses to fit the social context.
+
+- Outcomes (:mod:`pne.outcomes`)
+  :class:`InteractionOutcome` summarises the result of a single turn.
+  :class:`TerminalOutcome` describes how/why a conversation ends.
+  :class:`OutcomeIndex` is a helper for indexing and looking up outcomes.
+
+- Ollama integration (:mod:`pne.ollama_integration`)
+  :class:`OllamaResponseGenerator` connects the PNE structures to Ollama LLMs.
+
+- Main processor (:mod:`pne.processor`)
+  :class:`DialogueProcessor` orchestrates the full flow:
+  player input → skill checks → cognitive/desire/social processing → outcomes.
+
+In typical use you construct a ``ConversationModel``, create a ``DialogueProcessor``
+for it, wrap raw player text as ``PlayerDialogueInput`` with a ``PlayerSkillSet``,
+then call the processor to obtain structured outcomes that drive NPC behaviour.
+"""
+
+# Core Enums
+from .enums import (
+    LanguageArt,
+    PlayerSkill,
+    TerminalOutcomeType
+)
+
+# Conversation Management
+from .conversation import ConversationModel
+
+# Intent Layer
+from .intent import NPCIntent
+
+# Player Input
+from .player_input import (
+    PlayerDialogueInput,
+    PlayerSkillSet
+)
+
+# Skill Checks
+from .skill_check import (
+    SkillCheckResult,
+    SkillCheckSystem
+)
+
+# Cognitive Layer
+from .cognitive import (
+    ThoughtReaction,
+    CognitiveInterpreter
+)
+
+# Desire Layer
+from .desire import (
+    DesireState,
+    DesireFormation,
+)
+
+# Social Layer
+from .social import (
+    BehaviouralIntention,
+    SocialisationFilter
+)
+
+# Outcomes
+from .outcomes import (
+    InteractionOutcome,
+    TerminalOutcome,
+    OutcomeIndex
+)
+
+# Ollama Integration
+from .ollama_integration import OllamaResponseGenerator
+
+# Main Processor
+from .processor import DialogueProcessor
+
+__version__ = "1.0.0"
+
+__all__ = [
+    # Enums
+    'LanguageArt',
+    'PlayerSkill',
+    'TerminalOutcomeType',
+    
+    # Core Models
+    'ConversationModel',
+    'NPCIntent',
+    
+    # Player Input
+    'PlayerDialogueInput',
+    'PlayerSkillSet',
+    
+    # Skill System
+    'SkillCheckResult',
+    'SkillCheckSystem',
+    
+    # Cognitive
+    'ThoughtReaction',
+    'CognitiveInterpreter',
+
+    # Desire
+    'DesireState',
+    'DesireFormation',
+    
+    # Social
+    'BehaviouralIntention',
+    'SocialisationFilter',
+    
+    # Outcomes
+    'InteractionOutcome',
+    'TerminalOutcome',
+    'OutcomeIndex',
+    
+    # Ollama
+    'OllamaResponseGenerator',
+    
+    # Main Processor
+    'DialogueProcessor',
+]
+# ===== File: pne/choice_filter.py =====
+
+"""
+Psychological Narrative Engine - Choice Filtering System
+Name: choice_filter.py
+Author: Jerome Bawa (original), enhanced filtering by AI assistant
+
+Robust filtering system to ensure only contextually sensible player choices
+appear based on:
+- Current NPC emotional/cognitive state
+- Conversation history and momentum
+- Relation thresholds
+- Narrative coherence rules
+- Player skill requirements
+"""
+
+from typing import List, Dict, Any, Optional
+from dataclasses import dataclass, field
+from enum import Enum
+
+
+class FilterReason(Enum):
+    """Reasons why a choice might be filtered out"""
+    INSUFFICIENT_SKILL = "insufficient_skill"
+    RELATION_TOO_LOW = "relation_too_low"
+    RELATION_TOO_HIGH = "relation_too_high"
+    INCOMPATIBLE_NPC_STATE = "incompatible_npc_state"
+    CONVERSATION_MOMENTUM = "conversation_momentum"
+    NARRATIVE_INCOHERENCE = "narrative_incoherence"
+    TOPIC_DRIFT = "topic_drift"
+    EMOTIONAL_MISMATCH = "emotional_mismatch"
+    PREREQUISITE_MISSING = "prerequisite_missing"
+
+
+@dataclass
+class ChoiceRequirement:
+    """Requirements for a choice to be available"""
+    
+    # Skill requirements (0-10 scale)
+    min_authority: Optional[int] = None
+    min_diplomacy: Optional[int] = None
+    min_empathy: Optional[int] = None
+    min_manipulation: Optional[int] = None
+    
+    # Relation requirements (0.0-1.0)
+    min_relation: Optional[float] = None
+    max_relation: Optional[float] = None
+    
+    # NPC state requirements
+    min_self_esteem: Optional[float] = None
+    max_self_esteem: Optional[float] = None
+    min_emotional_valence: Optional[float] = None  # Negative = hostile
+    max_emotional_valence: Optional[float] = None
+    
+    # Requires specific prior choices
+    requires_choices: List[str] = field(default_factory=list)
+    
+    # Blocks if certain choices were made
+    blocked_by_choices: List[str] = field(default_factory=list)
+    
+    # Topic coherence
+    allowed_after_intentions: List[str] = field(default_factory=list)
+    blocked_after_intentions: List[str] = field(default_factory=list)
+    
+    # Custom condition (lambda function as string for serialization)
+    custom_condition: Optional[str] = None
+
+
+@dataclass
+class FilterContext:
+    """Context needed to evaluate choice availability"""
+    
+    # Player state
+    player_skills: Dict[str, int]  # {"authority": 5, "diplomacy": 3, ...}
+    
+    # NPC state
+    player_relation: float
+    npc_self_esteem: float
+    npc_emotional_valence: float
+    npc_current_intention: str
+    npc_current_desire_type: str
+    
+    # Conversation history
+    choices_made: List[str]
+    turn_count: int
+    last_intention_shift: Optional[str] = None
+    
+    # Additional context
+    conversation_topic: Optional[str] = None
+    conversation_stage: Optional[str] = None  # "opening", "middle", "closing"
+
+
+class ChoiceFilter:
+    """Filters player choices based on requirements and context"""
+    
+    @staticmethod
+    def filter_choices(
+        choices: List[Dict[str, Any]],
+        context: FilterContext,
+        verbose: bool = False
+    ) -> List[Dict[str, Any]]:
+        """
+        Filter choices based on requirements and context.
+        Returns only choices that are currently available.
+        """
+        available_choices = []
+        
+        for choice in choices:
+            requirements = choice.get("requirements", {})
+            if not requirements:
+                # No requirements = always available
+                available_choices.append(choice)
+                continue
+            
+            req = ChoiceRequirement(**requirements)
+            is_available, reasons = ChoiceFilter._evaluate_choice(choice, req, context)
+            
+            if is_available:
+                available_choices.append(choice)
+            elif verbose:
+                print(f"  [FILTERED] '{choice['text'][:50]}...' - Reasons: {[r.value for r in reasons]}")
+        
+        return available_choices
+    
+    @staticmethod
+    def _evaluate_choice(
+        choice: Dict[str, Any],
+        req: ChoiceRequirement,
+        context: FilterContext
+    ) -> tuple[bool, List[FilterReason]]:
+        """
+        Evaluate if a choice meets all requirements.
+        Returns (is_available, list_of_failed_reasons)
+        """
+        failed_reasons = []
+        
+        # 1. Skill checks
+        if req.min_authority is not None and context.player_skills.get("authority", 0) < req.min_authority:
+            failed_reasons.append(FilterReason.INSUFFICIENT_SKILL)
+        if req.min_diplomacy is not None and context.player_skills.get("diplomacy", 0) < req.min_diplomacy:
+            failed_reasons.append(FilterReason.INSUFFICIENT_SKILL)
+        if req.min_empathy is not None and context.player_skills.get("empathy", 0) < req.min_empathy:
+            failed_reasons.append(FilterReason.INSUFFICIENT_SKILL)
+        if req.min_manipulation is not None and context.player_skills.get("manipulation", 0) < req.min_manipulation:
+            failed_reasons.append(FilterReason.INSUFFICIENT_SKILL)
+        
+        # 2. Relation checks
+        if req.min_relation is not None and context.player_relation < req.min_relation:
+            failed_reasons.append(FilterReason.RELATION_TOO_LOW)
+        if req.max_relation is not None and context.player_relation > req.max_relation:
+            failed_reasons.append(FilterReason.RELATION_TOO_HIGH)
+        
+        # 3. NPC emotional state checks
+        if req.min_self_esteem is not None and context.npc_self_esteem < req.min_self_esteem:
+            failed_reasons.append(FilterReason.INCOMPATIBLE_NPC_STATE)
+        if req.max_self_esteem is not None and context.npc_self_esteem > req.max_self_esteem:
+            failed_reasons.append(FilterReason.INCOMPATIBLE_NPC_STATE)
+        
+        if req.min_emotional_valence is not None and context.npc_emotional_valence < req.min_emotional_valence:
+            failed_reasons.append(FilterReason.EMOTIONAL_MISMATCH)
+        if req.max_emotional_valence is not None and context.npc_emotional_valence > req.max_emotional_valence:
+            failed_reasons.append(FilterReason.EMOTIONAL_MISMATCH)
+        
+        # 4. Prerequisite choices
+        if req.requires_choices:
+            if not all(choice_id in context.choices_made for choice_id in req.requires_choices):
+                failed_reasons.append(FilterReason.PREREQUISITE_MISSING)
+        
+        if req.blocked_by_choices:
+            if any(choice_id in context.choices_made for choice_id in req.blocked_by_choices):
+                failed_reasons.append(FilterReason.NARRATIVE_INCOHERENCE)
+        
+        # 5. Intention coherence
+        if req.allowed_after_intentions and context.last_intention_shift:
+            if not any(keyword in context.last_intention_shift for keyword in req.allowed_after_intentions):
+                failed_reasons.append(FilterReason.CONVERSATION_MOMENTUM)
+        
+        if req.blocked_after_intentions and context.last_intention_shift:
+            if any(keyword in context.last_intention_shift for keyword in req.blocked_after_intentions):
+                failed_reasons.append(FilterReason.TOPIC_DRIFT)
+        
+        # 6. Custom condition
+        if req.custom_condition:
+            try:
+                condition_func = eval(req.custom_condition)  # noqa: S307
+                if not condition_func(context):
+                    failed_reasons.append(FilterReason.NARRATIVE_INCOHERENCE)
+            except Exception as e:
+                print(f"Warning: Custom condition failed to evaluate: {e}")
+                failed_reasons.append(FilterReason.NARRATIVE_INCOHERENCE)
+        
+        return len(failed_reasons) == 0, failed_reasons
+    
+    @staticmethod
+    def smart_fallback(
+        choices: List[Dict[str, Any]],
+        context: FilterContext
+    ) -> List[Dict[str, Any]]:
+        """
+        If filtering removes ALL choices, intelligently relax constraints
+        to ensure at least one choice is available.
+        """
+        available = ChoiceFilter.filter_choices(choices, context)
+        
+        if available:
+            return available
+        
+        # Fallback strategy: relax constraints progressively
+        print("  [WARNING] No choices available after filtering. Relaxing constraints...")
+        
+        # 1. Try without intention coherence checks
+        relaxed_choices = []
+        for choice in choices:
+            req_data = choice.get("requirements", {})
+            req_data.pop("allowed_after_intentions", None)
+            req_data.pop("blocked_after_intentions", None)
+            choice_copy = choice.copy()
+            choice_copy["requirements"] = req_data
+            relaxed_choices.append(choice_copy)
+        
+        available = ChoiceFilter.filter_choices(relaxed_choices, context)
+        if available:
+            print("  [FALLBACK] Relaxed intention coherence requirements")
+            return available
+        
+        # 2. Try without relation requirements
+        for choice in relaxed_choices:
+            req_data = choice.get("requirements", {})
+            req_data.pop("min_relation", None)
+            req_data.pop("max_relation", None)
+        
+        available = ChoiceFilter.filter_choices(relaxed_choices, context)
+        if available:
+            print("  [FALLBACK] Relaxed relation requirements")
+            return available
+        
+        # 3. Last resort: return all choices
+        print("  [FALLBACK] Returning all choices (no filters applied)")
+        return choices
+
+
+# ============================================================================
+# CONVERSATION STAGE DETECTOR
+# ============================================================================
+
+
+class ConversationStageDetector:
+    """
+    Automatically determines conversation stage based on turn count,
+    relation, and emotional trajectory.
+    """
+    
+    @staticmethod
+    def detect_stage(
+        turn_count: int,
+        player_relation: float,
+        emotional_trajectory: List[float]  # Recent emotional valence values
+    ) -> str:
+        """
+        Returns: "opening", "middle", "closing", or "critical"
+        """
+        if turn_count <= 1:
+            return "opening"
+        
+        if turn_count >= 10:
+            return "closing"
+        
+        # Critical stage: very low relation or extreme emotional swings
+        if player_relation < 0.2:
+            return "critical"
+        
+        if len(emotional_trajectory) >= 3:
+            recent_variance = max(emotional_trajectory[-3:]) - min(emotional_trajectory[-3:])
+            if recent_variance > 0.5:
+                return "critical"
+        
+        return "middle"
+
+
+# ============================================================================
+# DYNAMIC CHOICE ADJUSTMENT
+# ============================================================================
+
+
+class DynamicChoiceAdjuster:
+    """
+    Adjusts choice availability dynamically based on conversation flow.
+    """
+    
+    @staticmethod
+    def adjust_for_repetition(
+        choices: List[Dict[str, Any]],
+        context: FilterContext
+    ) -> List[Dict[str, Any]]:
+        """
+        Remove choices that repeat the same language_art or tone
+        as the last 2 player choices.
+        """
+        if len(context.choices_made) < 2:
+            return choices
+        
+        # Get language arts from recent choices
+        recent_arts = []
+        # This would require storing language_art in choices_made
+        # For now, we'll use a simplified version
+        
+        return choices
+    
+    @staticmethod
+    def inject_emergency_choices(
+        choices: List[Dict[str, Any]],
+        context: FilterContext
+    ) -> List[Dict[str, Any]]:
+        """
+        If conversation is in critical state, inject emergency choices
+        like "back down", "apologize", "leave".
+        """
+        if context.conversation_stage != "critical":
+            return choices
+        
+        emergency_choice = {
+            "choice_id": "emergency_backdown",
+            "text": "I think we got off on the wrong foot. Let me start over.",
+            "language_art": "diplomatic",
+            "authority_tone": 0.1,
+            "diplomacy_tone": 0.9,
+            "empathy_tone": 0.6,
+            "manipulation_tone": 0.1,
+            "interaction_outcomes": [
+                {
+                    "outcome_id": "reset_conversation",
+                    "stance_delta": {},
+                    "relation_delta": 0.1,
+                    "intention_shift": "Give Second Chance",
+                    "min_response": "Fine. Try again.",
+                    "max_response": "Alright. I'm listening.",
+                    "scripted": False
+                }
+            ],
+            "requirements": {}  # Always available in critical state
+        }
+        
+        return [emergency_choice] + choices
+# ===== File: pne/cognitive.py =====
+
+"""
+Psychological Narrative Engine - Cognitive Interpretation Layer
+Name: cognitive.py
+Author: Jerome Bawa
+"""
+
+from dataclasses import dataclass
+from typing import Dict, Any, Tuple
+import requests
+from .player_input import PlayerDialogueInput
+
+
+@dataclass
+class ThoughtReaction:
+    """NPC's internal subjective thought (not spoken)"""
+    internal_thought: str  # First-person emotional reaction
+    subjective_belief: str  # What NPC interprets is happening
+    cognitive_state: Dict[str, float]  # Updated cognitive attributes
+    emotional_valence: float  # -1 (negative) to 1 (positive)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'internal_thought': self.internal_thought,
+            'subjective_belief': self.subjective_belief,
+            'cognitive_state': self.cognitive_state,
+            'emotional_valence': self.emotional_valence
+        }
+
+
+class CognitiveInterpreter:
+    """Processes input through NPC's cognitive model"""
+    
+    def __init__(self, base_url: str = "http://localhost:11434", model: str = "qwen2.5:3b"):
+        """Initialize cognitive interpreter with LLM connection"""
+        self.base_url = base_url
+        self.model = model
+        self.api_url = f"{base_url}/api/generate"
+    
+    def interpret(self, player_input: PlayerDialogueInput, npc) -> ThoughtReaction:
+        """
+        Generate subjective thought and belief using LLM based on cognitive distortions
+        """
+        # Generate internal thought + belief via LLM
+        internal_thought, subjective_belief = self._generate_subjective_thought(player_input, npc)
+        
+        # Calculate emotional valence from tone analysis
+        emotional_valence = self._calculate_emotional_valence(player_input, npc)
+        
+        cognitive_state = {
+            'self_esteem': npc.cognitive.self_esteem,
+            'locus_of_control': npc.cognitive.locus_of_control,
+            'cog_flexibility': npc.cognitive.cog_flexibility
+        }
+        
+        return ThoughtReaction(
+            internal_thought=internal_thought,
+            subjective_belief=subjective_belief,
+            cognitive_state=cognitive_state,
+            emotional_valence=emotional_valence
+        )
+    
+    def _generate_subjective_thought(self, player_input: PlayerDialogueInput, npc) -> Tuple[str, str]:
+        """
+        Generate NPC's private interpretation of player's words using LLM
+        Returns: (internal_thought, subjective_belief)
+        """
+        
+        prompt = self._build_thought_prompt(player_input, npc)
+        
+        try:
+            response = requests.post(
+                self.api_url,
+                json={
+                    "model": self.model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.8,
+                        "top_p": 0.9,
+                        "num_predict": 80  # Increased for two outputs
+                    }
+                },
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                raw_response = result.get("response", "").strip()
+                
+                # Parse structured output
+                thought = "What are they really saying...?"
+                belief = "Their intentions are unclear"
+                
+                if "THOUGHT:" in raw_response and "BELIEF:" in raw_response:
+                    lines = raw_response.split("\n")
+                    for line in lines:
+                        if line.startswith("THOUGHT:"):
+                            thought = line.replace("THOUGHT:", "").strip()
+                            if len(thought) > 75:
+                                thought = thought[:72] + "..."
+                        elif line.startswith("BELIEF:"):
+                            belief = line.replace("BELIEF:", "").strip()
+                            if len(belief) > 100:
+                                belief = belief[:97] + "..."
+                
+                return thought, belief
+            else:
+                return "I need to process what they said...", "Their intentions are unclear"
+        
+        except Exception as e:
+            print(f"[Cognitive Interpreter Error: {str(e)}]")
+            return "What are they really saying...?", "Their intentions are unclear"
+    
+    def _build_thought_prompt(self, player_input: PlayerDialogueInput, npc) -> str:
+        """Build prompt for generating subjective thought + belief"""
+        
+        prompt_parts = [
+            "Generate NPC's internal reaction in this EXACT format:",
+            "THOUGHT: [First-person emotional reaction, max 75 chars]",
+            "BELIEF: [What NPC interprets is happening, max 100 chars]",
+            "",
+            f"NPC: {npc.name}",
+            f"NPC Cognitive State:",
+            f"- Self-Esteem: {npc.cognitive.self_esteem:.2f} (low=insecure, high=confident)",
+            f"- Locus of Control: {npc.cognitive.locus_of_control:.2f} (low=blames others, high=self-responsible)",
+            f"- Cognitive Flexibility: {npc.cognitive.cog_flexibility:.2f} (low=rigid thinking, high=open-minded)",
+            "",
+            f"Player said: \"{player_input.choice_text}\"",
+            f"Rhetoric style: {player_input.language_art.value}",
+            f"Empathy tone: {player_input.empathy_tone:.2f}",
+            ""
+        ]
+        
+        # Cognitive distortion hints
+        if npc.cognitive.self_esteem < 0.4:
+            prompt_parts.append("⚠ NPC has LOW self-esteem → interprets messages negatively, feels threatened")
+        if npc.cognitive.locus_of_control < 0.5:
+            prompt_parts.append("⚠ NPC has EXTERNAL locus → blames others, sees player as manipulative")
+        if npc.cognitive.cog_flexibility < 0.4:
+            prompt_parts.append("⚠ NPC is RIGID → resists new ideas, sees challenges as attacks")
+        
+        prompt_parts.append("\nExamples:")
+        prompt_parts.append("THOUGHT: Pretty words, but can I trust them?")
+        prompt_parts.append("BELIEF: They claim empathy but may be opportunistic")
+        prompt_parts.append("")
+        prompt_parts.append("THOUGHT: They sound genuine... maybe.")
+        prompt_parts.append("BELIEF: They seem sincere but words are cheap")
+        prompt_parts.append("")
+        prompt_parts.append("Now generate for this NPC:")
+        
+        return "\n".join(prompt_parts)
+    
+    def _calculate_emotional_valence(self, player_input: PlayerDialogueInput, npc) -> float:
+        """Calculate emotional reaction based on cognitive state and input tones"""
+        valence = 0.0
+        
+        # Low self-esteem reacts negatively to authority/manipulation
+        if npc.cognitive.self_esteem < 0.4:
+            valence -= (player_input.authority_tone * 0.3)
+            valence -= (player_input.manipulation_tone * 0.5)
+        
+        # External locus attributes hostility to others
+        if npc.cognitive.locus_of_control < 0.5:
+            valence -= (player_input.authority_tone * 0.4)
+        
+        # High flexibility responds positively to diplomacy
+        if npc.cognitive.cog_flexibility > 0.6:
+            valence += (player_input.diplomacy_tone * 0.4)
+            valence += (player_input.empathy_tone * 0.3)
+        
+        # Rigid thinking resists persuasion
+        if npc.cognitive.cog_flexibility < 0.4:
+            valence -= (player_input.diplomacy_tone * 0.2)
+        
+        return max(-1.0, min(1.0, valence))
+# ===== File: pne/conversation.py =====
+
+"""
+Psychological Narrative Engine - Conversation Containment
+Name: conversation.py
+Author: Jerome Bawa
+"""
+
+from dataclasses import dataclass, field
+from typing import List, Dict, Any
+
+
+@dataclass
+class ConversationModel:
+    """Container for conversation metadata and state"""
+    conversation_id: str
+    stage: str  # Current phase of conversation
+    topic: str  # Active subject being discussed
+    turn_count: int = 0
+    history: List[str] = field(default_factory=list)
+    
+    def advance_turn(self):
+        """Increment turn counter"""
+        self.turn_count += 1
+    
+    def add_exchange(self, player_line: str, npc_line: str):
+        """Add dialogue exchange to history"""
+        self.history.append(f"Player: {player_line}")
+        self.history.append(f"NPC: {npc_line}")
+        self.advance_turn()
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'conversation_id': self.conversation_id,
+            'stage': self.stage,
+            'topic': self.topic,
+            'turn_count': self.turn_count,
+            'history': self.history
+        }
+# ===== File: pne/desire.py =====
+
+"""
+Psychological Narrative Engine - Desire Formation Layer
+Name: desire.py
+Author: Jerome Bawa
+
+Converts subjective beliefs into goal-oriented desires
+This is the missing BDI link between:
+- What NPC BELIEVES is happening (Cognitive)
+- What NPC WANTS in response (Desire)
+- What NPC will DO (Social/Behavioral)
+"""
+
+from dataclasses import dataclass
+from typing import Dict, Any
+from .cognitive import ThoughtReaction
+from .player_input import PlayerDialogueInput
+
+
+@dataclass
+class DesireState:
+    """NPC's desire in response to player input"""
+    immediate_desire: str  # "Test their sincerity" / "Find common ground" / "Protect the cause"
+    desire_type: str  # "information-seeking" / "affiliation" / "protection" / "dominance"
+    intensity: float  # 0-1, how strongly NPC wants this
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'immediate_desire': self.immediate_desire,
+            'desire_type': self.desire_type,
+            'intensity': self.intensity
+        }
+
+
+class DesireFormation:
+    """
+    Transforms NPC's subjective belief into goal-oriented desire
+    
+    Architecture:
+    BELIEF → DESIRE → INTENTION
+    "They claim empathy" → "Test if sincere" → "Question them directly"
+    """
+    
+    @staticmethod
+    def form_desire(
+        thought_reaction: ThoughtReaction,
+        player_input: PlayerDialogueInput,
+        npc,
+        npc_intent
+    ) -> DesireState:
+        """
+        Given NPC's belief about player's words,
+        what does NPC WANT?
+        """
+        
+        belief = thought_reaction.subjective_belief.lower()
+        valence = thought_reaction.emotional_valence
+        
+        # ═══════════════════════════════════════════════════════════
+        # PATTERN 1: Uncertainty → Information Seeking
+        # ═══════════════════════════════════════════════════════════
+        if any(word in belief for word in ["unclear", "unsure", "testing", "cheap", "words"]):
+            # NPC doesn't trust the words yet
+            if npc.cognitive.self_esteem > 0.6:
+                # Confident NPCs probe directly
+                return DesireState(
+                    immediate_desire="Test their commitment and sincerity",
+                    desire_type="information-seeking",
+                    intensity=0.7
+                )
+            else:
+                # Insecure NPCs assume the worst
+                return DesireState(
+                    immediate_desire="Protect myself from being deceived",
+                    desire_type="protection",
+                    intensity=0.8
+                )
+        
+        # ═══════════════════════════════════════════════════════════
+        # PATTERN 2: Perceived Sincerity → Affiliation
+        # ═══════════════════════════════════════════════════════════
+        if any(word in belief for word in ["genuine", "sincere", "authentic", "real", "honest"]):
+            if npc.social.empathy > 0.5:
+                return DesireState(
+                    immediate_desire="Find common ground and build trust",
+                    desire_type="affiliation",
+                    intensity=0.6
+                )
+            else:
+                # Low empathy NPC still cautious even if they believe sincerity
+                return DesireState(
+                    immediate_desire="Acknowledge but remain guarded",
+                    desire_type="information-seeking",
+                    intensity=0.4
+                )
+        
+        # ═══════════════════════════════════════════════════════════
+        # PATTERN 3: Perceived Threat → Protection/Dominance
+        # ═══════════════════════════════════════════════════════════
+        if any(word in belief for word in ["manipulative", "threat", "challenging", "attack", "deceive"]):
+            if npc.social.wildcard == "Martyr":
+                # Martyr complex: protect the cause at all costs
+                return DesireState(
+                    immediate_desire="Defend the cause and test their loyalty",
+                    desire_type="protection",
+                    intensity=0.9
+                )
+            elif npc.social.assertion > 0.7:
+                # Assertive NPCs push back
+                return DesireState(
+                    immediate_desire="Assert dominance and challenge them back",
+                    desire_type="dominance",
+                    intensity=0.8
+                )
+            else:
+                # Less assertive NPCs withdraw
+                return DesireState(
+                    immediate_desire="Maintain boundaries and de-escalate",
+                    desire_type="protection",
+                    intensity=0.6
+                )
+        
+        # ═══════════════════════════════════════════════════════════
+        # PATTERN 4: Opportunistic Detection → Suspicion
+        # ═══════════════════════════════════════════════════════════
+        if any(word in belief for word in ["opportunistic", "using", "exploit", "advantage"]):
+            return DesireState(
+                immediate_desire="Scrutinize their true motives",
+                desire_type="information-seeking",
+                intensity=0.8
+            )
+        
+        # ═══════════════════════════════════════════════════════════
+        # PATTERN 5: Ideological Alignment → Affiliation
+        # ═══════════════════════════════════════════════════════════
+        if player_input.ideology_alignment:
+            if player_input.ideology_alignment in npc.social.ideology:
+                alignment_strength = npc.social.ideology[player_input.ideology_alignment]
+                if alignment_strength > 0.6:
+                    return DesireState(
+                        immediate_desire="Explore shared values and goals",
+                        desire_type="affiliation",
+                        intensity=alignment_strength
+                    )
+        
+        # ═══════════════════════════════════════════════════════════
+        # PATTERN 6: Emotional Valence-Based Defaults
+        # ═══════════════════════════════════════════════════════════
+        if valence < -0.3:
+            # Negative emotional reaction
+            return DesireState(
+                immediate_desire="Maintain distance and protect boundaries",
+                desire_type="protection",
+                intensity=0.6
+            )
+        elif valence > 0.3:
+            # Positive emotional reaction
+            return DesireState(
+                immediate_desire="Explore potential connection",
+                desire_type="affiliation",
+                intensity=0.5
+            )
+        
+        # ═══════════════════════════════════════════════════════════
+        # DEFAULT: Based on NPC's Long-Term Goals
+        # ═══════════════════════════════════════════════════════════
+        long_term = npc_intent.long_term_desire.lower()
+        
+        if "protect" in long_term or "secure" in long_term:
+            return DesireState(
+                immediate_desire="Evaluate if they align with our mission",
+                desire_type="information-seeking",
+                intensity=0.5
+            )
+        elif "power" in long_term or "control" in long_term:
+            return DesireState(
+                immediate_desire="Assess if they can be useful",
+                desire_type="information-seeking",
+                intensity=0.6
+            )
+        else:
+            return DesireState(
+                immediate_desire="Understand their true intentions",
+                desire_type="information-seeking",
+                intensity=0.5
+            )
+# ===== File: pne/enums.py =====
+
+"""
+Psychological Narrative Engine - Core Enumerations
+Name: enums.py
+Author: Jerome Bawa
+"""
+
+from enum import Enum
+
+
+class LanguageArt(Enum):
+    """Player Dialogue Approaches (Rhetoric)"""
+    CHALLENGE = "challenge"
+    DIPLOMATIC = "diplomatic"
+    EMPATHETIC = "empathetic"
+    MANIPULATIVE = "manipulative"
+    NEUTRAL = "neutral"
+
+
+class PlayerSkill(Enum):
+    """Player's skill proficiencies"""
+    AUTHORITY = "authority"
+    DIPLOMACY = "diplomacy"
+    EMPATHY = "empathy"
+    MANIPULATION = "manipulation"
+
+
+class TerminalOutcomeType(Enum):
+    """Terminal outcome types"""
+    SUCCEED = "succeed"
+    FAIL = "fail"
+    NEGOTIATE = "negotiate"
+    DELAY = "delay"
+    ESCALATE = "escalate"
+# ===== File: pne/intent.py =====
+
+"""
+Psychological Narrative Engine - NPC Intent Layer (Purpose/Meta Layer)
+Name: intent.py
+Author: Jerome Bawa
+"""
+
+from dataclasses import dataclass
+from typing import Dict
+
+
+@dataclass
+class NPCIntent:
+    """
+    BDI Model: Beliefs, Desires, Intentions
+    Defines NPC's purpose in the conversation
+    """
+    baseline_belief: str  # Core belief about situation
+    long_term_desire: str  # What NPC ultimately wants
+    immediate_intention: str  # Current goal (e.g., "Protect Door", "Test Player")
+    stakes: str  # What's at risk
+    
+    def shift_intention(self, new_intention: str):
+        """Update NPC's immediate intention"""
+        self.immediate_intention = new_intention
+    
+    def to_dict(self) -> Dict[str, str]:
+        return {
+            'baseline_belief': self.baseline_belief,
+            'long_term_desire': self.long_term_desire,
+            'immediate_intention': self.immediate_intention,
+            'stakes': self.stakes
+        }
+# ===== File: pne/intention_registry.py =====
+
+"""
+Psychological Narrative Engine - Canonical Intention Registry
+Name: intention_registry.py
+
+Defines the closed vocabulary of NPC behavioural intentions.
+Both SocialisationFilter and TransitionResolver reference this registry,
+ensuring transitions can always match the intention the BDI pipeline produces.
+
+Each intention has:
+  - A canonical name (used in transitions)
+  - A desire_type it belongs to
+  - The desire keywords that activate it
+  - NPC attribute conditions that gate it
+  - A confrontation_level range
+  - An emotional_expression
+"""
+
+from dataclasses import dataclass, field
+from typing import List, Optional, Dict, Any
+
+
+@dataclass
+class IntentionTemplate:
+    """
+    A canonical intention entry.
+    SocialisationFilter picks from these.
+    TransitionResolver matches against these names.
+    """
+    name: str                          # Canonical name — used in scenario transitions
+    desire_type: str                   # Which desire type produces this
+    desire_keywords: List[str]         # Keywords in desire text that activate this
+    confrontation_min: float           # Valid confrontation range
+    confrontation_max: float
+    emotional_expression: str
+    wildcard_required: Optional[str] = None   # e.g. "Martyr" — NPC must have this wildcard
+    npc_conditions: Dict[str, Any] = field(default_factory=dict)
+    # e.g. {"social.assertion": (">", 0.7)} — extra NPC attribute gates
+
+
+# ============================================================================
+# THE CANONICAL INTENTION VOCABULARY
+# ============================================================================
+# Scenario transitions reference these names in "intention_match" fields.
+# SocialisationFilter selects from this list based on desire + NPC profile.
+
+INTENTION_REGISTRY: List[IntentionTemplate] = [
+
+    # ── INFORMATION-SEEKING ───────────────────────────────────────────────
+
+    IntentionTemplate(
+        name="Challenge to Reveal Truth",
+        desire_type="information-seeking",
+        desire_keywords=["test", "probe", "scrutinize", "commitment", "sincerity"],
+        confrontation_min=0.6,
+        confrontation_max=0.9,
+        emotional_expression="direct",
+        npc_conditions={"social.assertion": (">", 0.7)},
+    ),
+    IntentionTemplate(
+        name="Carefully Question Motives",
+        desire_type="information-seeking",
+        desire_keywords=["test", "probe", "scrutinize"],
+        confrontation_min=0.3,
+        confrontation_max=0.6,
+        emotional_expression="measured",
+        npc_conditions={"social.assertion": ("<=", 0.7)},
+    ),
+    IntentionTemplate(
+        name="Neutral Evaluation",
+        desire_type="information-seeking",
+        desire_keywords=["evaluate", "assess", "understand", "align"],
+        confrontation_min=0.3,
+        confrontation_max=0.5,
+        emotional_expression="analytical",
+    ),
+
+    # ── AFFILIATION ───────────────────────────────────────────────────────
+
+    IntentionTemplate(
+        name="Seek Connection",
+        desire_type="affiliation",
+        desire_keywords=["common ground", "trust", "build", "find"],
+        confrontation_min=0.1,
+        confrontation_max=0.3,
+        emotional_expression="open",
+        npc_conditions={"social.empathy": (">", 0.5)},
+    ),
+    IntentionTemplate(
+        name="Cautious Openness",
+        desire_type="affiliation",
+        desire_keywords=["common ground", "trust", "build", "find"],
+        confrontation_min=0.3,
+        confrontation_max=0.5,
+        emotional_expression="guarded",
+        npc_conditions={"social.empathy": ("<=", 0.5)},
+    ),
+    IntentionTemplate(
+        name="Explore Common Ground",
+        desire_type="affiliation",
+        desire_keywords=["explore", "shared", "values"],
+        confrontation_min=0.2,
+        confrontation_max=0.4,
+        emotional_expression="curious",
+    ),
+    IntentionTemplate(
+        name="Acknowledge with Reservation",
+        desire_type="affiliation",
+        desire_keywords=["acknowledge", "guarded", "connection"],
+        confrontation_min=0.4,
+        confrontation_max=0.6,
+        emotional_expression="cautious",
+    ),
+
+    # ── PROTECTION ────────────────────────────────────────────────────────
+
+    IntentionTemplate(
+        name="Defend Cause Passionately",
+        desire_type="protection",
+        desire_keywords=["defend", "cause", "loyalty", "protect the cause"],
+        confrontation_min=0.7,
+        confrontation_max=1.0,
+        emotional_expression="explosive",
+        wildcard_required="Martyr",
+    ),
+    IntentionTemplate(
+        name="Establish Boundaries",
+        desire_type="protection",
+        desire_keywords=["defend", "cause", "loyalty"],
+        confrontation_min=0.5,
+        confrontation_max=0.7,
+        emotional_expression="firm",
+    ),
+    IntentionTemplate(
+        name="Maintain Distance",
+        desire_type="protection",
+        desire_keywords=["protect", "deceived", "distance"],
+        confrontation_min=0.4,
+        confrontation_max=0.6,
+        emotional_expression="suspicious",
+    ),
+    IntentionTemplate(
+        name="De-escalate and Withdraw",
+        desire_type="protection",
+        desire_keywords=["boundaries", "de-escalate", "withdraw"],
+        confrontation_min=0.2,
+        confrontation_max=0.4,
+        emotional_expression="controlled",
+    ),
+
+    # ── DOMINANCE ─────────────────────────────────────────────────────────
+
+    IntentionTemplate(
+        name="Assert Dominance Aggressively",
+        desire_type="dominance",
+        desire_keywords=["assert", "challenge", "dominate"],
+        confrontation_min=0.8,
+        confrontation_max=1.0,
+        emotional_expression="aggressive",
+        wildcard_required="Napoleon",
+    ),
+    IntentionTemplate(
+        name="Challenge Back",
+        desire_type="dominance",
+        desire_keywords=["assert", "challenge", "push back"],
+        confrontation_min=0.6,
+        confrontation_max=0.8,
+        emotional_expression="assertive",
+    ),
+
+    # ── WILDCARD OVERRIDES ────────────────────────────────────────────────
+
+    IntentionTemplate(
+        name="Submit",
+        desire_type="protection",
+        desire_keywords=["submit", "comply", "back down"],
+        confrontation_min=0.0,
+        confrontation_max=0.2,
+        emotional_expression="suppressed",
+        wildcard_required="Inferiority",
+    ),
+
+    # ── ACCEPTANCE / RESOLUTION ───────────────────────────────────────────
+
+    IntentionTemplate(
+        name="Accept Player for Trial",
+        desire_type="information-seeking",
+        desire_keywords=["trial", "accept", "chance", "prove", "task"],
+        confrontation_min=0.3,
+        confrontation_max=0.6,
+        emotional_expression="direct",
+    ),
+    IntentionTemplate(
+        name="Transactional Agreement",
+        desire_type="affiliation",
+        desire_keywords=["transactional", "deal", "supplies", "exchange"],
+        confrontation_min=0.2,
+        confrontation_max=0.5,
+        emotional_expression="measured",
+    ),
+    IntentionTemplate(
+        name="Resist Player",
+        desire_type="protection",
+        desire_keywords=["resist", "authority", "push back", "intimidate"],
+        confrontation_min=0.6,
+        confrontation_max=0.9,
+        emotional_expression="direct",
+    ),
+
+    # ── FALLBACK ──────────────────────────────────────────────────────────
+
+    IntentionTemplate(
+        name="Neutral Response",
+        desire_type="",
+        desire_keywords=[],
+        confrontation_min=0.4,
+        confrontation_max=0.6,
+        emotional_expression="direct",
+    ),
+]
+
+# Fast lookup by name
+INTENTION_BY_NAME: Dict[str, IntentionTemplate] = {
+    t.name: t for t in INTENTION_REGISTRY
+}
+
+# All canonical intention names — used by scenario authors for transitions
+INTENTION_NAMES = [t.name for t in INTENTION_REGISTRY]
+
+
+def get_intention(name: str) -> Optional[IntentionTemplate]:
+    return INTENTION_BY_NAME.get(name)
+
+
+def list_by_desire_type(desire_type: str) -> List[IntentionTemplate]:
+    return [t for t in INTENTION_REGISTRY if t.desire_type == desire_type]
+# ===== File: pne/ollama_integration.py =====
+
+"""
+Psychological Narrative Engine - Ollama Integration
+Name: ollama_integration.py
+Author: Jerome Bawa (original), prompt overhaul by AI assistant
+"""
+
+from typing import List
+import requests
+from .cognitive import ThoughtReaction
+from .social import BehaviouralIntention
+from .outcomes import InteractionOutcome
+
+
+_EXPRESSION_GUIDE: dict = {
+    "direct":      "Speak plainly and without excess. Get to the point.",
+    "measured":    "Choose words carefully. You're calm but probing.",
+    "analytical":  "Be logical and detached. Weigh them up clinically.",
+    "open":        "Warm but not naive. You're choosing to trust — cautiously.",
+    "guarded":     "Keep emotional distance. Don't give too much away.",
+    "curious":     "Genuinely interested but not committed.",
+    "cautious":    "Acknowledge what they said but reserve judgement.",
+    "explosive":   "Passionate, intense, barely contained. This matters deeply.",
+    "firm":        "Clear, non-negotiable. You've drawn a line.",
+    "suspicious":  "Sceptical. You're looking for the lie.",
+    "controlled":  "Deliberately calm despite the tension.",
+    "aggressive":  "Dominant, threatening. You don't ask — you impose.",
+    "assertive":   "Confident push-back. You won't be moved easily.",
+    "suppressed":  "Deference masking resentment. Comply — but show the cost.",
+}
+
+
+def _confrontation_note(level: float) -> str:
+    if level >= 0.8:
+        return "very confrontational — challenge or pressure them directly"
+    if level >= 0.6:
+        return "moderately confrontational — push back with clear intent"
+    if level >= 0.4:
+        return "neutral — neither welcoming nor hostile"
+    if level >= 0.2:
+        return "low confrontation — cautious but not aggressive"
+    return "non-confrontational — de-escalating or deferential"
+
+
+class OllamaResponseGenerator:
+    """Generates NPC dialogue responses using Ollama"""
+
+    def __init__(self, base_url: str = "http://localhost:11434", model: str = "llama3"):
+        self.base_url = base_url
+        self.model = model
+        self.api_url = f"{base_url}/api/generate"
+
+    def _build_ollama_options(self, npc) -> dict:
+        options = {
+            "temperature": 0.85,
+            "top_p": 0.8125,
+            "top_k": 0,
+            "repeat_penalty": 1.125,
+            "num_predict": 100,
+        }
+        wildcard_cfg = {}
+        try:
+            social = getattr(npc, "social", None)
+            if social and hasattr(social, "get_wildcard_config"):
+                wildcard_cfg = social.get_wildcard_config() or {}
+        except Exception:
+            wildcard_cfg = {}
+
+        if wildcard_cfg:
+            base_temp = options.get("temperature", 0.85)
+            temp_offset = wildcard_cfg.get("temp_offset")
+            if isinstance(temp_offset, (int, float)):
+                options["temperature"] = base_temp + float(temp_offset)
+            for key in ("temperature", "top_p", "top_k", "repeat_penalty", "num_predict", "stop"):
+                if key in wildcard_cfg:
+                    options[key] = wildcard_cfg[key]
+
+        return options
+
+    def generate_response(
+        self,
+        npc,
+        thought_reaction: ThoughtReaction,
+        behavioural_intention: BehaviouralIntention,
+        interaction_outcome: InteractionOutcome,
+        conversation_history: List[str] = None,
+    ) -> str:
+        prompt = self._build_prompt(
+            npc, thought_reaction, behavioural_intention,
+            interaction_outcome, conversation_history,
+        )
+        options = self._build_ollama_options(npc)
+
+        try:
+            print(f"  → Connecting to Ollama at {self.base_url}...")
+            response = requests.post(
+                self.api_url,
+                json={
+                    "model": self.model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": options,
+                },
+                timeout=60,
+            )
+            if response.status_code == 200:
+                result = response.json()
+                generated = result.get("response", "").strip()
+                if generated:
+                    return generated
+            return interaction_outcome.get_response(thought_reaction.emotional_valence)
+
+        except Exception as e:
+            print(f"[Ollama Error: {str(e)}]")
+            return interaction_outcome.get_response(thought_reaction.emotional_valence)
+
+    def _build_prompt(
+        self,
+        npc,
+        thought_reaction: ThoughtReaction,
+        behavioural_intention: BehaviouralIntention,
+        interaction_outcome: InteractionOutcome,
+        conversation_history: List[str] = None,
+    ) -> str:
+        parts: List[str] = []
+
+        # ── ROLE ────────────────────────────────────────────────────────
+        dominant_ideology = ""
+        try:
+            dominant_ideology = npc.social.get_dominant_ideology()
+        except Exception:
+            pass
+
+        parts.append(f"You are {npc.name}, a {npc.social.social_position.value} "
+                     f"of the {npc.social.faction}.")
+        if dominant_ideology:
+            parts.append(f"Your dominant ideology: {dominant_ideology}.")
+        parts.append("")
+
+        # ── WORLD CONTEXT ────────────────────────────────────────────────
+        world_context = getattr(npc, "world_context", None)
+        if world_context:
+            parts.append("## WORLD CONTEXT")
+            parts.append(world_context.get_npc_context(npc))
+            parts.append("")
+
+        # ── BDI STATE ────────────────────────────────────────────────────
+        parts.append("## CURRENT INTERNAL STATE")
+        parts.append(f"BELIEF:    \"{thought_reaction.subjective_belief}\"")
+        parts.append(f"INTENTION: {behavioural_intention.intention_type}")
+        parts.append("")
+
+        # ── ACTING DIRECTION ─────────────────────────────────────────────
+        expression = behavioural_intention.emotional_expression
+        expression_guide = _EXPRESSION_GUIDE.get(expression, "Respond naturally.")
+        confrontation_note = _confrontation_note(behavioural_intention.confrontation_level)
+
+        parts.append("## HOW TO SPEAK THIS TURN")
+        parts.append(f"Tone style   : {expression.upper()} — {expression_guide}")
+        parts.append(f"Confrontation: {confrontation_note}")
+        if behavioural_intention.wildcard_triggered:
+            parts.append(f"⚠  Wildcard active ({npc.social.wildcard}) — "
+                         f"push this trait to the foreground.")
+        parts.append("")
+
+        # ── RESPONSE RANGE ───────────────────────────────────────────────
+        parts.append("## RESPONSE RANGE (for calibration only — do NOT copy verbatim)")
+        parts.append(f"Negative variant: \"{interaction_outcome.min_response}\"")
+        parts.append(f"Positive variant: \"{interaction_outcome.max_response}\"")
+        parts.append("")
+
+        # ── CONVERSATION HISTORY ─────────────────────────────────────────
+        if conversation_history:
+            recent = conversation_history[-6:]
+            parts.append("## RECENT CONVERSATION")
+            for line in recent:
+                parts.append(line)
+            parts.append("")
+
+        # ── INSTRUCTION ──────────────────────────────────────────────────
+        parts.append(
+            f"Generate ONE line of dialogue as {npc.name}. "
+            f"Stay in character. Do NOT describe actions or emotions in brackets. "
+            f"Respond to what was just said. Keep it under 40 words."
+        )
+
+        return "\n".join(parts)
+# ===== File: pne/outcomes.py =====
+
+"""
+Psychological Narrative Engine - Outcome Structures
+Name: outcomes.py
+Author: Jerome Bawa
+"""
+
+from dataclasses import dataclass
+from typing import Dict, Any, Optional, List, Callable
+from .enums import TerminalOutcomeType
+from .conversation import ConversationModel
+from .social import BehaviouralIntention
+
+
+@dataclass
+class InteractionOutcome:
+    """
+    Micro-outcome: immediate conversational effect
+    NOT terminal - just shifts NPC state
+    """
+    outcome_id: str
+    stance_delta: Dict[str, float]  # Adjusts NPC attributes
+    relation_delta: float  # Change to player_relation
+    intention_shift: Optional[str]  # New NPC intention
+    min_response: str  # Negative reaction variant
+    max_response: str  # Positive reaction variant
+    scripted: bool = False  # If true, no interpolation
+    
+    def get_response(self, emotional_valence: float) -> str:
+        """
+        Interpolate between min/max based on emotional valence
+        """
+        if self.scripted:
+            return self.max_response if emotional_valence > 0 else self.min_response
+        
+        # Simple interpolation (can be enhanced)
+        if emotional_valence > 0.3:
+            return self.max_response
+        elif emotional_valence < -0.3:
+            return self.min_response
+        else:
+            return f"{self.min_response} But... {self.max_response}"
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'outcome_id': self.outcome_id,
+            'stance_delta': self.stance_delta,
+            'relation_delta': self.relation_delta,
+            'intention_shift': self.intention_shift,
+            'min_response': self.min_response,
+            'max_response': self.max_response,
+            'scripted': self.scripted
+        }
+
+
+@dataclass
+class TerminalOutcome:
+    """
+    Terminal outcome: final result of conversation
+    """
+    terminal_id: TerminalOutcomeType
+    condition: Callable  # Function that evaluates if this outcome triggers
+    result: str  # What actually happens in game world
+    final_dialogue: str  # NPC's closing line
+    
+    def evaluate(self, npc, conversation: ConversationModel) -> bool:
+        """Check if this terminal outcome should trigger"""
+        return self.condition(npc, conversation)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'terminal_id': self.terminal_id.value,
+            'result': self.result,
+            'final_dialogue': self.final_dialogue
+        }
+
+
+@dataclass
+class OutcomeIndex:
+    """
+    Maps dialogue choices to possible outcomes
+    """
+    choice_id: str
+    interaction_outcomes: List[InteractionOutcome]
+    terminal_outcomes: List[TerminalOutcome]
+    
+    def get_interaction_outcome(self, behavioural_intention: BehaviouralIntention) -> InteractionOutcome:
+        """
+        Select appropriate interaction outcome based on NPC's behavioural intention
+        """
+        # Match intention type to outcome
+        for outcome in self.interaction_outcomes:
+            if behavioural_intention.intention_type.lower() in outcome.outcome_id.lower():
+                return outcome
+        
+        # Default to first outcome
+        return self.interaction_outcomes[0] if self.interaction_outcomes else None
+    
+    def check_terminal_outcomes(self, npc, conversation: ConversationModel) -> Optional[TerminalOutcome]:
+        """
+        Check if any terminal outcome condition is met
+        """
+        for terminal in self.terminal_outcomes:
+            if terminal.evaluate(npc, conversation):
+                return terminal
+        return None
+# ===== File: pne/player_input.py =====
+
+"""
+Psychological Narrative Engine - Player Input Structures
+Name: player_input.py
+Author: Jerome Bawa
+"""
+
+from dataclasses import dataclass, field
+from typing import List, Dict, Any, Optional
+from .enums import LanguageArt, PlayerSkill
+
+
+@dataclass
+class PlayerDialogueInput:
+    """Structured Player dialogue"""
+    choice_text: str
+    language_art: LanguageArt
+    contextual_references: List[str] = field(default_factory=list)
+    
+    # Parsed traits from choice text
+    authority_tone: float = 0.5
+    diplomacy_tone: float = 0.5
+    empathy_tone: float = 0.5
+    manipulation_tone: float = 0.5
+    ideology_alignment: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "choice_text": self.choice_text,
+            "language_art": self.language_art.value,
+            "authority_tone": self.authority_tone,
+            "diplomacy_tone": self.diplomacy_tone,
+            "empathy_tone": self.empathy_tone,
+            "manipulation_tone": self.manipulation_tone,
+            "ideology_alignment": self.ideology_alignment,
+            "contextual_references": self.contextual_references
+        }
+
+
+@dataclass
+class PlayerSkillSet:
+    """Player's skill proficiencies (0-10 scale)"""
+    authority: int = 0
+    diplomacy: int = 0
+    empathy: int = 0
+    manipulation: int = 0
+
+    def __post_init__(self):
+        for attr in ["authority", "diplomacy", "empathy", "manipulation"]:
+            value = getattr(self, attr)
+            if not (0 <= value <= 10):
+                raise ValueError(f"{attr} skill must be between 0 and 10, got {value}")
+            
+    def get_skill(self, skill: PlayerSkill) -> int:
+        skill_map = {
+            PlayerSkill.AUTHORITY: self.authority,
+            PlayerSkill.DIPLOMACY: self.diplomacy,
+            PlayerSkill.EMPATHY: self.empathy,
+            PlayerSkill.MANIPULATION: self.manipulation
+        }
+        return skill_map[skill]
+    
+    def get_skill_normalized(self, skill: PlayerSkill) -> float:
+        return self.get_skill(skill) / 10.0
+# ===== File: pne/processor.py =====
+
+"""
+Psychological Narrative Engine - Dialogue Processor
+Name: processor.py
+Author: Jerome Bawa 
+
+Implements Purpose-Output Model with Conversation Containment,
+Interaction Outcomes, and Terminal Outcomes
+"""
+
+from typing import Dict, Any
+from .conversation import ConversationModel
+from .intent import NPCIntent
+from .player_input import PlayerDialogueInput, PlayerSkillSet
+from .skill_check import SkillCheckSystem
+from .cognitive import CognitiveInterpreter, ThoughtReaction
+from .desire import DesireFormation, DesireState
+from .social import SocialisationFilter
+from .outcomes import OutcomeIndex
+from .ollama_integration import OllamaResponseGenerator
+
+
+class DialogueProcessor:
+    """
+    Main processor implementing Purpose-Output Model with BDI architecture:
+    Purpose → Input → COGNITIVE (Belief) → DESIRE (Want) → SOCIAL (Intention) → Output
+    """
+    
+    def __init__(
+        self, 
+        npc, 
+        player_skills: PlayerSkillSet,
+        npc_intent: NPCIntent,
+        outcome_index: OutcomeIndex,
+        conversation_id: str,
+        use_ollama: bool = True,
+        ollama_url: str = "http://localhost:11434",
+        ollama_model: str = "qwen2.5:3b"
+    ):
+        self.npc = npc
+        self.player_skills = player_skills
+        self.npc_intent = npc_intent
+        self.outcome_index = outcome_index
+        
+        # Conversation containment
+        self.conversation = ConversationModel(
+            conversation_id=conversation_id,
+            stage="opening",
+            topic=npc_intent.immediate_intention
+        )
+        
+        # Ollama integration
+        self.use_ollama = use_ollama
+        if use_ollama:
+            self.ollama = OllamaResponseGenerator(ollama_url, ollama_model)
+            self.cognitive_interpreter = CognitiveInterpreter(ollama_url, ollama_model)
+        else:
+            self.ollama = None
+            self.cognitive_interpreter = None
+    
+    def process_dialogue(
+        self, 
+        player_input: PlayerDialogueInput,
+        generate_with_ollama: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Complete BDI pipeline:
+        Purpose → Input → COGNITIVE (Belief) → DESIRE (Want) → SOCIAL (Intention) → Interaction → Terminal
+        """
+        
+        # ═══════════════════════════════════════════════════════════
+        # STAGE I: Purpose (already set in __init__ via npc_intent)
+        # ═══════════════════════════════════════════════════════════
+        
+        # ═══════════════════════════════════════════════════════════
+        # STAGE II: Input / Rhetoric Parsing (already done via player_input)
+        # ═══════════════════════════════════════════════════════════
+        
+        # Skill Check (auxiliary)
+        skill_check = SkillCheckSystem.perform_check(
+            player_input, self.player_skills, self.npc
+        )
+        if skill_check and skill_check.success:
+            SkillCheckSystem.apply_modifiers(self.npc, skill_check)
+        
+        # ═══════════════════════════════════════════════════════════
+        # STAGE III: COGNITIVE INTERPRETATION → BELIEF
+        # ═══════════════════════════════════════════════════════════
+        if self.cognitive_interpreter:
+            thought_reaction = self.cognitive_interpreter.interpret(player_input, self.npc)
+        else:
+            # Fallback if Ollama not available
+            thought_reaction = ThoughtReaction(
+                internal_thought="What are they really saying...?",
+                subjective_belief="Their intentions are unclear",
+                cognitive_state={
+                    'self_esteem': self.npc.cognitive.self_esteem,
+                    'locus_of_control': self.npc.cognitive.locus_of_control,
+                    'cog_flexibility': self.npc.cognitive.cog_flexibility
+                },
+                emotional_valence=0.0
+            )
+        
+        # ═══════════════════════════════════════════════════════════
+        # STAGE IV: DESIRE FORMATION → WANT
+        # ═══════════════════════════════════════════════════════════
+        desire_state = DesireFormation.form_desire(
+            thought_reaction,
+            player_input,
+            self.npc,
+            self.npc_intent
+        )
+        
+        # ═══════════════════════════════════════════════════════════
+        # STAGE V: SOCIALISATION FILTER → INTENTION
+        # ═══════════════════════════════════════════════════════════
+        behavioural_intention = SocialisationFilter.filter(
+            thought_reaction,
+            desire_state,
+            player_input,
+            self.npc
+        )
+        
+        # ═══════════════════════════════════════════════════════════
+        # STAGE VI: INTERACTION OUTCOME
+        # ═══════════════════════════════════════════════════════════
+        interaction_outcome = self.outcome_index.get_interaction_outcome(behavioural_intention)
+        
+        # Apply interaction outcome effects
+        if interaction_outcome:
+            # Apply stance deltas
+            for attr_path, delta in interaction_outcome.stance_delta.items():
+                current = self.npc.get_attribute(attr_path)
+                new_val = max(0.0, min(1.0, current + delta))
+                self.npc.apply_temp_mod(attr_path, new_val)
+            
+            # Apply relation delta
+            self.npc.world.update_relation(interaction_outcome.relation_delta)
+            
+            # Shift intention if needed
+            if interaction_outcome.intention_shift:
+                self.npc_intent.shift_intention(interaction_outcome.intention_shift)
+        
+        # Generate NPC response
+        if generate_with_ollama and self.use_ollama and self.ollama and interaction_outcome:
+            npc_response = self.ollama.generate_response(
+                self.npc,
+                thought_reaction,
+                behavioural_intention,
+                interaction_outcome,
+                self.conversation.history
+            )
+        elif interaction_outcome:
+            npc_response = interaction_outcome.get_response(thought_reaction.emotional_valence)
+        else:
+            npc_response = "..."
+        
+        # Add to conversation history
+        self.conversation.add_exchange(player_input.choice_text, npc_response)
+        
+        # ═══════════════════════════════════════════════════════════
+        # STAGE VII: CHECK TERMINAL OUTCOMES
+        # ═══════════════════════════════════════════════════════════
+        terminal_outcome = self.outcome_index.check_terminal_outcomes(self.npc, self.conversation)
+        
+        # Build response context
+        response_context = {
+            'conversation_id': self.conversation.conversation_id,
+            'turn': self.conversation.turn_count,
+            'npc_intent': self.npc_intent.to_dict(),
+            'skill_check': skill_check.to_dict() if skill_check else None,
+            'thought_reaction': thought_reaction.to_dict(),
+            'desire_state': desire_state.to_dict(),  # NEW
+            'behavioural_intention': behavioural_intention.to_dict(),
+            'interaction_outcome': interaction_outcome.to_dict() if interaction_outcome else None,
+            'npc_response': npc_response,
+            'terminal_outcome': terminal_outcome.to_dict() if terminal_outcome else None,
+            'conversation_complete': terminal_outcome is not None
+        }
+        
+        return response_context
+    
+    def end_conversation(self):
+        """Reset temporary modifiers after conversation ends"""
+        self.npc.reset_temp_mods()
+        self.conversation.history.clear()
+# ===== File: pne/skill_check.py =====
+
+"""
+Psychological Narrative Engine - Skill Check System
+Name: skill_check.py
+Author: Jerome Bawa
+"""
+
+from dataclasses import dataclass
+from typing import Dict, Any, Optional
+import random
+from .enums import LanguageArt, PlayerSkill
+from .player_input import PlayerDialogueInput, PlayerSkillSet
+
+
+@dataclass
+class SkillCheckResult:
+    """Result of a skill check"""
+    success: bool
+    skill_used: PlayerSkill
+    player_val: int
+    threshold: float
+    margin: float
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "success": self.success,
+            "skill_used": self.skill_used.value,
+            "player_val": self.player_val,
+            "threshold": self.threshold,
+            "margin": self.margin
+        }
+
+
+class SkillCheckSystem:
+    """Handles skill checks based on player input"""
+    
+    LANGUAGE_ART_TO_SKILL = {
+        LanguageArt.CHALLENGE: PlayerSkill.AUTHORITY,
+        LanguageArt.DIPLOMATIC: PlayerSkill.DIPLOMACY,
+        LanguageArt.EMPATHETIC: PlayerSkill.EMPATHY,
+        LanguageArt.MANIPULATIVE: PlayerSkill.MANIPULATION,
+        LanguageArt.NEUTRAL: None
+    }
+
+    SKILL_MODIFIERS = {
+        PlayerSkill.AUTHORITY: [
+            ('social.assertion', lambda npc, margin: npc.social.assertion * (1 - margin * 0.5))
+        ],
+        PlayerSkill.MANIPULATION: [
+            ('cognitive.self_esteem', lambda npc, margin: npc.cognitive.self_esteem * (1 - margin * 0.5))
+        ],
+        PlayerSkill.DIPLOMACY: [
+            ('cognitive.cog_flexibility', lambda npc, margin: min(1.0, npc.cognitive.cog_flexibility * (1 + margin * 0.5)))
+        ],
+        PlayerSkill.EMPATHY: [
+            ('social.empathy', lambda npc, margin: min(1.0, npc.social.empathy * (1 + margin * 0.5)))
+        ]
+    }
+
+    @staticmethod
+    def calc_threshold(npc, skill: PlayerSkill) -> float:
+        if skill == PlayerSkill.AUTHORITY:
+            return 0.3 + (npc.social.assertion * 0.4)
+        elif skill == PlayerSkill.MANIPULATION:
+            return 0.2 + (npc.cognitive.self_esteem * 0.5)
+        elif skill == PlayerSkill.EMPATHY:
+            return 0.4 - (npc.social.empathy * 0.2)
+        elif skill == PlayerSkill.DIPLOMACY:
+            return 0.3 - (npc.cognitive.cog_flexibility * 0.3)
+        return 0.5
+
+    @staticmethod
+    def perform_check(
+        player_input: PlayerDialogueInput,
+        player_skills: PlayerSkillSet,
+        npc
+    ) -> Optional[SkillCheckResult]:
+        skill = SkillCheckSystem.LANGUAGE_ART_TO_SKILL.get(player_input.language_art)
+        if skill is None:
+            return None
+        
+        player_val = player_skills.get_skill(skill)
+        threshold = SkillCheckSystem.calc_threshold(npc, skill)
+        roll = random.uniform(-0.1, 0.1)
+        eff_val = (player_val / 10.0) + roll
+        success = eff_val >= threshold
+        margin = eff_val - threshold
+
+        return SkillCheckResult(
+            success=success,
+            skill_used=skill,
+            player_val=player_val,
+            threshold=threshold,
+            margin=margin
+        )
+
+    @staticmethod
+    def apply_modifiers(npc, check_result: SkillCheckResult):
+        if not check_result.success:
+            return
+        
+        modifiers = SkillCheckSystem.SKILL_MODIFIERS.get(check_result.skill_used, [])
+        for attr_path, mod_func in modifiers:
+            new_value = mod_func(npc, abs(check_result.margin))
+            npc.apply_temp_mod(attr_path, new_value)
+# ===== File: pne/social.py =====
+
+"""
+Psychological Narrative Engine - Socialisation Filter Layer
+Name: social.py
+Author: Jerome Bawa (original), registry-driven rewrite by AI assistant
+
+KEY CHANGE
+----------
+SocialisationFilter now selects intentions from the canonical
+INTENTION_REGISTRY (pne/intention_registry.py) rather than returning
+hard-coded strings.  This means:
+
+  * Every intention_type that reaches the LLM prompt IS a registry name.
+  * TransitionResolver.outcome_match keywords reliably find matches.
+  * Scenario authors only need to reference INTENTION_NAMES in transitions.
+
+Workflow:
+  DESIRE → filter candidates from INTENTION_REGISTRY
+         → score each candidate
+         → return the highest-scoring BehaviouralIntention
+"""
+
+from dataclasses import dataclass
+from typing import Dict, Any, List, Optional
+from .player_input import PlayerDialogueInput
+from .cognitive import ThoughtReaction
+from .desire import DesireState
+from .intention_registry import INTENTION_REGISTRY, IntentionTemplate, INTENTION_BY_NAME
+
+
+@dataclass
+class BehaviouralIntention:
+    """NPC's intended response behavior (not yet dialogue)"""
+    intention_type: str        # Canonical name from INTENTION_REGISTRY
+    confrontation_level: float # 0–1
+    emotional_expression: str  # "suppressed", "direct", "explosive", …
+    wildcard_triggered: bool = False
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "intention_type": self.intention_type,
+            "confrontation_level": self.confrontation_level,
+            "emotional_expression": self.emotional_expression,
+            "wildcard_triggered": self.wildcard_triggered,
+        }
+
+
+class SocialisationFilter:
+    """
+    Converts desire into a socially viable BehaviouralIntention by selecting
+    the best-matching template from INTENTION_REGISTRY.
+
+    Selection algorithm
+    -------------------
+    1. Pre-filter: keep only templates whose desire_type matches.
+    2. Score each surviving template (0–1):
+         - keyword overlap between desire text and template.desire_keywords
+         - confrontation band fit (is NPC's natural confrontation level in range?)
+         - wildcard gate (hard exclude if wildcard_required doesn't match)
+         - NPC attribute conditions
+    3. Return the highest-scoring template wrapped in BehaviouralIntention.
+    4. If no template survives, fall back to "Neutral Response".
+    """
+
+    # NPC confrontation tendency is derived from social.assertion + social.conf_indep
+    _ASSERT_WEIGHT = 0.7
+    _INDEP_WEIGHT = 0.3
+
+    # ------------------------------------------------------------------ #
+    # Public API
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def filter(
+        thought_reaction: ThoughtReaction,
+        desire_state: DesireState,
+        player_input: PlayerDialogueInput,
+        npc,
+    ) -> BehaviouralIntention:
+        """
+        Given what the NPC WANTS, decide HOW they will act.
+        Always returns a BehaviouralIntention whose intention_type is a
+        canonical INTENTION_REGISTRY name.
+        """
+        # ── 0. Wildcard hard-overrides (bypass desire logic entirely) ────
+        override = SocialisationFilter._check_wildcard_override(player_input, npc)
+        if override:
+            return override
+
+        # ── 1. Compute NPC's natural confrontation tendency ──────────────
+        npc_confrontation = SocialisationFilter._npc_confrontation(npc)
+
+        # ── 2. Filter registry to matching desire_type ──────────────────
+        candidates = [
+            t for t in INTENTION_REGISTRY
+            if t.desire_type == desire_state.desire_type or t.desire_type == ""
+        ]
+
+        # ── 3. Score each candidate ──────────────────────────────────────
+        best_template: Optional[IntentionTemplate] = None
+        best_score = -1.0
+
+        for template in candidates:
+            score = SocialisationFilter._score(
+                template, desire_state, npc, npc_confrontation
+            )
+            if score > best_score:
+                best_score = score
+                best_template = template
+
+        # ── 4. Build BehaviouralIntention from best template ─────────────
+        if best_template is None or best_template.name == "Neutral Response":
+            return SocialisationFilter._neutral_fallback(npc_confrontation)
+
+        confrontation = SocialisationFilter._clamp_confrontation(
+            npc_confrontation, best_template, desire_state.intensity
+        )
+
+        wildcard_triggered = (
+            best_template.wildcard_required is not None
+            and getattr(npc.social, "wildcard", None) == best_template.wildcard_required
+        )
+
+        return BehaviouralIntention(
+            intention_type=best_template.name,
+            confrontation_level=confrontation,
+            emotional_expression=best_template.emotional_expression,
+            wildcard_triggered=wildcard_triggered,
+        )
+
+    # ------------------------------------------------------------------ #
+    # Scoring helpers
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _score(
+        template: IntentionTemplate,
+        desire_state: DesireState,
+        npc,
+        npc_confrontation: float,
+    ) -> float:
+        """
+        Score how well this template fits the current desire + NPC profile.
+        Returns a float; higher = better fit.  Negative = hard exclude.
+        """
+        # ── Hard gate: wildcard_required must match NPC wildcard ─────────
+        npc_wildcard = getattr(npc.social, "wildcard", None)
+        if template.wildcard_required and template.wildcard_required != npc_wildcard:
+            return -1.0
+
+        # ── Hard gate: NPC attribute conditions ─────────────────────────
+        if not SocialisationFilter._check_npc_conditions(template, npc):
+            return -1.0
+
+        score = 0.0
+
+        # ── Keyword overlap (0–0.5) ──────────────────────────────────────
+        desire_text = desire_state.immediate_desire.lower()
+        if template.desire_keywords:
+            matches = sum(1 for kw in template.desire_keywords if kw.lower() in desire_text)
+            score += 0.5 * (matches / len(template.desire_keywords))
+        else:
+            # Fallback template (no keywords) gets a small base score
+            score += 0.05
+
+        # ── Confrontation band fit (0–0.4) ────────────────────────────────
+        if template.confrontation_min <= npc_confrontation <= template.confrontation_max:
+            score += 0.4
+        else:
+            # Partial credit if close
+            distance = min(
+                abs(npc_confrontation - template.confrontation_min),
+                abs(npc_confrontation - template.confrontation_max),
+            )
+            score += max(0.0, 0.4 - distance * 0.8)
+
+        # ── Intensity bonus (0–0.1): high intensity → higher confrontation ─
+        if desire_state.intensity > 0.7 and template.confrontation_max > 0.6:
+            score += 0.1
+
+        return score
+
+    @staticmethod
+    def _check_npc_conditions(template: IntentionTemplate, npc) -> bool:
+        """
+        Evaluate npc_conditions dict, e.g. {"social.assertion": (">", 0.7)}
+        Returns False if ANY condition fails.
+        """
+        for attr_path, (op, threshold) in template.npc_conditions.items():
+            try:
+                value = npc.get_attribute(attr_path)
+            except Exception:
+                # If we can't resolve the attribute, skip this condition
+                continue
+            ops = {">": float.__gt__, ">=": float.__ge__,
+                   "<": float.__lt__, "<=": float.__le__, "==": float.__eq__}
+            fn = ops.get(op)
+            if fn and not fn(float(value), float(threshold)):
+                return False
+        return True
+
+    # ------------------------------------------------------------------ #
+    # Wildcard overrides
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _check_wildcard_override(player_input: PlayerDialogueInput, npc) -> Optional[BehaviouralIntention]:
+        """
+        Hard overrides triggered by wildcard + player tone regardless of desire.
+        These bypass the normal desire→intention flow.
+        """
+        wildcard = getattr(npc.social, "wildcard", None)
+        if not wildcard:
+            return None
+
+        if wildcard == "Inferiority" and player_input.authority_tone > 0.5:
+            template = INTENTION_BY_NAME.get("Submit")
+            if template:
+                return BehaviouralIntention(
+                    intention_type=template.name,
+                    confrontation_level=0.1,
+                    emotional_expression=template.emotional_expression,
+                    wildcard_triggered=True,
+                )
+
+        return None
+
+    # ------------------------------------------------------------------ #
+    # Utility
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _npc_confrontation(npc) -> float:
+        """Derive NPC's natural confrontation level from social attributes."""
+        assertion = getattr(npc.social, "assertion", 0.5)
+        conf_indep = getattr(npc.social, "conf_indep", 0.5)
+        return min(1.0, (
+            assertion * SocialisationFilter._ASSERT_WEIGHT
+            + conf_indep * SocialisationFilter._INDEP_WEIGHT
+        ))
+
+    @staticmethod
+    def _clamp_confrontation(
+        npc_confrontation: float,
+        template: IntentionTemplate,
+        intensity: float,
+    ) -> float:
+        """
+        Derive the actual confrontation value for this turn.
+        Clamp to the template's valid range, then nudge by intensity.
+        """
+        base = max(template.confrontation_min,
+                   min(template.confrontation_max, npc_confrontation))
+        # Intensity nudges toward the upper half of the band
+        band = template.confrontation_max - template.confrontation_min
+        nudge = band * 0.3 * intensity
+        result = min(template.confrontation_max, base + nudge)
+        return round(result, 4)
+
+    @staticmethod
+    def _neutral_fallback(npc_confrontation: float) -> BehaviouralIntention:
+        template = INTENTION_BY_NAME.get("Neutral Response")
+        confrontation = npc_confrontation if template is None else max(
+            template.confrontation_min,
+            min(template.confrontation_max, npc_confrontation)
+        )
+        return BehaviouralIntention(
+            intention_type="Neutral Response",
+            confrontation_level=round(confrontation, 4),
+            emotional_expression="direct",
+        )
+# ===== File: pne/world_context.py =====
+
+"""
+Psychological Narrative Engine - World Context
+Name: world_context.py
+"""
+
+import json
+from dataclasses import dataclass, field
+from typing import Dict, Any, List, Optional
+
+
+@dataclass
+class WorldContext:
+    """Shared world data — one instance, referenced by all NPCs"""
+    world_history: str
+    factions: Dict[str, Any] = field(default_factory=dict)
+    key_events: Dict[str, Any] = field(default_factory=dict)  # keyed by id
+    locations: Dict[str, str] = field(default_factory=dict)
+    concepts: Dict[str, str] = field(default_factory=dict)
+
+    @classmethod
+    def from_file(cls, path: str) -> "WorldContext":
+        with open(path) as f:
+            data = json.load(f)
+        events = {e["id"]: e for e in data.get("key_events", [])}
+        return cls(
+            world_history=data.get("world_history", ""),
+            factions=data.get("factions", {}),
+            key_events=events,
+            locations=data.get("locations", {}),
+            concepts=data.get("concepts", {}),
+        )
+
+    def get_npc_context(self, npc) -> str:
+        """
+        Build world context string for a specific NPC,
+        filtered to what they actually know.
+        """
+        parts = [f"WORLD: {self.world_history}"]
+
+        faction_id = getattr(npc.social, "faction", None)
+        if faction_id and faction_id in self.factions:
+            f = self.factions[faction_id]
+            parts.append(f"FACTION ({faction_id}): {f['history']}")
+            parts.append(f"FACTION IDEOLOGY: {f['ideology']}")
+
+        known = getattr(npc.world, "known_events", [])
+        for event_id in known:
+            if event_id in self.key_events:
+                e = self.key_events[event_id]
+                parts.append(f"EVENT ({e['year']}): {e['description']}")
+
+        parts.append(f"PERSONAL HISTORY: {npc.world.personal_history}")
+
+        if npc.world.player_history:
+            parts.append(f"HISTORY WITH PLAYER: {npc.world.player_history}")
+
+        return "\n".join(parts)

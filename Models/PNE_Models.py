@@ -172,43 +172,80 @@ class SocialPersonalityModel:
 
 @dataclass
 class WorldPerceptionModel:
-    """Stores NPC's knowledge and relationship with player"""
-    world_history: str = ""
+    """Stores NPC's knowledge, historical awareness, and relationship with player"""
     personal_history: str = ""
     player_history: str = ""
-    player_relation: float = 0.5  # 0=contempt, 0.5=neutral, 1=friendship
-    
+    player_relation: float = 0.5
+
+    # World references
+    world_history_ref: str = ""
+    faction_ref: str = ""
+    known_events: List[str] = field(default_factory=list)
+    known_figures: List[str] = field(default_factory=list)  # NEW
+
+    # Legacy support
+    world_history: str = ""
+
+    # Runtime (not serialized)
+    resolved_figures: Dict[str, Dict[str, Any]] = field(default_factory=dict, repr=False)
+
     def __post_init__(self):
         if not 0 <= self.player_relation <= 1:
-            raise ValueError(f"player_relation must be between 0 and 1, got {self.player_relation}")
-    
+            raise ValueError(
+                f"player_relation must be between 0 and 1, got {self.player_relation}"
+            )
+
+    # ------------------------------------------------------------------
+    # Relationship + History
+    # ------------------------------------------------------------------
+
     def update_relation(self, delta: float):
-        """Adjust relation value, clamped to 0-1"""
         self.player_relation = max(0.0, min(1.0, self.player_relation + delta))
-    
+
     def update_personal_history(self, event: str):
-        """Append to personal history"""
         separator = "\n- " if self.personal_history else "- "
         self.personal_history += separator + event
-    
+
     def update_player_history(self, event: str):
-        """Append to player history"""
         separator = "\n- " if self.player_history else "- "
         self.player_history += separator + event
-    
+
+    # ------------------------------------------------------------------
+    # Figure Resolution
+    # ------------------------------------------------------------------
+
+    def resolve_figures(self, world_context):
+        """
+        Populate resolved_figures from world_context.figures
+        """
+        if not world_context or not hasattr(world_context, "figures"):
+            return
+
+        for fig_id in self.known_figures:
+            if fig_id in world_context.figures:
+                self.resolved_figures[fig_id] = world_context.figures[fig_id]
+
+    # ------------------------------------------------------------------
+    # Serialization
+    # ------------------------------------------------------------------
+
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
-    
+        data = asdict(self)
+        data.pop("resolved_figures", None)  # runtime only
+        return data
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'WorldPerceptionModel':
-        """Create WorldPerceptionModel from dictionary"""
         return cls(
-            world_history=data.get('world_history', ""),
             personal_history=data.get('personal_history', ""),
             player_history=data.get('player_history', ""),
-            player_relation=data.get('player_relation', 0.5)
+            player_relation=data.get('player_relation', 0.5),
+            world_history_ref=data.get('world_history_ref', ""),
+            faction_ref=data.get('faction_ref', ""),
+            known_events=data.get('known_events', []),
+            known_figures=data.get('known_figures', []),  # NEW
+            world_history=data.get('world_history', ""),
         )
-
 
 # ============================================================================
 # COMPLETE NPC MODEL
@@ -298,18 +335,43 @@ class NPCModel:
     @classmethod
     def from_json(cls, json_source: str) -> 'NPCModel':
         """
-        Deserialize from JSON string or file path
-        Automatically detects if input is filepath or JSON string
+        Deserialize from JSON string or file path.
+        Does NOT attach WorldContext — use from_json_with_world() for that.
         """
         try:
-            # Try as filepath first
             with open(json_source, 'r') as f:
                 data = json.load(f)
         except (FileNotFoundError, OSError):
-            # Parse as JSON string
             data = json.loads(json_source)
-        
         return cls.from_dict(data)
+
+    @classmethod
+    def from_json_with_world(cls, json_source: str, world_context=None) -> 'NPCModel':
+        """
+        Deserialize NPC and attach a shared WorldContext object.
+
+        Usage:
+            world = WorldContext.from_file("data/world.json")
+            moses = NPCModel.from_json_with_world("data/npcs/moses.json", world)
+            # moses.world_context is now set
+        """
+        npc = cls.from_json(json_source)
+
+        # Auto-load WorldContext from world_history_ref if no context provided
+        if world_context is None and npc.world.world_history_ref:
+            try:
+                from pne.world_context import WorldContext
+                world_context = WorldContext.from_file(npc.world.world_history_ref)
+            except Exception as e:
+                print(f"[NPCModel] Warning: could not load world context: {e}")
+
+        npc.world_context = world_context
+
+        # Resolve figure references
+        if world_context:
+            npc.world.resolve_figures(world_context)
+
+        return npc
 
 
 # ============================================================================
@@ -343,13 +405,26 @@ class NPCFactory:
                 social_position=SocialPosition.BOSS
             ),
             world=WorldPerceptionModel(
-                world_history="Full world history here...",
-                personal_history="Moses' personal journey...",
+                world_history_ref="data/world.json",
+                faction_ref="Insurgency",
+                known_events=[
+                    "moses_defection",
+                    "hop_removal",
+                    "dysphoria_expansion",
+                    "romancian_takeover",
+                    "commonman_formed",
+                ],
+                personal_history=(
+                    "Moses served as a military officer under Romancian command "
+                    "before exposing corruption and killing a senior official in 2679. "
+                    "He vanished from formal record and now leads the Insurgency "
+                    "from the shadows."
+                ),
                 player_history="",
-                player_relation=0.5
-            )
+                player_relation=0.5,
+            ),
         )
-    
+
     @staticmethod
     def create_amourie_othella() -> NPCModel:
         """Creates Amourie Othella with documented attributes"""
@@ -374,13 +449,19 @@ class NPCFactory:
                 social_position=SocialPosition.BOSS
             ),
             world=WorldPerceptionModel(
-                world_history="Full world history here...",
+                world_history_ref="data/world.json",
+                faction_ref="Commonman",
+                known_events=[
+                    "commonman_formed",
+                    "hop_removal",
+                    "dysphoria_expansion",
+                ],
                 personal_history="Othella's journey...",
                 player_history="",
-                player_relation=0.5
-            )
+                player_relation=0.5,
+            ),
         )
-    
+
     @staticmethod
     def create_krystian_krakk() -> NPCModel:
         """Creates Krystian 'Krakk' Klikowicz"""
@@ -405,13 +486,18 @@ class NPCFactory:
                 social_position=SocialPosition.BOSS
             ),
             world=WorldPerceptionModel(
-                world_history="Full world history here...",
+                world_history_ref="data/world.json",
+                faction_ref="Runners",
+                known_events=[
+                    "hop_removal",
+                    "dysphoria_expansion",
+                    "runner_coordination",
+                ],
                 personal_history="Krakk's story...",
                 player_history="",
-                player_relation=0.5
-            )
+                player_relation=0.5,
+            ),
         )
-
 
 # ============================================================================
 # USAGE EXAMPLE

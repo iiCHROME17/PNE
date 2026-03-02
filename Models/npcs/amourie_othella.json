@@ -1,6 +1,6 @@
 {
   "name": "Amourie Othella",
-  "age": 42,
+  "age": 33,
   "cognitive": {
     "self_esteem": 0.9,
     "locus_of_control": 0.2,
@@ -15,12 +15,35 @@
       "Pragmatism": 0.3
     },
     "wildcard": "Napoleon",
-    "faction": "The Commonman",
+    "faction": "Commonman",
     "social_position": "Boss"
   },
   "world": {
-    "world_history": "Full world history here...",
-    "personal_history": "Othella's journey...",
+    "world_history_ref": "data/world.json",
+    "faction_ref": "Commonman",
+
+    "known_events": [
+      "azraelean_war",
+      "great_separation",
+      "hop_creation",
+      "romance_city_founded",
+      "romancian_takeover",
+      "dysphoria_onset",
+      "commonman_formed",
+      "hop_removal",
+      "dysphoria_expansion"
+    ],
+
+    "known_figures": [
+      "the_envisioned",
+      "clark_tolie",
+      "jessa_reid_othella",
+      "jean_pope_chautlier",
+      "morisson_moses"
+    ],
+
+    "personal_history": "Amourie Othella was born into inheritance, not comfort. As a descendant of Jessa Reid-Othella and the ideological lineage of Jean Pope Chautlier, she grew up surrounded by stories of resistance, art as responsibility, and culture as civic duty. Her childhood was not defined by rebellion but by observation. She learned early that Romance City’s decline was not loud — it was quiet. She watched districts grow emotionally dim before they decayed physically. Where others saw politics, she sensed imbalance.\n\nBy adolescence, she had already internalized a core belief: infrastructure fails when empathy fails. Unlike earlier artist leaders who reacted to oppression, Amourie developed during a period of slow deterioration. Dysphoria was spreading, but subtly. Human governance was stable on paper, but spiritually hollow. She concluded that collapse would not come from sudden violence, but from apathy.\n\nAt seventeen, she formalized what older generations had kept informal. She unified scattered artist circles into the Commonman, not as protestors but as stewards. Her leadership was calm, structured, and emotionally literate. She framed art not as rebellion, but as preventative maintenance for society. Under her direction, murals became markers of psychological health, performances became civic rituals, and cultural districts became living diagnostics of the city’s condition.\n\nAmourie does not believe she is a hero. She believes she is maintenance.",
+
     "player_history": "",
     "player_relation": 0.5
   }

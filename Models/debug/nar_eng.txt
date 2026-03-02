@@ -1,0 +1,2010 @@
+
+# ===== File: narrative_engine/__init__.py =====
+
+"""
+Psychological Narrative Engine - Multi-NPC Conversation Engine
+
+A Fallout-style psychological narrative engine where:
+- Player choices are visible and structured (node/choice tree)
+- NPC responses are generated via the BDI+LLM pipeline
+- Scenarios are NPC-agnostic; NPC individuality is injected at runtime
+- Multiple NPCs can participate independently in the same scenario
+- Routing between nodes is DYNAMIC: driven by NPC BDI state + player_relation
+
+Author: Jerome Bawa (original), refactor by AI assistant
+"""
+
+from .engine import NarrativeEngine
+from .session import ConversationSession, NPCConversationState
+from .scenario_loader import ScenarioLoader
+from .transition_resolver import TransitionResolver
+
+__all__ = [
+    "NarrativeEngine",
+    "ConversationSession",
+    "NPCConversationState",
+    "ScenarioLoader",
+    "TransitionResolver",
+]
+
+__version__ = "1.0.0"
+# ===== File: narrative_engine/choice_filter.py =====
+
+import dataclasses
+"""
+Psychological Narrative Engine - Choice Filtering System
+Name: choice_filter.py
+Author: Jerome Bawa (original), enhanced filtering by AI assistant
+
+Robust filtering system to ensure only contextually sensible player choices
+appear based on:
+- Current NPC emotional/cognitive state
+- Conversation history and momentum
+- Relation thresholds
+- Narrative coherence rules
+- Player skill requirements
+"""
+
+from typing import List, Dict, Any, Optional
+from dataclasses import dataclass, field
+from enum import Enum
+
+
+class FilterReason(Enum):
+    """Reasons why a choice might be filtered out"""
+    INSUFFICIENT_SKILL = "insufficient_skill"
+    RELATION_TOO_LOW = "relation_too_low"
+    RELATION_TOO_HIGH = "relation_too_high"
+    INCOMPATIBLE_NPC_STATE = "incompatible_npc_state"
+    CONVERSATION_MOMENTUM = "conversation_momentum"
+    NARRATIVE_INCOHERENCE = "narrative_incoherence"
+    TOPIC_DRIFT = "topic_drift"
+    EMOTIONAL_MISMATCH = "emotional_mismatch"
+    PREREQUISITE_MISSING = "prerequisite_missing"
+
+
+@dataclass
+class ChoiceRequirement:
+    """Requirements for a choice to be available"""
+    
+    # Skill requirements (0-10 scale)
+    min_authority: Optional[int] = None
+    min_diplomacy: Optional[int] = None
+    min_empathy: Optional[int] = None
+    min_manipulation: Optional[int] = None
+    
+    # Relation requirements (0.0-1.0)
+    min_relation: Optional[float] = None
+    max_relation: Optional[float] = None
+    
+    # NPC state requirements
+    min_self_esteem: Optional[float] = None
+    max_self_esteem: Optional[float] = None
+    min_emotional_valence: Optional[float] = None  # Negative = hostile
+    max_emotional_valence: Optional[float] = None
+    
+    # Requires specific prior choices
+    requires_choices: List[str] = field(default_factory=list)
+    
+    # Blocks if certain choices were made
+    blocked_by_choices: List[str] = field(default_factory=list)
+    
+    # Topic coherence
+    allowed_after_intentions: List[str] = field(default_factory=list)
+    blocked_after_intentions: List[str] = field(default_factory=list)
+    
+    # Custom condition (lambda function as string for serialization)
+    custom_condition: Optional[str] = None
+
+
+@dataclass
+class FilterContext:
+    """Context needed to evaluate choice availability"""
+    
+    # Player state
+    player_skills: Dict[str, int]  # {"authority": 5, "diplomacy": 3, ...}
+    
+    # NPC state
+    player_relation: float
+    npc_self_esteem: float
+    npc_emotional_valence: float
+    npc_current_intention: str
+    npc_current_desire_type: str
+    
+    # Conversation history
+    choices_made: List[str]
+    turn_count: int
+    last_intention_shift: Optional[str] = None
+    
+    # Additional context
+    conversation_topic: Optional[str] = None
+    conversation_stage: Optional[str] = None  # "opening", "middle", "closing"
+
+
+class ChoiceFilter:
+    """Filters player choices based on requirements and context"""
+    
+    @staticmethod
+    def filter_choices(
+        choices: List[Dict[str, Any]],
+        context: FilterContext,
+        verbose: bool = False
+    ) -> List[Dict[str, Any]]:
+        """
+        Filter choices based on requirements and context.
+        Returns only choices that are currently available.
+        """
+        available_choices = []
+        
+        for choice in choices:
+            requirements = choice.get("requirements", {})
+            if not requirements:
+                # No requirements = always available
+                available_choices.append(choice)
+                continue
+            
+            valid_fields = {f.name for f in dataclasses.fields(ChoiceRequirement)}
+            req = ChoiceRequirement(**{k: v for k, v in requirements.items() if k in valid_fields})
+            is_available, reasons = ChoiceFilter._evaluate_choice(choice, req, context)
+            
+            if is_available:
+                available_choices.append(choice)
+            elif verbose:
+                print(f"  [FILTERED] '{choice['text'][:50]}...' - Reasons: {[r.value for r in reasons]}")
+        
+        return available_choices
+    
+    @staticmethod
+    def _evaluate_choice(
+        choice: Dict[str, Any],
+        req: ChoiceRequirement,
+        context: FilterContext
+    ) -> tuple[bool, List[FilterReason]]:
+        """
+        Evaluate if a choice meets all requirements.
+        Returns (is_available, list_of_failed_reasons)
+        """
+        failed_reasons = []
+        
+        # 1. Skill checks
+        if req.min_authority is not None and context.player_skills.get("authority", 0) < req.min_authority:
+            failed_reasons.append(FilterReason.INSUFFICIENT_SKILL)
+        if req.min_diplomacy is not None and context.player_skills.get("diplomacy", 0) < req.min_diplomacy:
+            failed_reasons.append(FilterReason.INSUFFICIENT_SKILL)
+        if req.min_empathy is not None and context.player_skills.get("empathy", 0) < req.min_empathy:
+            failed_reasons.append(FilterReason.INSUFFICIENT_SKILL)
+        if req.min_manipulation is not None and context.player_skills.get("manipulation", 0) < req.min_manipulation:
+            failed_reasons.append(FilterReason.INSUFFICIENT_SKILL)
+        
+        # 2. Relation checks
+        if req.min_relation is not None and context.player_relation < req.min_relation:
+            failed_reasons.append(FilterReason.RELATION_TOO_LOW)
+        if req.max_relation is not None and context.player_relation > req.max_relation:
+            failed_reasons.append(FilterReason.RELATION_TOO_HIGH)
+        
+        # 3. NPC emotional state checks
+        if req.min_self_esteem is not None and context.npc_self_esteem < req.min_self_esteem:
+            failed_reasons.append(FilterReason.INCOMPATIBLE_NPC_STATE)
+        if req.max_self_esteem is not None and context.npc_self_esteem > req.max_self_esteem:
+            failed_reasons.append(FilterReason.INCOMPATIBLE_NPC_STATE)
+        
+        if req.min_emotional_valence is not None and context.npc_emotional_valence < req.min_emotional_valence:
+            failed_reasons.append(FilterReason.EMOTIONAL_MISMATCH)
+        if req.max_emotional_valence is not None and context.npc_emotional_valence > req.max_emotional_valence:
+            failed_reasons.append(FilterReason.EMOTIONAL_MISMATCH)
+        
+        # 4. Prerequisite choices
+        if req.requires_choices:
+            if not all(choice_id in context.choices_made for choice_id in req.requires_choices):
+                failed_reasons.append(FilterReason.PREREQUISITE_MISSING)
+        
+        if req.blocked_by_choices:
+            if any(choice_id in context.choices_made for choice_id in req.blocked_by_choices):
+                failed_reasons.append(FilterReason.NARRATIVE_INCOHERENCE)
+        
+        # 5. Intention coherence
+        if req.allowed_after_intentions and context.last_intention_shift:
+            if not any(keyword in context.last_intention_shift for keyword in req.allowed_after_intentions):
+                failed_reasons.append(FilterReason.CONVERSATION_MOMENTUM)
+        
+        if req.blocked_after_intentions and context.last_intention_shift:
+            if any(keyword in context.last_intention_shift for keyword in req.blocked_after_intentions):
+                failed_reasons.append(FilterReason.TOPIC_DRIFT)
+        
+        # 6. Custom condition
+        if req.custom_condition:
+            try:
+                condition_func = eval(req.custom_condition)  # noqa: S307
+                if not condition_func(context):
+                    failed_reasons.append(FilterReason.NARRATIVE_INCOHERENCE)
+            except Exception as e:
+                print(f"Warning: Custom condition failed to evaluate: {e}")
+                failed_reasons.append(FilterReason.NARRATIVE_INCOHERENCE)
+        
+        return len(failed_reasons) == 0, failed_reasons
+    
+    @staticmethod
+    def smart_fallback(
+        choices: List[Dict[str, Any]],
+        context: FilterContext
+    ) -> List[Dict[str, Any]]:
+        """
+        If filtering removes ALL choices, intelligently relax constraints
+        to ensure at least one choice is available.
+        """
+        available = ChoiceFilter.filter_choices(choices, context)
+        
+        if available:
+            return available
+        
+        # Fallback strategy: relax constraints progressively
+        print("  [WARNING] No choices available after filtering. Relaxing constraints...")
+        
+        # 1. Try without intention coherence checks
+        relaxed_choices = []
+        for choice in choices:
+            req_data = choice.get("requirements", {})
+            req_data.pop("allowed_after_intentions", None)
+            req_data.pop("blocked_after_intentions", None)
+            choice_copy = choice.copy()
+            choice_copy["requirements"] = req_data
+            relaxed_choices.append(choice_copy)
+        
+        available = ChoiceFilter.filter_choices(relaxed_choices, context)
+        if available:
+            print("  [FALLBACK] Relaxed intention coherence requirements")
+            return available
+        
+        # 2. Try without relation requirements
+        for choice in relaxed_choices:
+            req_data = choice.get("requirements", {})
+            req_data.pop("min_relation", None)
+            req_data.pop("max_relation", None)
+        
+        available = ChoiceFilter.filter_choices(relaxed_choices, context)
+        if available:
+            print("  [FALLBACK] Relaxed relation requirements")
+            return available
+        
+        # 3. Last resort: return all choices
+        print("  [FALLBACK] Returning all choices (no filters applied)")
+        return choices
+
+
+# ============================================================================
+# CONVERSATION STAGE DETECTOR
+# ============================================================================
+
+
+class ConversationStageDetector:
+    """
+    Automatically determines conversation stage based on turn count,
+    relation, and emotional trajectory.
+    """
+    
+    @staticmethod
+    def detect_stage(
+        turn_count: int,
+        player_relation: float,
+        emotional_trajectory: List[float]  # Recent emotional valence values
+    ) -> str:
+        """
+        Returns: "opening", "middle", "closing", or "critical"
+        """
+        if turn_count <= 1:
+            return "opening"
+        
+        if turn_count >= 10:
+            return "closing"
+        
+        # Critical stage: very low relation or extreme emotional swings
+        if player_relation < 0.2:
+            return "critical"
+        
+        if len(emotional_trajectory) >= 3:
+            recent_variance = max(emotional_trajectory[-3:]) - min(emotional_trajectory[-3:])
+            if recent_variance > 0.5:
+                return "critical"
+        
+        return "middle"
+
+
+# ============================================================================
+# DYNAMIC CHOICE ADJUSTMENT
+# ============================================================================
+
+
+class DynamicChoiceAdjuster:
+    """
+    Adjusts choice availability dynamically based on conversation flow.
+    """
+    
+    @staticmethod
+    def adjust_for_repetition(
+        choices: List[Dict[str, Any]],
+        context: FilterContext
+    ) -> List[Dict[str, Any]]:
+        """
+        Remove choices that repeat the same language_art or tone
+        as the last 2 player choices.
+        """
+        if len(context.choices_made) < 2:
+            return choices
+        
+        # Get language arts from recent choices
+        recent_arts = []
+        # This would require storing language_art in choices_made
+        # For now, we'll use a simplified version
+        
+        return choices
+    
+    @staticmethod
+    def inject_emergency_choices(
+        choices: List[Dict[str, Any]],
+        context: FilterContext
+    ) -> List[Dict[str, Any]]:
+        """
+        If conversation is in critical state, inject emergency choices
+        like "back down", "apologize", "leave".
+        """
+        if context.conversation_stage != "critical":
+            return choices
+        
+        emergency_choice = {
+            "choice_id": "emergency_backdown",
+            "text": "I think we got off on the wrong foot. Let me start over.",
+            "language_art": "diplomatic",
+            "authority_tone": 0.1,
+            "diplomacy_tone": 0.9,
+            "empathy_tone": 0.6,
+            "manipulation_tone": 0.1,
+            "interaction_outcomes": [
+                {
+                    "outcome_id": "reset_conversation",
+                    "stance_delta": {},
+                    "relation_delta": 0.1,
+                    "intention_shift": "Give Second Chance",
+                    "min_response": "Fine. Try again.",
+                    "max_response": "Alright. I'm listening.",
+                    "scripted": False
+                }
+            ],
+            "requirements": {}  # Always available in critical state
+        }
+        
+        return [emergency_choice] + choices
+# ===== File: narrative_engine/cli.py =====
+
+"""
+Command-Line Interface Module
+
+Provides a simple CLI for running multi-NPC conversations via the Narrative Engine.
+
+Usage:
+    python -m narrative_engine.cli <npc1.json> [npc2.json ...] <scenario.json> [--no-ollama]
+
+Examples:
+    # Single NPC conversation
+    python -m narrative_engine.cli morisson_moses.json door_guard_scenario.json
+
+    # Multi-NPC conversation
+    python -m narrative_engine.cli moses.json taylor.json door_guard_scenario.json
+
+    # Disable Ollama (use fallback responses)
+    python -m narrative_engine.cli moses.json scenario.json --no-ollama
+
+The CLI provides:
+- Interactive choice selection
+- Real-time display of NPC thoughts, desires, and intentions
+- Per-NPC routing visualization
+- Conversation log export on completion
+"""
+
+from typing import List
+import sys
+
+from pne import PlayerSkillSet
+from .engine import NarrativeEngine
+
+
+def main() -> None:
+    """
+    Minimal CLI entry-point for multi-NPC conversations.
+
+    Parses command-line arguments, loads NPCs and scenario, and runs
+    an interactive conversation loop.
+
+    NPCs can diverge to different nodes after the same player choice.
+    The CLI tracks per-NPC current nodes and only shows choices for nodes
+    that still have active NPCs on them.
+
+    Command-line args:
+        npc_files: One or more NPC JSON files
+        scenario_file: Scenario JSON file (last positional arg)
+        --no-ollama: Optional flag to disable Ollama integration
+    """
+    print("=" * 70)
+    print("PSYCHOLOGICAL NARRATIVE ENGINE - MULTI-NPC CONVERSATION SIMULATOR")
+    print("=" * 70)
+
+    if len(sys.argv) < 3:
+        print("\nUsage: python -m narrative_engine.cli <npc1.json> [npc2.json ...] <scenario.json> [--no-ollama]")
+        print("\nExample:")
+        print("  python -m narrative_engine.cli morisson_moses.json door_guard_scenario.json")
+        print("  python -m narrative_engine.cli moses.json taylor.json door_guard_scenario.json")
+        print("\nOptional flags:")
+        print("  --no-ollama : Disable Ollama integration (use fallback responses)")
+        return
+
+    raw_args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    if len(raw_args) < 2:
+        print("Error: need at least one NPC file and one scenario file.")
+        return
+
+    *npc_files, scenario_file = raw_args
+    use_ollama = "--no-ollama" not in sys.argv
+
+    try:
+        engine = NarrativeEngine(use_ollama=use_ollama)
+
+        npc_ids: List[str] = []
+        for npc_path in npc_files:
+            npc_ids.append(engine.load_npc(npc_path))
+
+        scenario_id = engine.load_scenario(scenario_file)
+
+        player_skills = PlayerSkillSet(
+            authority=5,
+            diplomacy=5,
+            empathy=5,
+            manipulation=5,
+        )
+
+        session = engine.start_session(npc_ids, scenario_id, player_skills)
+
+        # CLI loop: all active NPCs share choices from a common node.
+        # If NPCs diverge, we pick the node of the first active NPC.
+        # (For a richer multi-NPC UI, you'd want per-NPC choice prompts.)
+        while not engine.is_session_complete(session):
+            active = session.active_npcs()
+            if not active:
+                break
+
+            # Use the first active NPC's current node as the shared choice node.
+            # In practice, if NPCs diverge you'd want a more sophisticated UI.
+            current_node = active[0].current_node
+            choices = engine.get_available_choices(session, current_node)
+
+            if not choices:
+                print("\n[No available choices at this node; conversation ends.]")
+                break
+
+            print(f"\n--- Node: {current_node} ---")
+            print("Available choices:")
+            for c in choices:
+                print(f"  [{c['index']}] {c['text']}")
+
+            # Show which NPCs are active and where they are
+            if len(active) > 1:
+                print("\n  Active NPCs:")
+                for s in active:
+                    print(f"    {s.npc.name} → node: {s.current_node}")
+
+            try:
+                user_input = input("\nYour choice (number or 'quit'): ").strip()
+                if user_input.lower() in {"q", "quit", "exit"}:
+                    print("\nConversation ended by player.")
+                    break
+
+                choice_num = int(user_input)
+                engine.apply_choice(session, current_node, choice_num)
+
+            except (ValueError, IndexError):
+                print("Please enter a valid choice number.")
+                continue
+            except KeyboardInterrupt:
+                print("\n\nConversation interrupted.")
+                break
+
+        # Export log if requested
+        export = input("\nExport conversation log? (y/n): ").strip().lower()
+        if export == "y":
+            log_file = input("Enter filename (e.g., conversation_log.json): ").strip()
+            engine.export_session_log(session, log_file)
+
+    except FileNotFoundError as e:
+        print(f"\nError: File not found - {e}")
+    except Exception as e:
+        print(f"\nError: {e}")
+        import traceback
+
+        traceback.print_exc()
+
+
+if __name__ == "__main__":
+    main()
+# ===== File: narrative_engine/dialogue_coherence.py =====
+
+"""
+Dialogue-Aware Choice Filtering
+
+Ensures player choices actually respond to what the NPC just said,
+creating conversational coherence instead of "talking past each other."
+
+Author: AI Assistant
+"""
+
+from typing import List, Dict, Any, Optional
+from dataclasses import dataclass
+import re
+
+
+@dataclass
+class DialogueContext:
+    """Extended context including what NPC just said"""
+    
+    # Standard context
+    player_skills: Dict[str, int]
+    player_relation: float
+    npc_self_esteem: float
+    npc_emotional_valence: float
+    npc_current_intention: str
+    npc_current_desire_type: str
+    choices_made: List[str]
+    turn_count: int
+    
+    # NEW: Dialogue-specific context
+    last_npc_response: Optional[str] = None
+    conversation_stage: str = "opening"
+    npc_momentum_tags: List[str] = None  # What move did NPC just make?
+    
+    def __post_init__(self):
+        if self.npc_momentum_tags is None:
+            self.npc_momentum_tags = []
+
+
+class DialogueMomentumFilter:
+    """
+    Filters choices based on conversational coherence:
+    - Does this choice respond to what NPC just said?
+    - Is it appropriate for this stage of conversation?
+    """
+    
+    # Map NPC momentum tags to appropriate choice response types
+    MOMENTUM_RESPONSE_MAP = {
+        "challenge_posed": [
+            "demonstrate_value", "accept_challenge", "deflect_challenge",
+            "counter_challenge", "practical_plan", "specific_offer"
+        ],
+        "question_asked": [
+            "direct_answer", "evasive_answer", "counter_question",
+            "personal_story", "philosophical_debate"
+        ],
+        "doubt_expressed": [
+            "reassure", "demonstrate_value", "specific_offer",
+            "personal_sacrifice", "practical_plan", "accept_terms"
+        ],
+        "demand_made": [
+            "comply", "negotiate", "refuse", "counter_demand",
+            "practical_plan", "accept_terms"
+        ],
+        "acceptance_signaled": [
+            "build_on_acceptance", "push_forward", "accept_terms",
+            "final_commitment", "reaffirm_commitment"
+        ],
+        "rejection_signaled": [
+            "back_down", "pivot_approach", "escalate",
+            "find_common_ground", "apologize"
+        ],
+    }
+    
+    # Choices that should only appear in specific conversation stages
+    STAGE_APPROPRIATE_CHOICES = {
+        "opening": [
+            "empathetic_approach", "authority_challenge", "manipulative_approach",
+            "diplomatic_reasoning", "neutral_statement"
+        ],
+        "development": [
+            "personal_sacrifice", "specific_offer", "practical_plan",
+            "philosophical_debate", "double_down_authority", "dodge_question"
+        ],
+        "crisis": [
+            "reaffirm_commitment", "final_challenge", "last_appeal",
+            "accept_terms", "push_back_terms"
+        ],
+        "resolution": [
+            "accept_terms", "push_back_terms", "final_commitment",
+            "walk_away"
+        ]
+    }
+    
+    @staticmethod
+    def filter_for_coherence(
+        choices: List[Dict[str, Any]],
+        context: DialogueContext,
+        verbose: bool = False
+    ) -> List[Dict[str, Any]]:
+        """
+        Filter choices to ensure conversational coherence.
+        
+        Returns choices that:
+        1. Respond appropriately to NPC's last statement
+        2. Fit the current conversation stage
+        3. Don't repeat ineffective patterns
+        """
+        coherent_choices = []
+        
+        for choice in choices:
+            coherence_score = DialogueMomentumFilter._score_coherence(
+                choice, context
+            )
+            
+            if coherence_score > 0.3:  # Minimum coherence threshold
+                coherent_choices.append({
+                    **choice,
+                    "_coherence_score": coherence_score
+                })
+            elif verbose:
+                print(f"  [Filtered] '{choice['text'][:40]}...' - Low coherence: {coherence_score:.2f}")
+        
+        # Sort by coherence score (highest first)
+        coherent_choices.sort(key=lambda c: c.get("_coherence_score", 0), reverse=True)
+        
+        # Remove coherence score before returning
+        for choice in coherent_choices:
+            choice.pop("_coherence_score", None)
+        
+        return coherent_choices
+    
+    @staticmethod
+    def _score_coherence(
+        choice: Dict[str, Any],
+        context: DialogueContext
+    ) -> float:
+        """
+        Score how well this choice fits the current dialogue context.
+        
+        Returns 0.0-1.0, where higher = more coherent
+        """
+        score = 0.5  # Start neutral
+        
+        choice_id = choice.get("choice_id", "")
+        choice_type = DialogueMomentumFilter._infer_choice_type(choice)
+        
+        # 1. Does this choice respond to NPC's momentum?
+        if context.npc_momentum_tags:
+            momentum_bonus = DialogueMomentumFilter._check_momentum_alignment(
+                choice_type, context.npc_momentum_tags
+            )
+            score += momentum_bonus * 0.4  # Momentum is important!
+        
+        # 2. Is this choice appropriate for conversation stage?
+        stage_bonus = DialogueMomentumFilter._check_stage_appropriateness(
+            choice_id, context.conversation_stage, context.turn_count
+        )
+        score += stage_bonus * 0.3
+        
+        # 3. Anti-repetition: penalize choices similar to recent failures
+        repetition_penalty = DialogueMomentumFilter._check_repetition(
+            choice, context
+        )
+        score -= repetition_penalty * 0.2
+        
+        # 4. Relation-based filtering: some choices need minimum trust
+        relation_bonus = DialogueMomentumFilter._check_relation_appropriateness(
+            choice, context.player_relation
+        )
+        score += relation_bonus * 0.1
+        
+        return max(0.0, min(1.0, score))
+    
+    @staticmethod
+    def _infer_choice_type(choice: Dict[str, Any]) -> str:
+        """
+        Infer the functional type of a choice from its ID and content.
+        
+        Examples:
+        - "practical_plan" → "demonstrate_value"
+        - "empathetic_approach" → "reassure"
+        - "authority_challenge" → "counter_challenge"
+        """
+        choice_id = choice.get("choice_id", "").lower()
+        text = choice.get("text", "").lower()
+        
+        # Map choice IDs to functional types
+        type_map = {
+            # Demonstration choices
+            "practical_plan": "demonstrate_value",
+            "specific_offer": "demonstrate_value",
+            "reaffirm_commitment": "demonstrate_value",
+            
+            # Personal/emotional choices
+            "personal_sacrifice": "personal_story",
+            "empathetic_approach": "reassure",
+            
+            # Challenge/authority choices
+            "authority_challenge": "counter_challenge",
+            "double_down_authority": "counter_challenge",
+            "final_challenge": "counter_challenge",
+            
+            # Diplomatic choices
+            "diplomatic_reasoning": "negotiate",
+            "philosophical_debate": "philosophical_debate",
+            "accept_terms": "comply",
+            "push_back_terms": "counter_demand",
+            
+            # Evasive choices
+            "dodge_question": "evasive_answer",
+            
+            # Manipulative choices
+            "manipulative_approach": "manipulate",
+        }
+        
+        return type_map.get(choice_id, "generic_response")
+    
+    @staticmethod
+    def _check_momentum_alignment(
+        choice_type: str,
+        momentum_tags: List[str]
+    ) -> float:
+        """
+        Check if choice type aligns with NPC's conversational momentum.
+        
+        Returns -0.5 to 0.5 bonus/penalty
+        """
+        # For each momentum tag, check if choice type is a good response
+        aligned = False
+        
+        for tag in momentum_tags:
+            appropriate_responses = DialogueMomentumFilter.MOMENTUM_RESPONSE_MAP.get(tag, [])
+            
+            if choice_type in appropriate_responses:
+                aligned = True
+                break
+        
+        if aligned:
+            return 0.5  # Strong bonus for aligned response
+        elif momentum_tags:
+            return -0.3  # Penalty for misaligned response
+        else:
+            return 0.0  # Neutral if no momentum detected
+    
+    @staticmethod
+    def _check_stage_appropriateness(
+        choice_id: str,
+        stage: str,
+        turn_count: int
+    ) -> float:
+        """
+        Check if choice is appropriate for current conversation stage.
+        
+        Returns -0.3 to 0.3 bonus/penalty
+        """
+        appropriate_for_stage = DialogueMomentumFilter.STAGE_APPROPRIATE_CHOICES.get(stage, [])
+        
+        if choice_id in appropriate_for_stage:
+            return 0.3
+        
+        # Harsh penalty for severely out-of-stage choices
+        if stage == "resolution" and choice_id in ["empathetic_approach", "authority_challenge"]:
+            return -0.5  # Don't restart conversation at resolution!
+        
+        return 0.0
+    
+    @staticmethod
+    def _check_repetition(
+        choice: Dict[str, Any],
+        context: DialogueContext
+    ) -> float:
+        """
+        Penalize choices that repeat ineffective patterns.
+        
+        Returns 0.0-0.5 penalty
+        """
+        choice_id = choice.get("choice_id", "")
+        language_art = choice.get("language_art", "")
+        
+        # Count recent uses of this choice type
+        recent_uses = 0
+        for past_choice_id in context.choices_made[-3:]:  # Last 3 choices
+            if past_choice_id == choice_id:
+                recent_uses += 1
+        
+        if recent_uses >= 2:
+            return 0.5  # Heavy penalty for repeating same choice
+        elif recent_uses == 1:
+            return 0.2  # Light penalty for recent use
+        
+        # Penalize repeating language art if relation is declining
+        # (suggests this approach isn't working)
+        if context.player_relation < 0.4 and language_art:
+            for past_choice_id in context.choices_made[-2:]:
+                # This would require storing language_art in choices_made
+                # For now, simplified check
+                pass
+        
+        return 0.0
+    
+    @staticmethod
+    def _check_relation_appropriateness(
+        choice: Dict[str, Any],
+        player_relation: float
+    ) -> float:
+        """
+        Some choices require minimum trust to be believable.
+        
+        Returns -0.2 to 0.2 bonus/penalty
+        """
+        choice_id = choice.get("choice_id", "")
+        
+        # Vulnerable choices need some trust
+        vulnerable_choices = ["personal_sacrifice", "empathetic_approach", "apologize"]
+        if choice_id in vulnerable_choices and player_relation < 0.3:
+            return -0.2  # Too vulnerable given low trust
+        
+        # Authority challenges are risky with low relation
+        if choice_id in ["authority_challenge", "final_challenge"] and player_relation < 0.2:
+            return -0.2  # Likely to backfire
+        
+        # Cooperative choices work better with decent relation
+        cooperative_choices = ["accept_terms", "practical_plan", "philosophical_debate"]
+        if choice_id in cooperative_choices and player_relation > 0.5:
+            return 0.2  # Synergy bonus
+        
+        return 0.0
+
+
+class ConversationFlowEnforcer:
+    """
+    High-level enforcer that ensures conversations have narrative shape.
+    """
+    
+    @staticmethod
+    def enforce_turn_limit(
+        choices: List[Dict[str, Any]],
+        turn_count: int,
+        max_turns: int = 10
+    ) -> List[Dict[str, Any]]:
+        """
+        As conversation approaches max turns, filter to resolution-focused choices.
+        """
+        if turn_count < max_turns - 2:
+            return choices  # No enforcement yet
+        
+        # Near turn limit - prioritize resolution choices
+        resolution_choices = [
+            c for c in choices
+            if c.get("choice_id", "") in [
+                "accept_terms", "push_back_terms", "final_commitment",
+                "reaffirm_commitment", "final_challenge", "walk_away"
+            ]
+        ]
+        
+        if resolution_choices:
+            print(f"  [Turn Limit Enforcement] {turn_count}/{max_turns} turns - prioritizing resolution")
+            return resolution_choices
+        
+        return choices  # Fallback to all choices
+    
+    @staticmethod
+    def inject_emergency_exits(
+        choices: List[Dict[str, Any]],
+        context: DialogueContext
+    ) -> List[Dict[str, Any]]:
+        """
+        If conversation is going badly, inject escape options.
+        """
+        # If relation is very low and we're deep in conversation, add exits
+        if context.player_relation < 0.2 and context.turn_count >= 5:
+            emergency_exits = [
+                {
+                    "choice_id": "apologize_withdraw",
+                    "text": "I think I've made a mistake. Let me reconsider.",
+                    "language_art": "diplomatic",
+                    "interaction_outcomes": [
+                        {
+                            "outcome_id": "graceful_exit",
+                            "relation_delta": 0.05,
+                            "intention_shift": "Dismiss Player",
+                        }
+                    ]
+                },
+                {
+                    "choice_id": "walk_away",
+                    "text": "This isn't working. I'll find another way.",
+                    "language_art": "neutral",
+                    "interaction_outcomes": [
+                        {
+                            "outcome_id": "player_leaves",
+                            "relation_delta": -0.1,
+                            "intention_shift": "Let Them Go",
+                        }
+                    ]
+                }
+            ]
+            
+            print("  [Emergency Exit] Conversation struggling - adding exit options")
+            return emergency_exits + choices
+        
+        return choices
+# ===== File: narrative_engine/engine.py =====
+
+"""
+Narrative Engine Module  (patched: coherent choice filtering)
+
+KEY CHANGES vs original
+-----------------------
+* get_available_choices() now runs choices through ChoiceFilter + optional
+  DialogueMomentumFilter before returning them to the CLI / caller.
+* apply_choice() builds a full FilterContext and DialogueContext from live
+  NPC state so filters have real data to work with.
+* _build_filter_context() and _build_dialogue_context() are new helpers.
+
+Everything else is identical to the original.
+"""
+
+from typing import Dict, List, Optional, Any
+
+from pne import DialogueProcessor, PlayerSkillSet, OutcomeIndex
+from PNE_Models import NPCModel
+
+from .session import ConversationSession, NPCConversationState
+from .scenario_loader import ScenarioLoader
+from .transition_resolver import TransitionResolver
+from .choice_filter import ChoiceFilter, FilterContext, ConversationStageDetector
+from .dialogue_coherence import DialogueMomentumFilter, DialogueContext
+
+
+class NarrativeEngine:
+    """
+    High-level orchestrator for Fallout-style conversations using pne's BDI engine.
+    """
+
+    def __init__(self, use_ollama: bool = True, ollama_url: str = "http://localhost:11434"):
+        self.use_ollama = use_ollama
+        self.ollama_url = ollama_url
+        self.scenarios: Dict[str, Dict[str, Any]] = {}
+        self.npcs: Dict[str, NPCModel] = {}
+        self.sessions: Dict[str, ConversationSession] = {}
+
+    # ------------------------------------------------------------------ #
+    # Static helpers
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _format_with_npc(text: str, npc_name: str) -> str:
+        return text.replace("{{NPC_NAME}}", npc_name)
+
+    # ------------------------------------------------------------------ #
+    # Loading
+    # ------------------------------------------------------------------ #
+
+    def load_npc(self, filepath: str, npc_id: Optional[str] = None) -> str:
+        """Load an NPC from JSON file."""
+        npc = NPCModel.from_json(filepath)
+        npc_id = npc_id or npc.name.lower().replace(" ", "_")
+        self.npcs[npc_id] = npc
+        print(f"✓ Loaded NPC: {npc.name} (ID: {npc_id})")
+        return npc_id
+
+    def load_scenario(self, filepath: str, scenario_id: Optional[str] = None) -> str:
+        scenario = ScenarioLoader.load_scenario(filepath)
+        scenario_id = scenario_id or scenario.get("id", "default_scenario")
+        self.scenarios[scenario_id] = scenario
+        print(f"✓ Loaded scenario: {scenario.get('title', scenario_id)} (ID: {scenario_id})")
+        return scenario_id
+
+    # ------------------------------------------------------------------ #
+    # Session initialisation
+    # ------------------------------------------------------------------ #
+
+    def start_session(
+        self,
+        npc_ids: List[str],
+        scenario_id: str,
+        player_skills: Optional[PlayerSkillSet] = None,
+    ) -> ConversationSession:
+        if scenario_id not in self.scenarios:
+            raise ValueError(f"Scenario '{scenario_id}' not loaded")
+        for npc_id in npc_ids:
+            if npc_id not in self.npcs:
+                raise ValueError(f"NPC '{npc_id}' not loaded")
+
+        scenario = self.scenarios[scenario_id]
+        npc_intent = ScenarioLoader.parse_npc_intent(scenario.get("npc_intent", {}))
+        npc_role = ScenarioLoader.parse_npc_role(scenario.get("npc_role", {}))
+        scenario["_npc_role_meta"] = npc_role
+
+        if player_skills is None:
+            player_skills = PlayerSkillSet(authority=5, diplomacy=5, empathy=5, manipulation=5)
+
+        npc_states: Dict[str, NPCConversationState] = {}
+        for npc_id in npc_ids:
+            npc = self.npcs[npc_id]
+            start_node = ScenarioLoader.get_node(scenario, "start")
+            if not start_node or not start_node.get("choices"):
+                outcome_index = OutcomeIndex(choice_id="empty", interaction_outcomes=[], terminal_outcomes=[])
+            else:
+                outcome_index = ScenarioLoader.parse_outcome_index(start_node["choices"][0])
+
+            processor = DialogueProcessor(
+                npc=npc,
+                player_skills=player_skills,
+                npc_intent=npc_intent,
+                outcome_index=outcome_index,
+                conversation_id=f"{scenario_id}:{npc_id}",
+                use_ollama=self.use_ollama,
+                ollama_url=self.ollama_url,
+            )
+
+            npc_states[npc_id] = NPCConversationState(
+                npc_id=npc_id,
+                npc=npc,
+                processor=processor,
+                scenario_id=scenario_id,
+                current_node="start",
+            )
+
+        session_id = self._make_session_id(npc_ids, scenario_id)
+        session = ConversationSession(
+            scenario_id=scenario_id, scenario=scenario, npc_states=npc_states
+        )
+        self.sessions[session_id] = session
+        self._display_opening(session)
+        return session
+
+    @staticmethod
+    def _make_session_id(npc_ids: List[str], scenario_id: str) -> str:
+        return f"{scenario_id}|{','.join(sorted(npc_ids))}"
+
+    def _display_opening(self, session: ConversationSession) -> None:
+        scenario = session.scenario
+        opening = scenario.get("opening", "Conversation begins...")
+        npc_role = scenario.get("_npc_role_meta", {})
+
+        print(f"\n{'=' * 70}")
+        print(f"CONVERSATION: {scenario.get('title', 'Untitled')}")
+        print(f"NPCs: {', '.join(s.npc.name for s in session.npc_states.values())}")
+        print(f"{'=' * 70}\n")
+
+        first_state = next(iter(session.npc_states.values()))
+        opening_visible = self._format_with_npc(opening, first_state.npc.name)
+        print(opening_visible + "\n")
+
+        for state in session.npc_states.values():
+            opening_for_npc = self._format_with_npc(opening, state.npc.name)
+            state.add_exchange("Narrator", opening_for_npc)
+
+    # ------------------------------------------------------------------ #
+    # Turn helpers
+    # ------------------------------------------------------------------ #
+
+    def get_node(self, session: ConversationSession, node_id: str) -> Optional[Dict[str, Any]]:
+        return ScenarioLoader.get_node(session.scenario, node_id)
+
+    def get_available_choices(
+        self,
+        session: ConversationSession,
+        node_id: str,
+        verbose_filter: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """
+        Returns filtered, coherence-checked choices for the given node.
+
+        Filtering pipeline:
+          1. ChoiceFilter  – hard gates (skill/relation/state/prerequisite)
+          2. DialogueMomentumFilter – coherence scoring (responds to NPC momentum)
+        """
+        node = self.get_node(session, node_id)
+        if not node:
+            return []
+
+        raw_choices = node.get("choices", [])
+        if not raw_choices:
+            return []
+
+        # Use the first active NPC as the representative state for filtering.
+        active = session.active_npcs()
+        if not active:
+            return self._index_choices(raw_choices)
+
+        primary_state = active[0]
+        npc = primary_state.npc
+
+        # ── Build FilterContext ──────────────────────────────────────────
+        filter_ctx = self._build_filter_context(primary_state, node_id)
+
+        # ── Stage 1: hard gate filtering ────────────────────────────────
+        filtered = ChoiceFilter.smart_fallback(raw_choices, filter_ctx)
+
+        # ── Stage 2: coherence scoring ───────────────────────────────────
+        scenario_config = session.scenario.get("conversation_config", {})
+        if scenario_config.get("enable_coherence_filtering", True):
+            dialogue_ctx = self._build_dialogue_context(primary_state, filter_ctx)
+            filtered = self._apply_coherence_filter(filtered, dialogue_ctx, verbose_filter)
+
+        return self._index_choices(filtered)
+
+    @staticmethod
+    def _index_choices(choices: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Attach 1-based index to each choice dict."""
+        return [
+            {"index": idx, "choice_id": c["choice_id"], "text": c["text"], "raw": c}
+            for idx, c in enumerate(choices, start=1)
+        ]
+
+    # ------------------------------------------------------------------ #
+    # Core turn step
+    # ------------------------------------------------------------------ #
+
+    def apply_choice(
+        self,
+        session: ConversationSession,
+        node_id: str,
+        choice_index: int,
+    ) -> Dict[str, Any]:
+        """
+        Apply a single player choice (1-based index) to all active NPCs.
+        """
+        node = self.get_node(session, node_id)
+        if not node:
+            raise ValueError(f"Node '{node_id}' not found")
+
+        # Resolve against *filtered* choices so indices stay consistent.
+        visible_choices = self.get_available_choices(session, node_id)
+        if not (1 <= choice_index <= len(visible_choices)):
+            raise ValueError(
+                f"Invalid choice index {choice_index} (only {len(visible_choices)} available)"
+            )
+
+        chosen = visible_choices[choice_index - 1]["raw"]
+        choice_data = chosen
+
+        # Fallout-style display
+        print("Available choices:")
+        for c in visible_choices:
+            marker = ">>" if c["index"] == choice_index else "  "
+            print(f"{marker} [{c['index']}] {c['text']}")
+
+        player_input = ScenarioLoader.parse_player_input(choice_data)
+        session.player_choice_log.append({
+            "node_id": node_id,
+            "choice_id": choice_data["choice_id"],
+            "text": player_input.choice_text,
+        })
+
+        responses: Dict[str, Any] = {}
+        outcome_index = ScenarioLoader.parse_outcome_index(choice_data)
+        transitions = node.get("transitions", [])
+
+        for state in session.active_npcs():
+            print(f"\nPlayer → {state.npc.name}: {player_input.choice_text}")
+            state.add_exchange("Player", player_input.choice_text)
+            state.choices_made.append(choice_data["choice_id"])
+
+            # ── BDI pipeline ─────────────────────────────────────────────
+            state.processor.outcome_index = outcome_index
+            context = state.processor.process_dialogue(
+                player_input,
+                generate_with_ollama=self.use_ollama,
+            )
+
+            thought = context["thought_reaction"]
+            desire = context["desire_state"]
+            intention = context["behavioural_intention"]
+            npc_response = self._format_with_npc(context["npc_response"], state.npc.name)
+
+            print(f"\n[{state.npc.name} | Belief]: {thought['subjective_belief']}")
+            print(
+                f"[{state.npc.name} | Desire]: "
+                f"{desire['immediate_desire']} "
+                f"(type={desire['desire_type']}, intensity={desire['intensity']:.2f})"
+            )
+            print(f"[{state.npc.name} | Intention]: {intention['intention_type']} "
+                  f"(confrontation={intention['confrontation_level']:.2f})")
+            print(f"\n{state.npc.name}: {npc_response}\n")
+
+            state.add_exchange(
+                state.npc.name,
+                npc_response,
+                metadata={
+                    "thought": thought,
+                    "desire": desire,
+                    "intention": intention,
+                    "interaction_outcome": context.get("interaction_outcome"),
+                },
+            )
+
+            # ── Transition resolution ─────────────────────────────────────
+            resolved_node = TransitionResolver.resolve(transitions, state)
+
+            if resolved_node:
+                target_node = self.get_node(session, resolved_node)
+
+                if target_node and TransitionResolver.is_terminal(target_node):
+                    terminal_id = target_node.get("terminal_id", "unknown")
+                    terminal_result = target_node.get("terminal_result", "")
+
+                    state.is_complete = True
+                    state.terminal_outcome = {
+                        "terminal_id": terminal_id,
+                        "result": terminal_result,
+                        "final_dialogue": npc_response,
+                    }
+                    state.current_node = resolved_node
+
+                    print(f"\n{'=' * 70}")
+                    print(f"TERMINAL OUTCOME for {state.npc.name}: {terminal_id.upper()}")
+                    print(f"Result: {terminal_result}")
+                    print(f"{state.npc.name}: {npc_response}")
+                    print(f"{'=' * 70}\n")
+
+                    state.processor.end_conversation()
+                else:
+                    state.current_node = resolved_node
+                    print(f"  [{state.npc.name}] → routed to node: {resolved_node}")
+            else:
+                default_node = node.get("default_transition", "probing")
+                if self.get_node(session, default_node):
+                    state.current_node = default_node
+                    print(f"  [{state.npc.name}] → no transition matched, defaulting to: {default_node}")
+                else:
+                    print(f"  [{state.npc.name}] → no transition matched, staying on: {node_id}")
+
+            responses[state.npc_id] = {
+                "context": context,
+                "resolved_node": state.current_node,
+            }
+
+        return responses
+
+    # ------------------------------------------------------------------ #
+    # Session helpers
+    # ------------------------------------------------------------------ #
+
+    def is_session_complete(self, session: ConversationSession) -> bool:
+        return len(session.active_npcs()) == 0
+
+    def export_session_log(self, session: ConversationSession, filepath: str) -> None:
+        import json
+
+        data: Dict[str, Any] = {
+            "scenario_id": session.scenario_id,
+            "player_choice_log": session.player_choice_log,
+            "npcs": {},
+        }
+
+        for npc_id, state in session.npc_states.items():
+            conv_model = state.conversation_model()
+            data["npcs"][npc_id] = {
+                "name": state.npc.name,
+                "conversation": conv_model.to_dict(),
+                "choices_made": state.choices_made,
+                "history": state.history,
+                "terminal_outcome": state.terminal_outcome,
+                "final_npc_state": state.npc.to_dict(),
+            }
+
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+
+        print(f"\n✓ Session log exported to {filepath}")
+
+    # ------------------------------------------------------------------ #
+    # Private: filter context builders
+    # ------------------------------------------------------------------ #
+
+    def _build_filter_context(
+        self,
+        state: NPCConversationState,
+        node_id: str,
+    ) -> FilterContext:
+        """Build a FilterContext from live NPC + session state."""
+        npc = state.npc
+        processor = state.processor
+
+        player_skills_dict = {
+            "authority": processor.player_skills.authority,
+            "diplomacy": processor.player_skills.diplomacy,
+            "empathy": processor.player_skills.empathy,
+            "manipulation": processor.player_skills.manipulation,
+        }
+
+        # Grab last intention from history if available
+        last_intention = None
+        for entry in reversed(state.history):
+            meta = entry.get("metadata")
+            if meta and meta.get("intention"):
+                last_intention = meta["intention"].get("intention_type")
+                break
+
+        # Last desire type
+        last_desire_type = "information-seeking"
+        for entry in reversed(state.history):
+            meta = entry.get("metadata")
+            if meta and meta.get("desire"):
+                last_desire_type = meta["desire"].get("desire_type", last_desire_type)
+                break
+
+        # Emotional valence from last entry
+        npc_emotional_valence = 0.0
+        for entry in reversed(state.history):
+            meta = entry.get("metadata")
+            if meta and meta.get("thought"):
+                npc_emotional_valence = meta["thought"].get("emotional_valence", 0.0)
+                break
+
+        # Conversation stage detection
+        emotional_trajectory = []
+        for entry in state.history:
+            meta = entry.get("metadata")
+            if meta and meta.get("thought"):
+                emotional_trajectory.append(meta["thought"].get("emotional_valence", 0.0))
+
+        stage = ConversationStageDetector.detect_stage(
+            state.turn_count,
+            npc.world.player_relation,
+            emotional_trajectory,
+        )
+
+        return FilterContext(
+            player_skills=player_skills_dict,
+            player_relation=npc.world.player_relation,
+            npc_self_esteem=npc.cognitive.self_esteem,
+            npc_emotional_valence=npc_emotional_valence,
+            npc_current_intention=last_intention or "",
+            npc_current_desire_type=last_desire_type,
+            choices_made=state.choices_made,
+            turn_count=state.turn_count,
+            last_intention_shift=last_intention,
+            conversation_topic=node_id,
+            conversation_stage=stage,
+        )
+
+    def _build_dialogue_context(
+        self,
+        state: NPCConversationState,
+        filter_ctx: FilterContext,
+    ) -> DialogueContext:
+        """Build a DialogueContext for momentum-based coherence filtering."""
+        # Pull the last NPC response text
+        last_npc_response = None
+        for entry in reversed(state.history):
+            if entry.get("speaker") == state.npc.name:
+                last_npc_response = entry.get("text")
+                break
+
+        # Pull npc_momentum_tags from last interaction_outcome intention_shift
+        momentum_tags: List[str] = []
+        for entry in reversed(state.history):
+            meta = entry.get("metadata")
+            if meta:
+                outcome = meta.get("interaction_outcome")
+                if outcome and outcome.get("intention_shift"):
+                    shift = outcome["intention_shift"].lower()
+                    # Infer momentum tag from shift text
+                    if any(k in shift for k in ["test", "challenge", "prove"]):
+                        momentum_tags.append("challenge_posed")
+                    if any(k in shift for k in ["question", "evaluate"]):
+                        momentum_tags.append("question_asked")
+                    if any(k in shift for k in ["doubt", "skeptic", "suspicious"]):
+                        momentum_tags.append("doubt_expressed")
+                    if any(k in shift for k in ["accept", "ally", "trust", "trial"]):
+                        momentum_tags.append("acceptance_signaled")
+                    if any(k in shift for k in ["reject", "dismiss", "close"]):
+                        momentum_tags.append("rejection_signaled")
+                    if any(k in shift for k in ["demand", "ultimatum"]):
+                        momentum_tags.append("demand_made")
+                    break
+
+        return DialogueContext(
+            player_skills=filter_ctx.player_skills,
+            player_relation=filter_ctx.player_relation,
+            npc_self_esteem=filter_ctx.npc_self_esteem,
+            npc_emotional_valence=filter_ctx.npc_emotional_valence,
+            npc_current_intention=filter_ctx.npc_current_intention,
+            npc_current_desire_type=filter_ctx.npc_current_desire_type,
+            choices_made=filter_ctx.choices_made,
+            turn_count=filter_ctx.turn_count,
+            last_npc_response=last_npc_response,
+            conversation_stage=filter_ctx.conversation_stage or "opening",
+            npc_momentum_tags=momentum_tags,
+        )
+
+    @staticmethod
+    def _apply_coherence_filter(
+        choices: List[Dict[str, Any]],
+        dialogue_ctx: DialogueContext,
+        verbose: bool,
+    ) -> List[Dict[str, Any]]:
+        """
+        Run DialogueMomentumFilter; fall back to original list if it removes everything.
+        """
+        coherent = DialogueMomentumFilter.filter_for_coherence(choices, dialogue_ctx, verbose)
+        if not coherent:
+            return choices  # Safety net
+        return coherent
+# ===== File: narrative_engine/scenario_loader.py =====
+
+"""
+Scenario Loader Module
+
+Handles loading and parsing of NPC-agnostic scenario JSON files.
+Scenarios define the conversation structure (nodes, choices, transitions)
+independently of specific NPC personalities.
+
+Key Components:
+- ScenarioLoader: Main class for loading and parsing scenario files
+- JSON parsing utilities for intents, roles, player inputs, and outcomes
+"""
+
+from typing import Dict, List, Optional, Any
+import json
+
+from pne import (
+    NPCIntent,
+    OutcomeIndex,
+    InteractionOutcome,
+    TerminalOutcome,
+    TerminalOutcomeType,
+    PlayerDialogueInput,
+    LanguageArt,
+)
+
+
+class ScenarioLoader:
+    """
+    Loads generic, NPC-independent scenario JSON.
+
+    Scenarios define the conversation flow without being tied to specific NPCs.
+    NPC personality and state are injected at runtime during session creation.
+
+    Methods:
+        load_scenario: Load scenario from JSON file
+        get_node: Retrieve a specific node by ID
+        parse_npc_intent: Parse high-level NPC intent for the scenario
+        parse_npc_role: Parse NPC role metadata (display name, etc.)
+        parse_player_input: Convert choice JSON to PlayerDialogueInput
+        parse_outcome_index: Build OutcomeIndex from choice metadata
+    """
+
+    @staticmethod
+    def load_scenario(filepath: str) -> Dict[str, Any]:
+        """
+        Load a scenario from a JSON file.
+
+        Args:
+            filepath: Path to the scenario JSON file
+
+        Returns:
+            Dict containing the complete scenario data structure
+
+        Raises:
+            FileNotFoundError: If the scenario file doesn't exist
+            json.JSONDecodeError: If the file contains invalid JSON
+        """
+        with open(filepath, "r", encoding="utf-8") as f:
+            return json.load(f)
+
+    @staticmethod
+    def get_node(scenario: Dict[str, Any], node_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve a specific node from the scenario by its ID.
+
+        Args:
+            scenario: The loaded scenario dictionary
+            node_id: The unique identifier for the node to retrieve
+
+        Returns:
+            Dict containing the node data, or None if not found
+        """
+        for node in scenario.get("nodes", []):
+            if node.get("id") == node_id:
+                return node
+        return None
+
+    @staticmethod
+    def parse_npc_intent(data: Dict[str, Any]) -> NPCIntent:
+        """
+        Parse scenario-defined high-level intent for NPCs.
+
+        This intent is NPC-agnostic and gets combined with each NPC's
+        individual personality during runtime.
+
+        Args:
+            data: Dict containing intent fields (baseline_belief, long_term_desire, etc.)
+
+        Returns:
+            NPCIntent object with the parsed intent data
+        """
+        return NPCIntent(
+            baseline_belief=data.get("baseline_belief", ""),
+            long_term_desire=data.get("long_term_desire", ""),
+            immediate_intention=data.get("immediate_intention", ""),
+            stakes=data.get("stakes", ""),
+        )
+
+    @staticmethod
+    def parse_npc_role(data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Parse lightweight role metadata for how the NPC is presented.
+
+        This is NPC-agnostic; it just names the 'role' (e.g., 'Door Guard')
+        without tying it to a specific NPC's personality.
+
+        Args:
+            data: Dict containing role information
+
+        Returns:
+            Dict with role metadata (display_name, etc.)
+        """
+        return {
+            "display_name": data.get("display_name", "NPC"),
+        }
+
+    @staticmethod
+    def parse_player_input(choice_data: Dict[str, Any]) -> PlayerDialogueInput:
+        """
+        Convert a choice JSON blob into structured player input.
+
+        Parses all the linguistic and tonal components of a player choice,
+        including language art, authority/diplomacy/empathy/manipulation tones,
+        and contextual references.
+
+        Args:
+            choice_data: Dict containing choice text and metadata
+
+        Returns:
+            PlayerDialogueInput object ready for processing by DialogueProcessor
+        """
+        return PlayerDialogueInput(
+            choice_text=choice_data["text"],
+            language_art=LanguageArt(choice_data.get("language_art", "neutral")),
+            authority_tone=choice_data.get("authority_tone", 0.5),
+            diplomacy_tone=choice_data.get("diplomacy_tone", 0.5),
+            empathy_tone=choice_data.get("empathy_tone", 0.5),
+            manipulation_tone=choice_data.get("manipulation_tone", 0.5),
+            ideology_alignment=choice_data.get("ideology_alignment"),
+            contextual_references=choice_data.get("contextual_references", []),
+        )
+
+    @staticmethod
+    def parse_outcome_index(choice_data: Dict[str, Any]) -> OutcomeIndex:
+        """
+        Build an OutcomeIndex from choice metadata.
+
+        NPC-agnostic: defines *potential* micro- and terminal outcomes.
+        The DialogueProcessor + NPC state decide which ones actually trigger.
+
+        Terminal outcomes are now resolved at the NODE level via transitions,
+        not per-choice. The terminal_outcomes list in choices is typically empty.
+
+        Args:
+            choice_data: Dict containing choice outcomes metadata
+
+        Returns:
+            OutcomeIndex with all potential interaction and terminal outcomes
+        """
+        interaction_outcomes: List[InteractionOutcome] = []
+        for outcome_data in choice_data.get("interaction_outcomes", []):
+            interaction_outcomes.append(
+                InteractionOutcome(
+                    outcome_id=outcome_data["outcome_id"],
+                    stance_delta=outcome_data.get("stance_delta", {}),
+                    relation_delta=outcome_data.get("relation_delta", 0.0),
+                    intention_shift=outcome_data.get("intention_shift"),
+                    min_response=outcome_data["min_response"],
+                    max_response=outcome_data["max_response"],
+                    scripted=outcome_data.get("scripted", False),
+                )
+            )
+
+        # Terminal outcomes are now resolved at the NODE level via transitions,
+        # not per-choice. This list will typically be empty.
+        terminal_outcomes: List[TerminalOutcome] = []
+        for terminal_data in choice_data.get("terminal_outcomes", []):
+            condition_str = terminal_data.get("condition", "lambda npc, conv: False")
+            condition_func = eval(condition_str)  # noqa: S307
+            terminal_outcomes.append(
+                TerminalOutcome(
+                    terminal_id=TerminalOutcomeType(terminal_data["terminal_id"]),
+                    condition=condition_func,
+                    result=terminal_data["result"],
+                    final_dialogue=terminal_data["final_dialogue"],
+                )
+            )
+
+        return OutcomeIndex(
+            choice_id=choice_data["choice_id"],
+            interaction_outcomes=interaction_outcomes,
+            terminal_outcomes=terminal_outcomes,
+        )
+# ===== File: narrative_engine/session.py =====
+
+"""
+Session Management Module
+
+Manages conversation state for multi-NPC scenarios.
+
+Key Components:
+- NPCConversationState: Per-NPC state within a shared scenario
+- ConversationSession: Container for a running conversation with multiple NPCs
+
+Each NPC maintains its own:
+- DialogueProcessor (with BDI pipeline and LLM integration)
+- Current node position in the scenario graph
+- Conversation history and choice log
+- Terminal outcome (if conversation has ended)
+"""
+
+from typing import Dict, List, Optional, Any
+from dataclasses import dataclass, field
+
+from pne import DialogueProcessor, ConversationModel
+from PNE_Models import NPCModel
+
+
+@dataclass
+class NPCConversationState:
+    """
+    Per-NPC conversation state inside a shared scenario.
+
+    Each NPC participating in a scenario has its own independent state:
+    - DialogueProcessor: Manages BDI (Belief-Desire-Intention) processing
+    - Current node: Where this NPC is in the scenario graph
+    - History: Complete transcript of exchanges with this NPC
+    - Terminal outcome: Final result if conversation has ended
+
+    This allows multiple NPCs to diverge to different paths in the same
+    scenario based on their individual personalities and the player's
+    interactions with each one.
+
+    Attributes:
+        npc_id: Unique identifier for this NPC
+        npc: The NPC model containing personality, beliefs, and world state
+        processor: DialogueProcessor handling BDI pipeline for this NPC
+        scenario_id: ID of the scenario this conversation is part of
+        current_node: Current position in the scenario graph (default: "start")
+        is_complete: Whether this NPC's conversation has ended
+        terminal_outcome: Final outcome data if conversation ended
+        history: Fallout-style visible log of all exchanges
+        choices_made: List of choice IDs the player has made with this NPC
+    """
+
+    npc_id: str
+    npc: NPCModel
+    processor: DialogueProcessor
+    scenario_id: str
+    current_node: str = "start"
+    is_complete: bool = False
+    terminal_outcome: Optional[Dict[str, Any]] = None
+
+    # Fallout-style visible log for this NPC
+    history: List[Dict[str, Any]] = field(default_factory=list)
+    choices_made: List[str] = field(default_factory=list)
+
+    def conversation_model(self) -> ConversationModel:
+        """
+        Get the underlying ConversationModel from the DialogueProcessor.
+
+        The ConversationModel tracks the full BDI state trajectory:
+        beliefs, desires, intentions, and emotional responses over time.
+
+        Returns:
+            ConversationModel instance containing the conversation state
+        """
+        return self.processor.conversation
+
+    @property
+    def turn_count(self) -> int:
+        """
+        Get the current turn count for this NPC's conversation.
+
+        Returns:
+            Number of conversation turns completed
+        """
+        return self.processor.conversation.turn_count
+
+    def add_exchange(
+        self,
+        speaker: str,
+        text: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """
+        Add a dialogue exchange to the visible history log.
+
+        This creates a Fallout-style conversation log with speaker,
+        text, and optional metadata (thoughts, desires, intentions).
+
+        Args:
+            speaker: Name of the speaker ("Player", NPC name, or "Narrator")
+            text: The dialogue text
+            metadata: Optional dict containing:
+                - thought: Internal thought reaction
+                - desire: Current desire state
+                - intention: Behavioral intention
+                - interaction_outcome: Outcome data for this exchange
+        """
+        entry: Dict[str, Any] = {
+            "turn": self.turn_count,
+            "speaker": speaker,
+            "text": text,
+        }
+        if metadata:
+            entry["metadata"] = metadata
+        self.history.append(entry)
+
+
+@dataclass
+class ConversationSession:
+    """
+    A running conversation session for a single scenario and one or more NPCs.
+
+    The session manages:
+    - Scenario structure (NPC-agnostic nodes, choices, transitions)
+    - Multiple NPC states (each with independent BDI processing)
+    - Shared player choice log (visible conversation history)
+
+    Key Design:
+    - Scenario is NPC-agnostic (same structure for any NPC)
+    - Each NPC has its own BDI/LLM pipeline and memory
+    - Player choices are shared across all NPCs
+    - Routing is resolved per-NPC via TransitionResolver
+    - Different NPCs can diverge to different nodes after same player choice
+
+    Attributes:
+        scenario_id: Unique identifier for the scenario
+        scenario: Complete scenario data structure
+        npc_states: Dict mapping npc_id to NPCConversationState
+        player_choice_log: Global log of player choices (independent of NPC internals)
+    """
+
+    scenario_id: str
+    scenario: Dict[str, Any]
+    npc_states: Dict[str, NPCConversationState]  # npc_id -> state
+
+    # Global visible choice history (independent of NPC internals)
+    player_choice_log: List[Dict[str, Any]] = field(default_factory=list)
+
+    def active_npcs(self) -> List[NPCConversationState]:
+        """
+        Get all NPCs that are still active in the conversation.
+
+        An NPC is active if their conversation hasn't reached a terminal state.
+
+        Returns:
+            List of NPCConversationState objects for active NPCs
+        """
+        return [s for s in self.npc_states.values() if not s.is_complete]
+# ===== File: narrative_engine/transition_resolver.py =====
+
+"""
+Transition Resolver Module
+
+Handles dynamic routing between conversation nodes based on NPC state.
+
+Supports TWO transition styles (combinable):
+
+1. Simple condition:
+   { "condition": "player_relation > 0.5", "target": "succeed" }
+
+2. Outcome-match (confidence-based):
+   {
+     "outcome_match": {
+       "intention_keywords": ["Accept Player", "Seek Connection"],
+       "relation_target": 0.7,
+       "relation_tolerance": 0.2,
+       "desire_types": ["affiliation"],          # optional +0.10 bonus
+       "min_desire_intensity": 0.4               # optional hard gate
+     },
+     "min_confidence": 0.6,
+     "condition": "turn_count <= 6",             # optional extra guard
+     "target": "succeed"
+   }
+
+Both can appear in the same transition — both must pass.
+Transitions evaluated in order; first match wins.
+
+Confidence formula
+------------------
+  keyword_score  = 1.0 if any intention_keyword found in last intention_type
+  relation_score = 1 - clamp(|player_relation - relation_target| / tolerance)
+  confidence     = 0.6 * keyword_score + 0.4 * relation_score
+  + 0.10 bonus if desire_types matches last desire_type (capped at 1.0)
+
+intention_keywords match against canonical INTENTION_REGISTRY names, e.g.:
+  "Accept Player for Trial", "Challenge to Reveal Truth", "Seek Connection"
+Substring matching is used so "Accept Player" matches "Accept Player for Trial".
+"""
+
+from typing import Dict, List, Optional, Any, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .session import NPCConversationState
+
+
+class TransitionResolver:
+    """
+    Evaluates a node's transition list against live NPC state to determine
+    which node to route to next.
+    """
+
+    # ------------------------------------------------------------------ #
+    # Public API
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def resolve(
+        transitions: List[Dict[str, Any]],
+        npc_state: "NPCConversationState",
+    ) -> Optional[str]:
+        """
+        Walk the transition list and return the first matching target node_id.
+        Returns None if no transition matches (caller uses default_transition).
+        """
+        player_relation = npc_state.npc.world.player_relation
+        turn_count = npc_state.turn_count
+
+        last_intention = TransitionResolver._last_intention(npc_state)
+        last_desire_type, last_desire_intensity = TransitionResolver._last_desire(npc_state)
+
+        eval_ctx = {"player_relation": player_relation, "turn_count": turn_count}
+
+        for transition in transitions:
+            if TransitionResolver._transition_matches(
+                transition,
+                eval_ctx,
+                player_relation,
+                last_intention,
+                last_desire_type,
+                last_desire_intensity,
+            ):
+                return transition["target"]
+
+        return None
+
+    @staticmethod
+    def is_terminal(node: Dict[str, Any]) -> bool:
+        """Check if a node is terminal (ends the conversation)."""
+        return node.get("terminal", False)
+
+    # ------------------------------------------------------------------ #
+    # Private: transition evaluation
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _transition_matches(
+        transition: Dict[str, Any],
+        eval_ctx: Dict[str, Any],
+        player_relation: float,
+        last_intention: Optional[str],
+        last_desire_type: Optional[str],
+        last_desire_intensity: Optional[float],
+    ) -> bool:
+        """
+        Returns True only when ALL guards present in this transition pass.
+        Guard keys: "condition" and/or "outcome_match".
+        Unknown keys (e.g. "_comment") are silently ignored.
+        """
+        # Guard 1: optional simple condition expression
+        condition_str = transition.get("condition")
+        if condition_str:
+            try:
+                result = eval(condition_str, {"__builtins__": {}}, eval_ctx)  # noqa: S307
+                if not result:
+                    return False
+            except Exception as e:
+                print(f"  [TransitionResolver] condition eval failed '{condition_str}': {e}")
+                return False
+
+        # Guard 2: optional outcome_match confidence block
+        outcome_match = transition.get("outcome_match")
+        if outcome_match:
+            confidence = TransitionResolver._compute_confidence(
+                outcome_match,
+                player_relation,
+                last_intention,
+                last_desire_type,
+                last_desire_intensity,
+            )
+            min_conf = float(transition.get("min_confidence", 0.5))
+            if confidence < min_conf:
+                return False
+
+        return True
+
+    # ------------------------------------------------------------------ #
+    # Private: confidence scoring
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _compute_confidence(
+        outcome_match: Dict[str, Any],
+        player_relation: float,
+        last_intention: Optional[str],
+        last_desire_type: Optional[str] = None,
+        last_desire_intensity: Optional[float] = None,
+    ) -> float:
+        """
+        Score how well the NPC's current state matches this outcome_match spec.
+
+        Supported outcome_match fields
+        ----------------------------------
+        intention_keywords   list[str]   substrings of canonical intention names
+        relation_target      float       ideal player_relation
+        relation_tolerance   float       acceptable deviation (default 0.25)
+        desire_types         list[str]   substrings of desire_type for +0.10 bonus
+        min_desire_intensity float       hard gate — 0.0 returned if not met
+
+        Unknown fields are silently ignored.
+        """
+        # Hard gate: desire intensity
+        min_intensity = outcome_match.get("min_desire_intensity")
+        if min_intensity is not None:
+            if last_desire_intensity is None or last_desire_intensity < min_intensity:
+                return 0.0
+
+        # Keyword score (0-1)
+        keyword_score = 0.0
+        keywords: List[str] = outcome_match.get("intention_keywords", [])
+        if keywords:
+            if last_intention:
+                intention_lower = last_intention.lower()
+                for kw in keywords:
+                    if kw.lower() in intention_lower:
+                        keyword_score = 1.0
+                        break
+            # keyword_score stays 0 if no last_intention and keywords required
+        else:
+            keyword_score = 1.0  # No keywords specified -> full score
+
+        # Relation score (0-1)
+        relation_score = 1.0
+        relation_target = outcome_match.get("relation_target")
+        if relation_target is not None:
+            tolerance = float(outcome_match.get("relation_tolerance", 0.25))
+            distance = abs(player_relation - float(relation_target))
+            relation_score = max(0.0, 1.0 - distance / max(tolerance, 0.01))
+
+        confidence = 0.6 * keyword_score + 0.4 * relation_score
+
+        # Desire-type bonus (+0.10 if match, capped at 1.0)
+        desire_types: List[str] = outcome_match.get("desire_types", [])
+        if desire_types and last_desire_type:
+            desire_lower = last_desire_type.lower()
+            if any(dt.lower() in desire_lower for dt in desire_types):
+                confidence = min(1.0, confidence + 0.10)
+
+        return confidence
+
+    # ------------------------------------------------------------------ #
+    # Private: NPC state extraction
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _last_intention(npc_state: "NPCConversationState") -> Optional[str]:
+        """Return the most recent intention_type from NPC conversation history."""
+        for entry in reversed(npc_state.history):
+            meta = entry.get("metadata")
+            if meta:
+                intention = meta.get("intention")
+                if intention:
+                    return intention.get("intention_type")
+        return None
+
+    @staticmethod
+    def _last_desire(
+        npc_state: "NPCConversationState",
+    ) -> Tuple[Optional[str], Optional[float]]:
+        """
+        Return (desire_type, intensity) from the most recent NPC history entry
+        that has desire metadata.  Returns (None, None) if not found.
+        """
+        for entry in reversed(npc_state.history):
+            meta = entry.get("metadata")
+            if meta:
+                desire = meta.get("desire")
+                if desire:
+                    return desire.get("desire_type"), desire.get("intensity")
+        return None, None

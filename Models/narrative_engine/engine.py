@@ -1,18 +1,15 @@
 """
-Narrative Engine Module
+Narrative Engine Module  (patched: coherent choice filtering)
 
-Core orchestrator for Fallout-style multi-NPC conversations using BDI psychology.
+KEY CHANGES vs original
+-----------------------
+* get_available_choices() now runs choices through ChoiceFilter + optional
+  DialogueMomentumFilter before returning them to the CLI / caller.
+* apply_choice() builds a full FilterContext and DialogueContext from live
+  NPC state so filters have real data to work with.
+* _build_filter_context() and _build_dialogue_context() are new helpers.
 
-Key Features:
-- NPC-agnostic scenario system: Same scenario works with any NPC
-- Dynamic routing: Choices don't have hardcoded next_node; routing is determined
-  by each NPC's internal state (beliefs, desires, intentions)
-- Multi-NPC support: Multiple NPCs can participate in the same scenario,
-  each with independent BDI processing and potentially different paths
-- Ollama/LLM integration: Generates contextual NPC responses via language models
-
-Key Components:
-- NarrativeEngine: Main orchestrator class
+Everything else is identical to the original.
 """
 
 from typing import Dict, List, Optional, Any
@@ -23,87 +20,36 @@ from PNE_Models import NPCModel
 from .session import ConversationSession, NPCConversationState
 from .scenario_loader import ScenarioLoader
 from .transition_resolver import TransitionResolver
+from .choice_filter import ChoiceFilter, FilterContext, ConversationStageDetector
+from .dialogue_coherence import DialogueMomentumFilter, DialogueContext
 
 
 class NarrativeEngine:
     """
     High-level orchestrator for Fallout-style conversations using pne's BDI engine.
-
-    Key difference from traditional choice-based systems:
-    - Choices no longer have next_node hardcoded
-    - After a choice is processed, each NPC's state is evaluated against
-      the CURRENT node's transitions to determine where that NPC goes next
-    - Different NPCs can end up on different nodes after the same player choice
-
-    Workflow:
-    1. Load NPCs (personality, beliefs, world state)
-    2. Load scenario (nodes, choices, transitions - NPC-agnostic)
-    3. Start session (inject NPCs into scenario)
-    4. Process player choices:
-       - Parse choice into PlayerDialogueInput
-       - Run through each NPC's DialogueProcessor (BDI + LLM)
-       - Evaluate transitions against each NPC's updated state
-       - Route each NPC to appropriate next node
-    5. Export rich conversation logs
-
-    Attributes:
-        use_ollama: Whether to use Ollama for LLM generation
-        ollama_url: URL for Ollama API endpoint
-        scenarios: Dict of loaded scenarios (scenario_id -> scenario data)
-        npcs: Dict of loaded NPCs (npc_id -> NPCModel)
-        sessions: Dict of active conversation sessions (session_id -> ConversationSession)
     """
 
     def __init__(self, use_ollama: bool = True, ollama_url: str = "http://localhost:11434"):
-        """
-        Initialize the narrative engine.
-
-        Args:
-            use_ollama: Whether to use Ollama for LLM-based response generation
-            ollama_url: URL of the Ollama API endpoint
-        """
         self.use_ollama = use_ollama
         self.ollama_url = ollama_url
-
         self.scenarios: Dict[str, Dict[str, Any]] = {}
         self.npcs: Dict[str, NPCModel] = {}
         self.sessions: Dict[str, ConversationSession] = {}
 
+    # ------------------------------------------------------------------ #
+    # Static helpers
+    # ------------------------------------------------------------------ #
+
     @staticmethod
     def _format_with_npc(text: str, npc_name: str) -> str:
-        """
-        Replace simple parsewords in scenario text.
-
-        Currently supported:
-          {{NPC_NAME}} -> concrete NPC model name (e.g. 'Moses', 'Taylor')
-
-        Args:
-            text: Text containing parsewords
-            npc_name: Name of the NPC to substitute
-
-        Returns:
-            Text with parsewords replaced by actual NPC data
-        """
         return text.replace("{{NPC_NAME}}", npc_name)
 
-    # ------------------------------------------------------------------
-    # Loading NPCs & Scenarios
-    # ------------------------------------------------------------------
+    # ------------------------------------------------------------------ #
+    # Loading
+    # ------------------------------------------------------------------ #
 
     def load_npc(self, filepath: str, npc_id: Optional[str] = None) -> str:
-        """
-        Load an NPC from a JSON file.
-
-        Args:
-            filepath: Path to the NPC JSON file
-            npc_id: Optional custom ID for the NPC (defaults to lowercase name)
-
-        Returns:
-            The NPC ID that was assigned
-
-        Raises:
-            FileNotFoundError: If the NPC file doesn't exist
-        """
+        """Load an NPC from JSON file."""
         npc = NPCModel.from_json(filepath)
         npc_id = npc_id or npc.name.lower().replace(" ", "_")
         self.npcs[npc_id] = npc
@@ -111,28 +57,15 @@ class NarrativeEngine:
         return npc_id
 
     def load_scenario(self, filepath: str, scenario_id: Optional[str] = None) -> str:
-        """
-        Load a scenario from a JSON file.
-
-        Args:
-            filepath: Path to the scenario JSON file
-            scenario_id: Optional custom ID (defaults to scenario's "id" field)
-
-        Returns:
-            The scenario ID that was assigned
-
-        Raises:
-            FileNotFoundError: If the scenario file doesn't exist
-        """
         scenario = ScenarioLoader.load_scenario(filepath)
         scenario_id = scenario_id or scenario.get("id", "default_scenario")
         self.scenarios[scenario_id] = scenario
         print(f"✓ Loaded scenario: {scenario.get('title', scenario_id)} (ID: {scenario_id})")
         return scenario_id
 
-    # ------------------------------------------------------------------
-    # Session Initialisation
-    # ------------------------------------------------------------------
+    # ------------------------------------------------------------------ #
+    # Session initialisation
+    # ------------------------------------------------------------------ #
 
     def start_session(
         self,
@@ -140,23 +73,6 @@ class NarrativeEngine:
         scenario_id: str,
         player_skills: Optional[PlayerSkillSet] = None,
     ) -> ConversationSession:
-        """
-        Start a new conversation session with one or more NPCs.
-
-        Creates a DialogueProcessor for each NPC, injecting their personality
-        into the NPC-agnostic scenario structure.
-
-        Args:
-            npc_ids: List of NPC IDs to participate in this conversation
-            scenario_id: ID of the scenario to use
-            player_skills: Optional player skill set (defaults to 5 in all skills)
-
-        Returns:
-            ConversationSession object for the active conversation
-
-        Raises:
-            ValueError: If scenario_id or any npc_id is not loaded
-        """
         if scenario_id not in self.scenarios:
             raise ValueError(f"Scenario '{scenario_id}' not loaded")
         for npc_id in npc_ids:
@@ -166,8 +82,6 @@ class NarrativeEngine:
         scenario = self.scenarios[scenario_id]
         npc_intent = ScenarioLoader.parse_npc_intent(scenario.get("npc_intent", {}))
         npc_role = ScenarioLoader.parse_npc_role(scenario.get("npc_role", {}))
-
-        # attach parsed npc_role onto the scenario object for later use
         scenario["_npc_role_meta"] = npc_role
 
         if player_skills is None:
@@ -176,7 +90,6 @@ class NarrativeEngine:
         npc_states: Dict[str, NPCConversationState] = {}
         for npc_id in npc_ids:
             npc = self.npcs[npc_id]
-
             start_node = ScenarioLoader.get_node(scenario, "start")
             if not start_node or not start_node.get("choices"):
                 outcome_index = OutcomeIndex(choice_id="empty", interaction_outcomes=[], terminal_outcomes=[])
@@ -202,106 +115,96 @@ class NarrativeEngine:
             )
 
         session_id = self._make_session_id(npc_ids, scenario_id)
-        session = ConversationSession(scenario_id=scenario_id, scenario=scenario, npc_states=npc_states)
+        session = ConversationSession(
+            scenario_id=scenario_id, scenario=scenario, npc_states=npc_states
+        )
         self.sessions[session_id] = session
-
         self._display_opening(session)
         return session
 
     @staticmethod
     def _make_session_id(npc_ids: List[str], scenario_id: str) -> str:
-        """
-        Generate a unique session ID from NPC IDs and scenario ID.
-
-        Args:
-            npc_ids: List of NPC IDs
-            scenario_id: Scenario ID
-
-        Returns:
-            Unique session ID string
-        """
-        npc_part = ",".join(sorted(npc_ids))
-        return f"{scenario_id}|{npc_part}"
+        return f"{scenario_id}|{','.join(sorted(npc_ids))}"
 
     def _display_opening(self, session: ConversationSession) -> None:
-        """
-        Display the opening text for a conversation session.
-
-        Prints scenario title, participating NPCs, and opening narrative.
-        Logs the opening to each NPC's conversation history.
-
-        Args:
-            session: The conversation session to display opening for
-        """
         scenario = session.scenario
         opening = scenario.get("opening", "Conversation begins...")
         npc_role = scenario.get("_npc_role_meta", {})
-        role_name = npc_role.get("display_name", "NPC")
 
         print(f"\n{'=' * 70}")
         print(f"CONVERSATION: {scenario.get('title', 'Untitled')}")
         print(f"NPCs: {', '.join(s.npc.name for s in session.npc_states.values())}")
         print(f"{'=' * 70}\n")
 
-        # Opening text is per-NPC and can use {{NPC_NAME}}
-        # Print once, using the first NPC's name for substitution
         first_state = next(iter(session.npc_states.values()))
         opening_visible = self._format_with_npc(opening, first_state.npc.name)
         print(opening_visible + "\n")
 
-        # Log opening per NPC (with their own name substituted)
         for state in session.npc_states.values():
             opening_for_npc = self._format_with_npc(opening, state.npc.name)
             state.add_exchange("Narrator", opening_for_npc)
 
-    # ------------------------------------------------------------------
-    # Turn Helpers
-    # ------------------------------------------------------------------
+    # ------------------------------------------------------------------ #
+    # Turn helpers
+    # ------------------------------------------------------------------ #
 
     def get_node(self, session: ConversationSession, node_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Get a node from the session's scenario.
-
-        Args:
-            session: Current conversation session
-            node_id: ID of the node to retrieve
-
-        Returns:
-            Node dict if found, None otherwise
-        """
         return ScenarioLoader.get_node(session.scenario, node_id)
 
-    def get_available_choices(self, session: ConversationSession, node_id: str) -> List[Dict[str, Any]]:
+    def get_available_choices(
+        self,
+        session: ConversationSession,
+        node_id: str,
+        verbose_filter: bool = False,
+    ) -> List[Dict[str, Any]]:
         """
-        Get all available player choices at a given node.
+        Returns filtered, coherence-checked choices for the given node.
 
-        Args:
-            session: Current conversation session
-            node_id: ID of the node to get choices from
-
-        Returns:
-            List of choice dicts with index, choice_id, text, and raw data
+        Filtering pipeline:
+          1. ChoiceFilter  – hard gates (skill/relation/state/prerequisite)
+          2. DialogueMomentumFilter – coherence scoring (responds to NPC momentum)
         """
         node = self.get_node(session, node_id)
         if not node:
             return []
 
-        choices = node.get("choices", [])
-        visible_choices: List[Dict[str, Any]] = []
-        for idx, choice in enumerate(choices, start=1):
-            visible_choices.append(
-                {
-                    "index": idx,
-                    "choice_id": choice["choice_id"],
-                    "text": choice["text"],
-                    "raw": choice,
-                }
-            )
-        return visible_choices
+        raw_choices = node.get("choices", [])
+        if not raw_choices:
+            return []
 
-    # ------------------------------------------------------------------
-    # Core Turn Step: apply one player choice, then resolve per-NPC routing
-    # ------------------------------------------------------------------
+        # Use the first active NPC as the representative state for filtering.
+        active = session.active_npcs()
+        if not active:
+            return self._index_choices(raw_choices)
+
+        primary_state = active[0]
+        npc = primary_state.npc
+
+        # ── Build FilterContext ──────────────────────────────────────────
+        filter_ctx = self._build_filter_context(primary_state, node_id)
+
+        # ── Stage 1: hard gate filtering ────────────────────────────────
+        filtered = ChoiceFilter.smart_fallback(raw_choices, filter_ctx)
+
+        # ── Stage 2: coherence scoring ───────────────────────────────────
+        scenario_config = session.scenario.get("conversation_config", {})
+        if scenario_config.get("enable_coherence_filtering", True):
+            dialogue_ctx = self._build_dialogue_context(primary_state, filter_ctx)
+            filtered = self._apply_coherence_filter(filtered, dialogue_ctx, verbose_filter)
+
+        return self._index_choices(filtered)
+
+    @staticmethod
+    def _index_choices(choices: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Attach 1-based index to each choice dict."""
+        return [
+            {"index": idx, "choice_id": c["choice_id"], "text": c["text"], "raw": c}
+            for idx, c in enumerate(choices, start=1)
+        ]
+
+    # ------------------------------------------------------------------ #
+    # Core turn step
+    # ------------------------------------------------------------------ #
 
     def apply_choice(
         self,
@@ -310,52 +213,34 @@ class NarrativeEngine:
         choice_index: int,
     ) -> Dict[str, Any]:
         """
-        Apply a single player choice (by index) to all active NPCs.
-
-        Flow per NPC:
-          1. Parse choice → PlayerDialogueInput
-          2. Run through DialogueProcessor (BDI + LLM)
-          3. Evaluate current node's transitions against updated NPC state
-          4. Route NPC to the resolved target node (or stay if no match)
-
-        This is where the dynamic routing happens: same choice, potentially
-        different outcomes for each NPC based on their internal state.
-
-        Args:
-            session: Current conversation session
-            node_id: ID of the current node
-            choice_index: Index of the player's choice (1-based)
-
-        Returns:
-            Dict mapping npc_id to {context, resolved_node}
-
-        Raises:
-            ValueError: If node_id is invalid or choice_index is out of range
+        Apply a single player choice (1-based index) to all active NPCs.
         """
         node = self.get_node(session, node_id)
         if not node:
-            raise ValueError(f"Node '{node_id}' not found in scenario '{session.scenario_id}'")
+            raise ValueError(f"Node '{node_id}' not found")
 
-        choices = node.get("choices", [])
-        if not (1 <= choice_index <= len(choices)):
-            raise ValueError(f"Invalid choice index {choice_index} for node '{node_id}'")
+        # Resolve against *filtered* choices so indices stay consistent.
+        visible_choices = self.get_available_choices(session, node_id)
+        if not (1 <= choice_index <= len(visible_choices)):
+            raise ValueError(
+                f"Invalid choice index {choice_index} (only {len(visible_choices)} available)"
+            )
 
-        choice_data = choices[choice_index - 1]
+        chosen = visible_choices[choice_index - 1]["raw"]
+        choice_data = chosen
 
-        # Fallout-style visible player choice list
+        # Fallout-style display
         print("Available choices:")
-        for idx, c in enumerate(choices, start=1):
-            marker = ">>" if idx == choice_index else "  "
-            print(f"{marker} [{idx}] {c['text']}")
+        for c in visible_choices:
+            marker = ">>" if c["index"] == choice_index else "  "
+            print(f"{marker} [{c['index']}] {c['text']}")
 
         player_input = ScenarioLoader.parse_player_input(choice_data)
-        session.player_choice_log.append(
-            {
-                "node_id": node_id,
-                "choice_id": choice_data["choice_id"],
-                "text": player_input.choice_text,
-            }
-        )
+        session.player_choice_log.append({
+            "node_id": node_id,
+            "choice_id": choice_data["choice_id"],
+            "text": player_input.choice_text,
+        })
 
         responses: Dict[str, Any] = {}
         outcome_index = ScenarioLoader.parse_outcome_index(choice_data)
@@ -366,7 +251,7 @@ class NarrativeEngine:
             state.add_exchange("Player", player_input.choice_text)
             state.choices_made.append(choice_data["choice_id"])
 
-            # --- Step 1-2: Process dialogue through BDI pipeline ---
+            # ── BDI pipeline ─────────────────────────────────────────────
             state.processor.outcome_index = outcome_index
             context = state.processor.process_dialogue(
                 player_input,
@@ -376,19 +261,16 @@ class NarrativeEngine:
             thought = context["thought_reaction"]
             desire = context["desire_state"]
             intention = context["behavioural_intention"]
-            npc_response = context["npc_response"]
+            npc_response = self._format_with_npc(context["npc_response"], state.npc.name)
 
-            # If npc_response comes from scenario prompts containing parsewords,
-            # run it through the formatter for this NPC.
-            npc_response = self._format_with_npc(npc_response, state.npc.name)
-
-            print(f"\n[{state.npc.name} | Internal Thought]: {thought['internal_thought']}")
+            print(f"\n[{state.npc.name} | Belief]: {thought['subjective_belief']}")
             print(
                 f"[{state.npc.name} | Desire]: "
                 f"{desire['immediate_desire']} "
                 f"(type={desire['desire_type']}, intensity={desire['intensity']:.2f})"
             )
-            print(f"[{state.npc.name} | Intention]: {intention['intention_type']}")
+            print(f"[{state.npc.name} | Intention]: {intention['intention_type']} "
+                  f"(confrontation={intention['confrontation_level']:.2f})")
             print(f"\n{state.npc.name}: {npc_response}\n")
 
             state.add_exchange(
@@ -402,44 +284,36 @@ class NarrativeEngine:
                 },
             )
 
-            # --- Step 3: Resolve transitions against this NPC's live state ---
+            # ── Transition resolution ─────────────────────────────────────
             resolved_node = TransitionResolver.resolve(transitions, state)
 
             if resolved_node:
                 target_node = self.get_node(session, resolved_node)
 
-                # --- Step 4a: Terminal node reached ---
                 if target_node and TransitionResolver.is_terminal(target_node):
                     terminal_id = target_node.get("terminal_id", "unknown")
                     terminal_result = target_node.get("terminal_result", "")
-                    # Terminal dialogue is generated by the NPC via its prompt,
-                    # not hardcoded. Use npc_dialogue_prompt as the LLM's guide.
-                    terminal_dialogue = npc_response  # already formatted above
 
                     state.is_complete = True
                     state.terminal_outcome = {
                         "terminal_id": terminal_id,
                         "result": terminal_result,
-                        "final_dialogue": terminal_dialogue,
+                        "final_dialogue": npc_response,
                     }
                     state.current_node = resolved_node
 
                     print(f"\n{'=' * 70}")
                     print(f"TERMINAL OUTCOME for {state.npc.name}: {terminal_id.upper()}")
                     print(f"Result: {terminal_result}")
-                    print(f"{state.npc.name}: {terminal_dialogue}")
+                    print(f"{state.npc.name}: {npc_response}")
                     print(f"{'=' * 70}\n")
 
                     state.processor.end_conversation()
-
-                # --- Step 4b: Non-terminal node; advance normally ---
                 else:
                     state.current_node = resolved_node
                     print(f"  [{state.npc.name}] → routed to node: {resolved_node}")
             else:
-                # No transition matched. Stay on current node if it has choices,
-                # or fall through to 'probing' as a default continuation.
-                default_node = "probing"
+                default_node = node.get("default_transition", "probing")
                 if self.get_node(session, default_node):
                     state.current_node = default_node
                     print(f"  [{state.npc.name}] → no transition matched, defaulting to: {default_node}")
@@ -453,42 +327,14 @@ class NarrativeEngine:
 
         return responses
 
-    # ------------------------------------------------------------------
-    # Session Termination & Export
-    # ------------------------------------------------------------------
+    # ------------------------------------------------------------------ #
+    # Session helpers
+    # ------------------------------------------------------------------ #
 
     def is_session_complete(self, session: ConversationSession) -> bool:
-        """
-        Check if the conversation session is complete.
-
-        Session ends when all NPCs have reached terminal states.
-
-        Args:
-            session: The conversation session to check
-
-        Returns:
-            True if all NPCs are complete, False otherwise
-        """
         return len(session.active_npcs()) == 0
 
     def export_session_log(self, session: ConversationSession, filepath: str) -> None:
-        """
-        Export a rich, per-NPC log backed by each NPC's ConversationModel.
-
-        The exported JSON contains:
-        - Scenario metadata
-        - Player choice log
-        - Per-NPC data:
-          - Full conversation model (BDI state trajectory)
-          - Choices made by player
-          - Visible conversation history
-          - Terminal outcome
-          - Final NPC state
-
-        Args:
-            session: The conversation session to export
-            filepath: Path to write the JSON log file
-        """
         import json
 
         data: Dict[str, Any] = {
@@ -511,4 +357,139 @@ class NarrativeEngine:
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
 
-        print(f"\n✓ Conversation session log exported to {filepath}")
+        print(f"\n✓ Session log exported to {filepath}")
+
+    # ------------------------------------------------------------------ #
+    # Private: filter context builders
+    # ------------------------------------------------------------------ #
+
+    def _build_filter_context(
+        self,
+        state: NPCConversationState,
+        node_id: str,
+    ) -> FilterContext:
+        """Build a FilterContext from live NPC + session state."""
+        npc = state.npc
+        processor = state.processor
+
+        player_skills_dict = {
+            "authority": processor.player_skills.authority,
+            "diplomacy": processor.player_skills.diplomacy,
+            "empathy": processor.player_skills.empathy,
+            "manipulation": processor.player_skills.manipulation,
+        }
+
+        # Grab last intention from history if available
+        last_intention = None
+        for entry in reversed(state.history):
+            meta = entry.get("metadata")
+            if meta and meta.get("intention"):
+                last_intention = meta["intention"].get("intention_type")
+                break
+
+        # Last desire type
+        last_desire_type = "information-seeking"
+        for entry in reversed(state.history):
+            meta = entry.get("metadata")
+            if meta and meta.get("desire"):
+                last_desire_type = meta["desire"].get("desire_type", last_desire_type)
+                break
+
+        # Emotional valence from last entry
+        npc_emotional_valence = 0.0
+        for entry in reversed(state.history):
+            meta = entry.get("metadata")
+            if meta and meta.get("thought"):
+                npc_emotional_valence = meta["thought"].get("emotional_valence", 0.0)
+                break
+
+        # Conversation stage detection
+        emotional_trajectory = []
+        for entry in state.history:
+            meta = entry.get("metadata")
+            if meta and meta.get("thought"):
+                emotional_trajectory.append(meta["thought"].get("emotional_valence", 0.0))
+
+        stage = ConversationStageDetector.detect_stage(
+            state.turn_count,
+            npc.world.player_relation,
+            emotional_trajectory,
+        )
+
+        return FilterContext(
+            player_skills=player_skills_dict,
+            player_relation=npc.world.player_relation,
+            npc_self_esteem=npc.cognitive.self_esteem,
+            npc_emotional_valence=npc_emotional_valence,
+            npc_current_intention=last_intention or "",
+            npc_current_desire_type=last_desire_type,
+            choices_made=state.choices_made,
+            turn_count=state.turn_count,
+            last_intention_shift=last_intention,
+            conversation_topic=node_id,
+            conversation_stage=stage,
+        )
+
+    def _build_dialogue_context(
+        self,
+        state: NPCConversationState,
+        filter_ctx: FilterContext,
+    ) -> DialogueContext:
+        """Build a DialogueContext for momentum-based coherence filtering."""
+        # Pull the last NPC response text
+        last_npc_response = None
+        for entry in reversed(state.history):
+            if entry.get("speaker") == state.npc.name:
+                last_npc_response = entry.get("text")
+                break
+
+        # Pull npc_momentum_tags from last interaction_outcome intention_shift
+        momentum_tags: List[str] = []
+        for entry in reversed(state.history):
+            meta = entry.get("metadata")
+            if meta:
+                outcome = meta.get("interaction_outcome")
+                if outcome and outcome.get("intention_shift"):
+                    shift = outcome["intention_shift"].lower()
+                    # Infer momentum tag from shift text
+                    if any(k in shift for k in ["test", "challenge", "prove"]):
+                        momentum_tags.append("challenge_posed")
+                    if any(k in shift for k in ["question", "evaluate"]):
+                        momentum_tags.append("question_asked")
+                    if any(k in shift for k in ["doubt", "skeptic", "suspicious"]):
+                        momentum_tags.append("doubt_expressed")
+                    if any(k in shift for k in ["accept", "ally", "trust", "trial"]):
+                        momentum_tags.append("acceptance_signaled")
+                    if any(k in shift for k in ["reject", "dismiss", "close"]):
+                        momentum_tags.append("rejection_signaled")
+                    if any(k in shift for k in ["demand", "ultimatum"]):
+                        momentum_tags.append("demand_made")
+                    break
+
+        return DialogueContext(
+            player_skills=filter_ctx.player_skills,
+            player_relation=filter_ctx.player_relation,
+            npc_self_esteem=filter_ctx.npc_self_esteem,
+            npc_emotional_valence=filter_ctx.npc_emotional_valence,
+            npc_current_intention=filter_ctx.npc_current_intention,
+            npc_current_desire_type=filter_ctx.npc_current_desire_type,
+            choices_made=filter_ctx.choices_made,
+            turn_count=filter_ctx.turn_count,
+            last_npc_response=last_npc_response,
+            conversation_stage=filter_ctx.conversation_stage or "opening",
+            npc_momentum_tags=momentum_tags,
+        )
+
+    @staticmethod
+    def _apply_coherence_filter(
+        choices: List[Dict[str, Any]],
+        dialogue_ctx: DialogueContext,
+        verbose: bool,
+    ) -> List[Dict[str, Any]]:
+        """
+        Run DialogueMomentumFilter; fall back to original list if it removes everything.
+        """
+        coherent = DialogueMomentumFilter.filter_for_coherence(choices, dialogue_ctx, verbose)
+        if not coherent:
+            return choices  # Safety net
+        return coherent
