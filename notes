@@ -10,3 +10,15 @@ It appears for scenarios there are 6 node states:
 
   in dgn.json, the issue appears to be that there is no negotiate, no succeed, and no fail. The NPC is stuck in probing_deep, and there is no way to transition out of it because it is soft-locked to probing / probing_deep. The intention matching is likely working, but the NPC cannot transition to a non-existent state. There are no terminal outcomes, so the NPC is stuck in an infinite loop of probing. Check the narrative engine code and also restructure the way scenarios are defined in the exmplerary dgn.json to include the missing states and transitions.
 
+
+
+Getting Closer but we need maybe a 2-dice roll skill-check for player dialogue to determine success. Similar to Disco Elysium. There should be two die (conceptually) - they are two values that are 1-6. They represent the player and npc The chances need to refer to the player's social skills and the NPC's.
+If both roll the same - instant success. More likely to happen if player skills are higher than NPC's. (Unlikely to fail)
+If dice 1 (player) is higher than dice 2 (NPC) - success.
+If dice 2 (NPC) is higher than dice 1 (player) - failure.
+
+All influenced by the social skills. Each dialogue option should have a (x%) indicator at the end of it that shows the player's chances of success based on their social skills and the NPC's. This adds an element of strategy to dialogue choices, as players can choose to take risks for higher rewards or play it safe with more likely options.
+
+Upon failure for each dialogue option, there must be recovery / branch dialogue options that allow the player to attempt to recover from failure. This also prevents narrative from losing coherence as the following dialogue is built on failed speech.
+
+I'm not sure if NPCs have outright skills like the player does, so if they must it should be handled first. Otherwise the 2-dice system works well for progression and roleplay. It also adds an element of chance that can make dialogue more engaging and less predictable, while still being influenced by the player's choices and character development.

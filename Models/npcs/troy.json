@@ -1,0 +1,32 @@
+{
+    "name": "Troy",
+    "age": 25,
+    "cognitive": {
+      "self_esteem": 0.2,
+      "locus_of_control": 0.85,
+      "cog_flexibility": 0.1
+    },
+    "social": {
+      "assertion": 0.8,
+      "conf_indep": 0.1,
+      "empathy": 0.5,
+      "ideology": {},
+      "wildcard": null,
+      "faction": "Insurgency",
+      "social_position": "Vice"
+    },
+    "world": {
+      "personal_history": "Troy is one of the earliest members of the Insurgency. He is not a founder of the insurgency, nor was he a higher-up when he first joined but he witnessed countless insurgent deaths in the more chaotic early RI conflicts. He is devout loyal to Moses. He might question his logic, but he doesn't question his heart.",
+      "player_history": "",
+      "player_relation": 0.5,
+      "world_history_ref": "data/world.json",
+      "faction_ref": "",
+      "known_events": [
+        "moses_defection"
+      ],
+      "known_figures": [
+        "morisson_moses"
+      ],
+      "world_history": ""
+    }
+  }

@@ -242,6 +242,12 @@ class NarrativeEngine:
             "text": player_input.choice_text,
         })
 
+        # Extract intention_shift from the scenario's choice definition.
+        # This is the authoritative value for FSM transition matching —
+        # it's what the scenario author declared, not an LLM-generated string.
+        raw_outcomes = choice_data.get("interaction_outcomes", [])
+        intention_shift = raw_outcomes[0].get("intention_shift") if raw_outcomes else None
+
         responses: Dict[str, Any] = {}
         outcome_index = ScenarioLoader.parse_outcome_index(choice_data)
         transitions = node.get("transitions", [])
@@ -252,16 +258,38 @@ class NarrativeEngine:
             state.choices_made.append(choice_data["choice_id"])
 
             # ── BDI pipeline ─────────────────────────────────────────────
+            # Run BDI without Ollama so we can generate the response
+            # ourselves using the node's npc_dialogue_prompt as scene direction.
             state.processor.outcome_index = outcome_index
             context = state.processor.process_dialogue(
                 player_input,
-                generate_with_ollama=self.use_ollama,
+                generate_with_ollama=False,
             )
 
             thought = context["thought_reaction"]
             desire = context["desire_state"]
             intention = context["behavioural_intention"]
-            npc_response = self._format_with_npc(context["npc_response"], state.npc.name)
+
+            # ── Generate response with scene direction ────────────────────
+            node_direction = node.get("npc_dialogue_prompt", "")
+            ollama_gen = getattr(state.processor, "ollama", None)
+            if (
+                self.use_ollama
+                and ollama_gen
+                and hasattr(ollama_gen, "generate_response_with_direction")
+            ):
+                raw_response = ollama_gen.generate_response_with_direction(
+                    npc=state.npc,
+                    thought=thought,
+                    intention=intention,
+                    interaction_outcome=context.get("interaction_outcome"),
+                    history=state.history,
+                    scene_direction=node_direction,
+                )
+            else:
+                raw_response = context["npc_response"]
+
+            npc_response = self._format_with_npc(raw_response, state.npc.name)
 
             print(f"\n[{state.npc.name} | Belief]: {thought['subjective_belief']}")
             print(
@@ -285,7 +313,9 @@ class NarrativeEngine:
             )
 
             # ── Transition resolution ─────────────────────────────────────
-            resolved_node = TransitionResolver.resolve(transitions, state)
+            resolved_node = TransitionResolver.resolve(transitions, state, intention_shift)
+            if intention_shift:
+                print(f"  [{state.npc.name}] intention_shift='{intention_shift}' → resolved={resolved_node or '(none)'}")
 
             if resolved_node:
                 target_node = self.get_node(session, resolved_node)
@@ -294,18 +324,23 @@ class NarrativeEngine:
                     terminal_id = target_node.get("terminal_id", "unknown")
                     terminal_result = target_node.get("terminal_result", "")
 
+                    # Generate a fresh final line using the terminal node's own prompt.
+                    final_response = self._generate_terminal_response(state, target_node)
+                    if not final_response:
+                        final_response = npc_response  # fallback to current response
+
                     state.is_complete = True
+                    state.current_node = resolved_node
                     state.terminal_outcome = {
                         "terminal_id": terminal_id,
                         "result": terminal_result,
-                        "final_dialogue": npc_response,
+                        "final_dialogue": final_response,
                     }
-                    state.current_node = resolved_node
 
                     print(f"\n{'=' * 70}")
-                    print(f"TERMINAL OUTCOME for {state.npc.name}: {terminal_id.upper()}")
-                    print(f"Result: {terminal_result}")
-                    print(f"{state.npc.name}: {npc_response}")
+                    print(f"OUTCOME: {terminal_id.upper()}")
+                    print(f"\n{state.npc.name}: {final_response}")
+                    print(f"\n{terminal_result}")
                     print(f"{'=' * 70}\n")
 
                     state.processor.end_conversation()
@@ -313,8 +348,8 @@ class NarrativeEngine:
                     state.current_node = resolved_node
                     print(f"  [{state.npc.name}] → routed to node: {resolved_node}")
             else:
-                default_node = node.get("default_transition", "probing")
-                if self.get_node(session, default_node):
+                default_node = node.get("default_transition")
+                if default_node and self.get_node(session, default_node):
                     state.current_node = default_node
                     print(f"  [{state.npc.name}] → no transition matched, defaulting to: {default_node}")
                 else:
@@ -360,6 +395,29 @@ class NarrativeEngine:
         print(f"\n✓ Session log exported to {filepath}")
 
     # ------------------------------------------------------------------ #
+    # Private: terminal response generation
+    # ------------------------------------------------------------------ #
+
+    def _generate_terminal_response(
+        self,
+        state: "NPCConversationState",
+        terminal_node: Dict[str, Any],
+    ) -> str:
+        """
+        Generate the NPC's final words using the terminal node's npc_dialogue_prompt.
+        Falls back to an empty string if Ollama is unavailable.
+        """
+        terminal_prompt = terminal_node.get("npc_dialogue_prompt", "")
+        if not terminal_prompt:
+            return ""
+
+        ollama = getattr(state.processor, "ollama", None)
+        if self.use_ollama and ollama and hasattr(ollama, "generate_terminal"):
+            return ollama.generate_terminal(state.npc, terminal_prompt, state.history)
+
+        return ""
+
+    # ------------------------------------------------------------------ #
     # Private: filter context builders
     # ------------------------------------------------------------------ #
 
@@ -379,7 +437,23 @@ class NarrativeEngine:
             "manipulation": processor.player_skills.manipulation,
         }
 
-        # Grab last intention from history if available
+        # last_intention_shift: read from interaction_outcome.intention_shift
+        # (the scenario-defined value, authoritative for choice filtering).
+        # Using the BDI intention_type here caused all allowed_after_intentions
+        # checks to fail because the BDI always generates generic types.
+        last_intention_shift = None
+        for entry in reversed(state.history):
+            meta = entry.get("metadata")
+            if meta:
+                outcome = meta.get("interaction_outcome")
+                if outcome and isinstance(outcome, dict):
+                    shift = outcome.get("intention_shift")
+                    if shift:
+                        last_intention_shift = shift
+                        break
+
+        # last_intention: BDI intention_type — used for npc_current_intention
+        # in the Ollama prompt and for coherence momentum tagging.
         last_intention = None
         for entry in reversed(state.history):
             meta = entry.get("metadata")
@@ -425,7 +499,7 @@ class NarrativeEngine:
             npc_current_desire_type=last_desire_type,
             choices_made=state.choices_made,
             turn_count=state.turn_count,
-            last_intention_shift=last_intention,
+            last_intention_shift=last_intention_shift,
             conversation_topic=node_id,
             conversation_stage=stage,
         )

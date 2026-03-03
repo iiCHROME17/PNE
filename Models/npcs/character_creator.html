@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PNE Creator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background:#0b0917; color:#e2d8f5; min-height:100vh; }
+    input[type=range] { accent-color:#7c3aed; }
+
+    input[type=text], input[type=number], textarea, select {
+      background:#12101f; color:#e2d8f5; border:1px solid #4a3980;
+      border-radius:0.4rem; padding:0.4rem 0.6rem; width:100%;
+      font-size:0.875rem; outline:none;
+    }
+    input[type=text]:focus, input[type=number]:focus, textarea:focus, select:focus { border-color:#7c3aed; }
+    input.invalid { border-color:#ef4444!important; }
+    textarea { resize:vertical; }
+
+    .section { background:#1e1b2e; border:1px solid #3b2d6e; border-radius:0.75rem; padding:1.25rem; margin-bottom:1rem; }
+    .section h2 { color:#c084fc; font-size:0.7rem; letter-spacing:0.14em; text-transform:uppercase; font-weight:700; margin-bottom:0.875rem; }
+    .sub-card { background:#120f22; border:1px solid #2d2050; border-radius:0.5rem; padding:0.75rem; margin-bottom:0.6rem; }
+    .sub-card-header { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+
+    label { color:#d1c4e9; font-size:0.82rem; display:block; margin-bottom:0.2rem; }
+    .hint { color:#7c6b99; font-size:0.7rem; }
+
+    .slider-row { display:flex; align-items:center; gap:10px; }
+    .slider-row input[type=range] { flex:1; }
+    .val-badge { background:#2d1f5e; color:#a78bfa; border-radius:4px; padding:1px 7px; font-size:0.8rem; font-family:monospace; min-width:3rem; text-align:center; }
+
+    .btn-primary { background:#7c3aed; color:#fff; border:none; border-radius:0.45rem; padding:0.5rem 1.1rem; font-size:0.875rem; font-weight:600; cursor:pointer; }
+    .btn-primary:hover { background:#6d28d9; }
+    .btn-secondary { background:#2d1f5e; color:#c084fc; border:1px solid #4a3980; border-radius:0.45rem; padding:0.45rem 1rem; font-size:0.82rem; cursor:pointer; }
+    .btn-secondary:hover { background:#3b2d6e; }
+    .btn-sm { padding:0.2rem 0.65rem !important; font-size:0.75rem !important; border-radius:0.35rem !important; }
+    .btn-danger { background:#7f1d1d; color:#fca5a5; border:none; border-radius:0.35rem; padding:2px 9px; font-size:0.75rem; cursor:pointer; flex-shrink:0; }
+    .btn-danger:hover { background:#991b1b; }
+
+    .tab-btn { padding:0.45rem 1.25rem; font-size:0.875rem; cursor:pointer; border:1px solid #3b2d6e; border-bottom:none; color:#7c6b99; background:#12101f; border-radius:0.5rem 0.5rem 0 0; transition:background 0.1s; }
+    .tab-btn.active { background:#1e1b2e; color:#c084fc; font-weight:600; }
+
+    .chip { display:inline-flex; align-items:center; gap:4px; background:#3b0764; color:#e9d5ff; border-radius:9999px; padding:2px 10px; font-size:0.75rem; }
+    .chip button { background:none; border:none; color:#c084fc; cursor:pointer; font-size:1rem; line-height:1; padding:0; }
+    .chip button:hover { color:#fff; }
+
+    .check-item { display:flex; align-items:flex-start; gap:7px; background:#120f22; border:1px solid #2d2050; border-radius:0.4rem; padding:6px 9px; cursor:pointer; }
+    .check-item:hover { border-color:#7c3aed; }
+    .check-item.selected { border-color:#7c3aed; background:#1a1040; }
+    .check-item input[type=checkbox] { margin-top:2px; accent-color:#7c3aed; cursor:pointer; flex-shrink:0; }
+
+    .kv-row { display:flex; gap:6px; align-items:center; margin-bottom:5px; }
+
+    #json-preview { background:#0f0f1a; color:#a78bfa; font-family:monospace; font-size:0.74rem; border-radius:0; padding:1rem; max-height:560px; overflow-y:auto; white-space:pre; }
+
+    .world-badge { font-size:0.72rem; padding:3px 10px; border-radius:9999px; font-weight:600; white-space:nowrap; }
+    .world-badge.loaded { background:#14532d; color:#86efac; }
+    .world-badge.empty { background:#27272a; color:#71717a; }
+
+    .fig-fields { display:grid; grid-template-columns:1fr 1fr; gap:5px; margin-top:6px; }
+    .fig-fields .span2 { grid-column:span 2; }
+
+    .col-header { color:#7c6b99; font-size:0.68rem; font-family:monospace; }
+  </style>
+</head>
+<body class="p-6">
+
+<div class="max-w-6xl mx-auto">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-5">
+    <div>
+      <h1 class="text-2xl font-bold text-purple-300">PNE Creator</h1>
+      <p class="text-purple-500 text-xs mt-0.5">World &amp; NPC authoring · Psychological Narrative Engine</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <span id="world-badge" class="world-badge empty">No world data</span>
+      <label class="btn-secondary btn-sm cursor-pointer" style="display:inline-flex;align-items:center">
+        Load world.json
+        <input type="file" id="world-file-input" accept=".json" class="hidden" onchange="loadWorldFile(event)" />
+      </label>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="flex gap-1 border-b border-purple-900">
+    <button id="tab-world" class="tab-btn active" onclick="showTab('world')">World Builder</button>
+    <button id="tab-npc"   class="tab-btn"        onclick="showTab('npc')">NPC Creator</button>
+  </div>
+
+  <!-- Two-column grid -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-5">
+
+    <!-- LEFT: tabbed form -->
+    <div>
+
+      <!-- ════════════════ WORLD TAB ════════════════ -->
+      <div id="content-world">
+
+        <div class="section">
+          <h2>World Overview</h2>
+          <label>World History <span class="hint">— opening paragraph surfaced to all NPCs as context</span></label>
+          <textarea id="world-history" rows="4" placeholder="Angelia collapsed after the Azraelean-Seraphimean War…" oninput="update()"></textarea>
+        </div>
+
+        <!-- Timeline -->
+        <div class="section">
+          <h2>Timeline Events <span class="hint ml-2">— IDs referenced by NPC known_events</span></h2>
+          <div class="kv-row col-header mb-1" style="gap:8px;">
+            <span style="width:5.5rem">Year</span>
+            <span style="flex:1">ID</span>
+            <span style="flex:3">Summary</span>
+            <span style="width:1.8rem"></span>
+          </div>
+          <div id="timeline-list"></div>
+          <button class="btn-secondary btn-sm mt-1" onclick="addTimelineEvent()">+ Add Event</button>
+        </div>
+
+        <!-- Figures -->
+        <div class="section">
+          <h2>Historical Figures <span class="hint ml-2">— IDs referenced by NPC known_figures</span></h2>
+          <div id="figures-list"></div>
+          <button class="btn-secondary btn-sm mt-1" onclick="addFigure()">+ Add Figure</button>
+        </div>
+
+        <!-- Factions -->
+        <div class="section">
+          <h2>Factions <span class="hint ml-2">— used by WorldContext for NPC faction prompts</span></h2>
+          <div id="factions-list"></div>
+          <button class="btn-secondary btn-sm mt-1" onclick="addFaction()">+ Add Faction</button>
+        </div>
+
+        <!-- Concepts + Locations -->
+        <div class="section">
+          <h2>Concepts</h2>
+          <div class="kv-row col-header mb-1"><span style="flex:1">Name</span><span style="flex:3">Definition</span><span style="width:1.8rem"></span></div>
+          <div id="concepts-list"></div>
+          <button class="btn-secondary btn-sm mt-1" onclick="addConcept()">+ Add Concept</button>
+        </div>
+
+        <div class="section">
+          <h2>Locations</h2>
+          <div class="kv-row col-header mb-1"><span style="flex:1">Name</span><span style="flex:3">Description</span><span style="width:1.8rem"></span></div>
+          <div id="locations-list"></div>
+          <button class="btn-secondary btn-sm mt-1" onclick="addLocation()">+ Add Location</button>
+        </div>
+
+      </div><!-- /content-world -->
+
+      <!-- ════════════════ NPC TAB ════════════════ -->
+      <div id="content-npc" class="hidden">
+
+        <!-- World link banner -->
+        <div id="npc-world-banner" class="hidden section mb-1" style="padding:0.65rem 1rem; background:#0d2318; border-color:#166534;">
+          <span class="text-green-400 text-xs font-semibold">World data linked — </span>
+          <span id="npc-world-info" class="text-green-600 text-xs"></span>
+        </div>
+
+        <!-- Basic Info -->
+        <div class="section">
+          <h2>Basic Info</h2>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label>Name <span class="text-red-400">*</span></label>
+              <input type="text" id="npc-name" placeholder="Morisson Moses" oninput="update()" />
+            </div>
+            <div>
+              <label>Age <span class="text-red-400">*</span></label>
+              <input type="number" id="npc-age" value="30" min="1" max="200" oninput="update()" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Cognitive -->
+        <div class="section">
+          <h2>Cognitive Model</h2>
+          <div id="cognitive-sliders"></div>
+        </div>
+
+        <!-- Social -->
+        <div class="section">
+          <h2>Social Personality</h2>
+          <div id="social-sliders"></div>
+
+          <div class="mt-4">
+            <label>Ideology <span class="hint">(weights auto-normalised to 1.0 in output)</span></label>
+            <div id="ideo-list"></div>
+            <button class="btn-secondary btn-sm mt-1" onclick="addIdeology()">+ Add Ideology</button>
+          </div>
+
+          <div class="grid grid-cols-3 gap-3 mt-4">
+            <div>
+              <label>Wildcard</label>
+              <input type="text" id="npc-wildcard" placeholder="Martyr / Napoleon / …" oninput="update()" />
+              <p class="hint mt-0.5">Psychological archetype</p>
+            </div>
+            <div>
+              <label>Faction</label>
+              <div id="faction-selector"></div>
+            </div>
+            <div>
+              <label>Social Position</label>
+              <select id="npc-social-position" onchange="update()">
+                <option value="Member">Member</option>
+                <option value="Higher">Higher</option>
+                <option value="Vice">Vice</option>
+                <option value="Boss">Boss</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- World Perception -->
+        <div class="section">
+          <h2>World Perception</h2>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label>World History Ref</label>
+              <input type="text" id="npc-world-ref" value="data/world.json" oninput="update()" />
+            </div>
+            <div>
+              <label>Faction Ref <span class="hint">(auto-syncs with Faction)</span></label>
+              <input type="text" id="npc-faction-ref" placeholder="Insurgency" oninput="update()" />
+            </div>
+          </div>
+
+          <div class="mt-3">
+            <label>Player Relation</label>
+            <div class="slider-row">
+              <span class="hint" style="min-width:4.5rem">0 = hostile</span>
+              <input type="range" id="npc-player-rel" min="0" max="1" step="0.01" value="0.5"
+                     oninput="updateSliderBadge(this); update()" />
+              <span class="hint" style="min-width:4.5rem; text-align:right">1 = trusted</span>
+              <span class="val-badge" id="badge-npc-player-rel">0.50</span>
+            </div>
+          </div>
+
+          <!-- Known Events -->
+          <div class="mt-4">
+            <label>Known Events <span class="hint" id="events-hint"></span></label>
+            <div id="known-events-section" class="mt-1"></div>
+          </div>
+
+          <!-- Known Figures -->
+          <div class="mt-4">
+            <label>Known Figures <span class="hint" id="figures-hint"></span></label>
+            <div id="known-figures-section" class="mt-1"></div>
+          </div>
+
+          <div class="mt-3">
+            <label>Personal History</label>
+            <textarea id="npc-personal-history" rows="5" placeholder="Background narrative…" oninput="update()"></textarea>
+          </div>
+        </div>
+
+        <div id="validation-msg" class="text-red-400 text-sm mb-2 hidden">Please fill in Name and Age.</div>
+
+      </div><!-- /content-npc -->
+
+      <!-- Action bar -->
+      <div class="flex gap-2 mt-1">
+        <button class="btn-primary" onclick="downloadJSON()">Download JSON</button>
+        <button class="btn-secondary" onclick="resetForm()">Reset</button>
+      </div>
+
+    </div><!-- /left col -->
+
+    <!-- RIGHT: sticky preview -->
+    <div class="lg:sticky lg:top-6 self-start">
+      <div class="section" style="padding:0; overflow:hidden;">
+        <div class="px-4 py-3 border-b border-purple-900 flex items-center justify-between">
+          <span class="text-purple-400 text-xs font-semibold uppercase tracking-widest" id="preview-label">World JSON</span>
+          <button class="btn-secondary btn-sm" onclick="copyJSON()">Copy</button>
+        </div>
+        <pre id="json-preview">{}</pre>
+      </div>
+      <p class="text-purple-600 text-xs mt-2" id="preview-hint">
+        Download → place in <code class="text-purple-500">Models/data/world.json</code>
+      </p>
+    </div>
+
+  </div><!-- /grid -->
+</div><!-- /container -->
+
+<script>
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+let _uid = 0
+const uid = () => ++_uid
+
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+function fv(id) { return parseFloat(document.getElementById(id).value) }
+function gv(id) { return document.getElementById(id).value }
+
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
+
+let activeTab = 'world'
+
+function showTab(t) {
+  activeTab = t
+  document.getElementById('content-world').classList.toggle('hidden', t !== 'world')
+  document.getElementById('content-npc').classList.toggle('hidden', t !== 'npc')
+  document.getElementById('tab-world').classList.toggle('active', t === 'world')
+  document.getElementById('tab-npc').classList.toggle('active', t === 'npc')
+  document.getElementById('preview-label').textContent = t === 'world' ? 'World JSON' : 'NPC JSON'
+  document.getElementById('preview-hint').innerHTML = t === 'world'
+    ? 'Download → place in <code class="text-purple-500">Models/data/world.json</code>'
+    : 'Download → place in <code class="text-purple-500">Models/npcs/</code>'
+  update()
+}
+
+// ─── World state ──────────────────────────────────────────────────────────────
+
+let wTimeline  = []  // [{_id, id, year, summary}]
+let wFigures   = []  // [{_id, id, name, era, role, description, ideological_legacy}]
+let wFactions  = []  // [{_id, id, history, ideology}]
+let wConcepts  = []  // [{_id, key, value}]
+let wLocations = []  // [{_id, key, value}]
+
+function worldHasTimeline()  { return wTimeline.some(e => e.id) }
+function worldHasFigures()   { return wFigures.some(f => f.id) }
+function worldHasFactions()  { return wFactions.some(f => f.id) }
+
+function updateWorldBadge() {
+  const loaded = wTimeline.length || wFigures.length || wFactions.length
+  const badge = document.getElementById('world-badge')
+  if (loaded) {
+    badge.className = 'world-badge loaded'
+    badge.textContent = `World: ${wTimeline.length} events · ${wFigures.length} figures · ${wFactions.length} factions`
+  } else {
+    badge.className = 'world-badge empty'
+    badge.textContent = 'No world data'
+  }
+  const banner = document.getElementById('npc-world-banner')
+  if (loaded) {
+    banner.classList.remove('hidden')
+    document.getElementById('npc-world-info').textContent =
+      `${wTimeline.length} events · ${wFigures.length} figures · ${wFactions.length} factions available to link`
+  } else {
+    banner.classList.add('hidden')
+  }
+}
+
+// ─── World: Timeline ──────────────────────────────────────────────────────────
+
+function addTimelineEvent(data = {}) {
+  wTimeline.push({ _id: uid(), id: data.id || '', year: data.year || 2500, summary: data.summary || '' })
+  renderTimeline()
+  renderKnownEventsSection()
+  updateWorldBadge()
+  update()
+}
+
+function removeTimelineEvent(_id) {
+  const removedId = (wTimeline.find(e => e._id === _id) || {}).id
+  wTimeline = wTimeline.filter(e => e._id !== _id)
+  if (removedId) npcSelectedEvents = npcSelectedEvents.filter(id => id !== removedId)
+  renderTimeline()
+  renderKnownEventsSection()
+  updateWorldBadge()
+  update()
+}
+
+function renderTimeline() {
+  const c = document.getElementById('timeline-list')
+  if (!wTimeline.length) { c.innerHTML = '<p class="hint italic mb-2">No events yet.</p>'; return }
+  c.innerHTML = wTimeline.map(e => `
+    <div class="kv-row">
+      <input type="number" value="${esc(e.year)}" min="0" style="width:5.5rem"
+             oninput="wTimeline.find(x=>x._id===${e._id}).year=parseInt(this.value)||0; update()" />
+      <input type="text" value="${esc(e.id)}" placeholder="event_id" style="flex:1;font-family:monospace;font-size:0.78rem"
+             oninput="wTimeline.find(x=>x._id===${e._id}).id=this.value.trim(); renderKnownEventsSection(); update()" />
+      <input type="text" value="${esc(e.summary)}" placeholder="Brief summary…" style="flex:3"
+             oninput="wTimeline.find(x=>x._id===${e._id}).summary=this.value; update()" />
+      <button class="btn-danger" onclick="removeTimelineEvent(${e._id})">✕</button>
+    </div>
+  `).join('')
+}
+
+// ─── World: Figures ───────────────────────────────────────────────────────────
+
+function addFigure(data = {}) {
+  wFigures.push({
+    _id: uid(),
+    id: data.id || '', name: data.name || '', era: data.era || '',
+    role: data.role || '', description: data.description || '',
+    ideological_legacy: data.ideological_legacy || ''
+  })
+  renderFigures()
+  renderKnownFiguresSection()
+  updateWorldBadge()
+  update()
+}
+
+function removeFigure(_id) {
+  const removedId = (wFigures.find(f => f._id === _id) || {}).id
+  wFigures = wFigures.filter(f => f._id !== _id)
+  if (removedId) npcSelectedFigures = npcSelectedFigures.filter(id => id !== removedId)
+  renderFigures()
+  renderKnownFiguresSection()
+  updateWorldBadge()
+  update()
+}
+
+function renderFigures() {
+  const c = document.getElementById('figures-list')
+  if (!wFigures.length) { c.innerHTML = '<p class="hint italic mb-2">No figures yet.</p>'; return }
+  c.innerHTML = wFigures.map(f => `
+    <div class="sub-card">
+      <div class="sub-card-header">
+        <input type="text" value="${esc(f.id)}" placeholder="figure_id"
+               style="flex:1;font-family:monospace;font-size:0.8rem"
+               oninput="wFigures.find(x=>x._id===${f._id}).id=this.value.trim(); renderKnownFiguresSection(); update()" />
+        <button class="btn-danger" onclick="removeFigure(${f._id})">✕</button>
+      </div>
+      <div class="fig-fields">
+        <div>
+          <label style="font-size:0.7rem">Name</label>
+          <input type="text" value="${esc(f.name)}"
+                 oninput="wFigures.find(x=>x._id===${f._id}).name=this.value; update()" />
+        </div>
+        <div>
+          <label style="font-size:0.7rem">Era</label>
+          <input type="text" value="${esc(f.era)}" placeholder="Post-Separation / 2679"
+                 oninput="wFigures.find(x=>x._id===${f._id}).era=this.value; update()" />
+        </div>
+        <div class="span2">
+          <label style="font-size:0.7rem">Role</label>
+          <input type="text" value="${esc(f.role)}"
+                 oninput="wFigures.find(x=>x._id===${f._id}).role=this.value; update()" />
+        </div>
+        <div class="span2">
+          <label style="font-size:0.7rem">Ideological Legacy <span class="hint">— one-phrase belief</span></label>
+          <input type="text" value="${esc(f.ideological_legacy)}" placeholder="Emotion is infrastructure."
+                 oninput="wFigures.find(x=>x._id===${f._id}).ideological_legacy=this.value; update()" />
+        </div>
+        <div class="span2">
+          <label style="font-size:0.7rem">Description</label>
+          <textarea rows="2"
+                    oninput="wFigures.find(x=>x._id===${f._id}).description=this.value; update()">${esc(f.description)}</textarea>
+        </div>
+      </div>
+    </div>
+  `).join('')
+}
+
+// ─── World: Factions ──────────────────────────────────────────────────────────
+
+function addFaction(data = {}) {
+  wFactions.push({ _id: uid(), id: data.id || '', history: data.history || '', ideology: data.ideology || '' })
+  renderFactions()
+  renderFactionSelector()
+  updateWorldBadge()
+  update()
+}
+
+function removeFaction(_id) {
+  wFactions = wFactions.filter(f => f._id !== _id)
+  renderFactions()
+  renderFactionSelector()
+  updateWorldBadge()
+  update()
+}
+
+function renderFactions() {
+  const c = document.getElementById('factions-list')
+  if (!wFactions.length) { c.innerHTML = '<p class="hint italic mb-2">No factions yet.</p>'; return }
+  c.innerHTML = wFactions.map(f => `
+    <div class="sub-card">
+      <div class="sub-card-header">
+        <input type="text" value="${esc(f.id)}" placeholder="faction_id"
+               style="flex:1;font-family:monospace;font-size:0.8rem"
+               oninput="wFactions.find(x=>x._id===${f._id}).id=this.value.trim(); renderFactionSelector(); update()" />
+        <button class="btn-danger" onclick="removeFaction(${f._id})">✕</button>
+      </div>
+      <div style="display:grid; gap:5px; margin-top:4px;">
+        <div>
+          <label style="font-size:0.7rem">History</label>
+          <textarea rows="2"
+                    oninput="wFactions.find(x=>x._id===${f._id}).history=this.value; update()">${esc(f.history)}</textarea>
+        </div>
+        <div>
+          <label style="font-size:0.7rem">Ideology <span class="hint">— surfaced to NPC prompts</span></label>
+          <input type="text" value="${esc(f.ideology)}" placeholder="Collective civic stewardship through…"
+                 oninput="wFactions.find(x=>x._id===${f._id}).ideology=this.value; update()" />
+        </div>
+      </div>
+    </div>
+  `).join('')
+}
+
+// ─── World: Concepts ──────────────────────────────────────────────────────────
+
+function addConcept(data = {}) {
+  wConcepts.push({ _id: uid(), key: data.key || '', value: data.value || '' })
+  renderConcepts(); update()
+}
+function removeConcept(_id) { wConcepts = wConcepts.filter(c => c._id !== _id); renderConcepts(); update() }
+function renderConcepts() {
+  const c = document.getElementById('concepts-list')
+  if (!wConcepts.length) { c.innerHTML = '<p class="hint italic mb-2">None yet.</p>'; return }
+  c.innerHTML = wConcepts.map(item => `
+    <div class="kv-row">
+      <input type="text" value="${esc(item.key)}" placeholder="Dysphoria" style="flex:1"
+             oninput="wConcepts.find(x=>x._id===${item._id}).key=this.value; update()" />
+      <input type="text" value="${esc(item.value)}" placeholder="Definition…" style="flex:3"
+             oninput="wConcepts.find(x=>x._id===${item._id}).value=this.value; update()" />
+      <button class="btn-danger" onclick="removeConcept(${item._id})">✕</button>
+    </div>
+  `).join('')
+}
+
+// ─── World: Locations ─────────────────────────────────────────────────────────
+
+function addLocation(data = {}) {
+  wLocations.push({ _id: uid(), key: data.key || '', value: data.value || '' })
+  renderLocations(); update()
+}
+function removeLocation(_id) { wLocations = wLocations.filter(l => l._id !== _id); renderLocations(); update() }
+function renderLocations() {
+  const c = document.getElementById('locations-list')
+  if (!wLocations.length) { c.innerHTML = '<p class="hint italic mb-2">None yet.</p>'; return }
+  c.innerHTML = wLocations.map(item => `
+    <div class="kv-row">
+      <input type="text" value="${esc(item.key)}" placeholder="Romance City" style="flex:1"
+             oninput="wLocations.find(x=>x._id===${item._id}).key=this.value; update()" />
+      <input type="text" value="${esc(item.value)}" placeholder="Description…" style="flex:3"
+             oninput="wLocations.find(x=>x._id===${item._id}).value=this.value; update()" />
+      <button class="btn-danger" onclick="removeLocation(${item._id})">✕</button>
+    </div>
+  `).join('')
+}
+
+// ─── Build world JSON ─────────────────────────────────────────────────────────
+
+function buildWorld() {
+  const figures = {}
+  for (const f of wFigures.filter(f => f.id)) {
+    const entry = { name: f.name, era: f.era, role: f.role, description: f.description }
+    if (f.ideological_legacy) entry.ideological_legacy = f.ideological_legacy
+    figures[f.id] = entry
+  }
+  const concepts = {}, locations = {}, factions = {}
+  for (const c of wConcepts.filter(c => c.key))    concepts[c.key]  = c.value
+  for (const l of wLocations.filter(l => l.key))   locations[l.key] = l.value
+  for (const f of wFactions.filter(f => f.id))     factions[f.id]   = { history: f.history, ideology: f.ideology }
+
+  return {
+    world_history: gv('world-history'),
+    timeline: wTimeline.filter(e => e.id).map(e => ({ id: e.id, year: e.year, summary: e.summary })),
+    figures,
+    concepts,
+    locations,
+    factions,
+  }
+}
+
+// ─── Load world from file ─────────────────────────────────────────────────────
+
+function loadWorldFile(event) {
+  const file = event.target.files[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = e => {
+    try { applyWorldData(JSON.parse(e.target.result)) }
+    catch { alert('Invalid JSON file.') }
+  }
+  reader.readAsText(file)
+  event.target.value = ''  // allow re-loading same file
+}
+
+function applyWorldData(data) {
+  document.getElementById('world-history').value = data.world_history || ''
+
+  // Support both 'timeline' and 'key_events' keys
+  const rawEvents = data.timeline || data.key_events || []
+  wTimeline  = rawEvents.map(e => ({ _id: uid(), id: e.id || '', year: e.year || 0, summary: e.summary || '' }))
+  wFigures   = Object.entries(data.figures  || {}).map(([id, f]) => ({ _id: uid(), id, name: f.name || '', era: String(f.era || ''), role: f.role || '', description: f.description || '', ideological_legacy: f.ideological_legacy || '' }))
+  wFactions  = Object.entries(data.factions || {}).map(([id, f]) => ({ _id: uid(), id, history: f.history || '', ideology: f.ideology || '' }))
+  wConcepts  = Object.entries(data.concepts  || {}).map(([key, value]) => ({ _id: uid(), key, value }))
+  wLocations = Object.entries(data.locations || {}).map(([key, value]) => ({ _id: uid(), key, value }))
+
+  // Migrate any manually-entered NPC chips that match loaded events/figures
+  const eventIds = new Set(wTimeline.map(e => e.id).filter(Boolean))
+  const figureIds = new Set(wFigures.map(f => f.id).filter(Boolean))
+  for (const id of npcEventsManual)  if (eventIds.has(id)  && !npcSelectedEvents.includes(id))  npcSelectedEvents.push(id)
+  for (const id of npcFiguresManual) if (figureIds.has(id) && !npcSelectedFigures.includes(id)) npcSelectedFigures.push(id)
+
+  renderTimeline(); renderFigures(); renderFactions(); renderConcepts(); renderLocations()
+  renderKnownEventsSection(); renderKnownFiguresSection(); renderFactionSelector()
+  updateWorldBadge()
+  update()
+}
+
+// ─── NPC: Sliders ────────────────────────────────────────────────────────────
+
+const COG_SLIDERS = [
+  { id: 'cog-self-esteem',  label: 'Self Esteem',           hint: '0 = low confidence   ·   1 = high confidence', def: 0.5 },
+  { id: 'cog-locus',        label: 'Locus of Control',      hint: '0 = blames fate (external)   ·   1 = self-responsible (internal)', def: 0.5 },
+  { id: 'cog-flexibility',  label: 'Cognitive Flexibility',  hint: '0 = rigid / dogmatic   ·   1 = adaptive / open', def: 0.5 },
+]
+const SOC_SLIDERS = [
+  { id: 'soc-assertion',  label: 'Assertion',                hint: '0 = passive / persuadable   ·   1 = assertive / challenges player', def: 0.5 },
+  { id: 'soc-confindep',  label: 'Conformity / Independence', hint: '0 = conformist (follows group)   ·   1 = independent (autonomous)', def: 0.5 },
+  { id: 'soc-empathy',    label: 'Empathy',                   hint: '0 = self-focused   ·   1 = empathetic', def: 0.5 },
+]
+
+function buildSliders(defs, containerId) {
+  document.getElementById(containerId).innerHTML = defs.map(s => `
+    <div class="mb-4">
+      <label>${s.label}</label>
+      <p class="hint mb-1">${s.hint}</p>
+      <div class="slider-row">
+        <input type="range" id="${s.id}" min="0" max="1" step="0.01" value="${s.def}"
+               oninput="updateSliderBadge(this); update()" />
+        <span class="val-badge" id="badge-${s.id}">${s.def.toFixed(2)}</span>
+      </div>
+    </div>
+  `).join('')
+}
+
+function updateSliderBadge(el) {
+  document.getElementById('badge-' + el.id).textContent = parseFloat(el.value).toFixed(2)
+}
+
+// ─── NPC: Ideology ────────────────────────────────────────────────────────────
+
+let npcIdeologies = []
+
+function addIdeology(data = {}) {
+  npcIdeologies.push({ _id: uid(), name: data.name || '', weight: data.weight != null ? data.weight : 1 })
+  renderIdeologies(); update()
+}
+function removeIdeology(_id) { npcIdeologies = npcIdeologies.filter(i => i._id !== _id); renderIdeologies(); update() }
+function renderIdeologies() {
+  const c = document.getElementById('ideo-list')
+  if (!npcIdeologies.length) { c.innerHTML = '<p class="hint italic">No ideologies added.</p>'; return }
+  c.innerHTML = npcIdeologies.map(i => `
+    <div class="kv-row">
+      <input type="text" value="${esc(i.name)}" placeholder="Utilitarianism" style="flex:2"
+             oninput="npcIdeologies.find(x=>x._id===${i._id}).name=this.value; update()" />
+      <input type="number" value="${esc(i.weight)}" placeholder="Weight" min="0" step="0.01" style="width:5.5rem"
+             oninput="npcIdeologies.find(x=>x._id===${i._id}).weight=parseFloat(this.value)||0; update()" />
+      <button class="btn-danger" onclick="removeIdeology(${i._id})">✕</button>
+    </div>
+  `).join('')
+}
+function getNormalizedIdeology() {
+  const valid = npcIdeologies.filter(i => i.name.trim())
+  const total = valid.reduce((s, i) => s + i.weight, 0)
+  if (!valid.length || !total) return {}
+  return Object.fromEntries(valid.map(i => [i.name.trim(), parseFloat((i.weight / total).toFixed(6))]))
+}
+
+// ─── NPC: World-aware selectors ───────────────────────────────────────────────
+
+let npcSelectedEvents  = []  // active when world has timeline data
+let npcSelectedFigures = []  // active when world has figures
+let npcEventsManual    = []  // fallback chip list
+let npcFiguresManual   = []  // fallback chip list
+
+function toggleNpcEvent(eventId) {
+  if (npcSelectedEvents.includes(eventId))
+    npcSelectedEvents = npcSelectedEvents.filter(id => id !== eventId)
+  else
+    npcSelectedEvents.push(eventId)
+  // Update checkbox styling without full re-render
+  const label = document.querySelector(`[data-event="${CSS.escape(eventId)}"]`)
+  if (label) label.classList.toggle('selected', npcSelectedEvents.includes(eventId))
+  update()
+}
+
+function toggleNpcFigure(figureId) {
+  if (npcSelectedFigures.includes(figureId))
+    npcSelectedFigures = npcSelectedFigures.filter(id => id !== figureId)
+  else
+    npcSelectedFigures.push(figureId)
+  const label = document.querySelector(`[data-figure="${CSS.escape(figureId)}"]`)
+  if (label) label.classList.toggle('selected', npcSelectedFigures.includes(figureId))
+  update()
+}
+
+function renderKnownEventsSection() {
+  const c    = document.getElementById('known-events-section')
+  const hint = document.getElementById('events-hint')
+  if (!c) return
+
+  if (worldHasTimeline()) {
+    const valid = wTimeline.filter(e => e.id)
+    hint.textContent = `— select from ${valid.length} world event${valid.length !== 1 ? 's' : ''}`
+    c.innerHTML = valid.length === 0
+      ? '<p class="hint italic">Add events in the World Builder tab first.</p>'
+      : `<div class="grid grid-cols-1 gap-1">${valid.map(e => `
+          <label class="check-item ${npcSelectedEvents.includes(e.id) ? 'selected' : ''}" data-event="${esc(e.id)}">
+            <input type="checkbox" ${npcSelectedEvents.includes(e.id) ? 'checked' : ''}
+                   onchange="toggleNpcEvent('${esc(e.id)}')" />
+            <div>
+              <span class="font-mono text-purple-400" style="font-size:0.72rem">${esc(e.id)}</span>
+              <span class="text-gray-500 text-xs ml-2">${esc(e.year)}: ${esc(e.summary)}</span>
+            </div>
+          </label>`).join('')}</div>`
+  } else {
+    hint.textContent = '— event IDs, one at a time (or build world events above)'
+    c.innerHTML = `
+      <div class="flex gap-2 mb-2">
+        <input type="text" id="npc-event-input" placeholder="moses_defection" style="flex:1"
+               onkeydown="if(event.key==='Enter'){addNpcEventChip();event.preventDefault()}" />
+        <button class="btn-secondary btn-sm" onclick="addNpcEventChip()">Add</button>
+      </div>
+      <div id="npc-event-chips" class="flex flex-wrap gap-1"></div>`
+    renderNpcEventChips()
+  }
+}
+
+function addNpcEventChip() {
+  const el  = document.getElementById('npc-event-input')
+  const val = el.value.trim().replace(/\s+/g, '_').toLowerCase()
+  if (!val || npcEventsManual.includes(val)) { el.value = ''; return }
+  npcEventsManual.push(val)
+  el.value = ''
+  renderNpcEventChips()
+  update()
+}
+function removeNpcEventChip(val) {
+  npcEventsManual = npcEventsManual.filter(e => e !== val)
+  renderNpcEventChips(); update()
+}
+function renderNpcEventChips() {
+  const c = document.getElementById('npc-event-chips')
+  if (!c) return
+  c.innerHTML = npcEventsManual.map(v => `
+    <span class="chip">${esc(v)}<button onclick="removeNpcEventChip('${esc(v)}')" title="Remove">×</button></span>
+  `).join('')
+}
+
+function renderKnownFiguresSection() {
+  const c    = document.getElementById('known-figures-section')
+  const hint = document.getElementById('figures-hint')
+  if (!c) return
+
+  if (worldHasFigures()) {
+    const valid = wFigures.filter(f => f.id)
+    hint.textContent = `— select from ${valid.length} world figure${valid.length !== 1 ? 's' : ''}`
+    c.innerHTML = valid.length === 0
+      ? '<p class="hint italic">Add figures in the World Builder tab first.</p>'
+      : `<div class="grid grid-cols-1 gap-1">${valid.map(f => `
+          <label class="check-item ${npcSelectedFigures.includes(f.id) ? 'selected' : ''}" data-figure="${esc(f.id)}">
+            <input type="checkbox" ${npcSelectedFigures.includes(f.id) ? 'checked' : ''}
+                   onchange="toggleNpcFigure('${esc(f.id)}')" />
+            <div>
+              <span class="font-mono text-purple-400" style="font-size:0.72rem">${esc(f.id)}</span>
+              ${f.name ? `<span class="text-gray-400 text-xs ml-2">${esc(f.name)}</span>` : ''}
+              ${f.role ? `<span class="text-gray-600 text-xs ml-1">· ${esc(f.role)}</span>` : ''}
+            </div>
+          </label>`).join('')}</div>`
+  } else {
+    hint.textContent = '— figure IDs, one at a time (or build world figures above)'
+    c.innerHTML = `
+      <div class="flex gap-2 mb-2">
+        <input type="text" id="npc-figure-input" placeholder="morisson_moses" style="flex:1"
+               onkeydown="if(event.key==='Enter'){addNpcFigureChip();event.preventDefault()}" />
+        <button class="btn-secondary btn-sm" onclick="addNpcFigureChip()">Add</button>
+      </div>
+      <div id="npc-figure-chips" class="flex flex-wrap gap-1"></div>`
+    renderNpcFigureChips()
+  }
+}
+
+function addNpcFigureChip() {
+  const el  = document.getElementById('npc-figure-input')
+  const val = el.value.trim().replace(/\s+/g, '_').toLowerCase()
+  if (!val || npcFiguresManual.includes(val)) { el.value = ''; return }
+  npcFiguresManual.push(val)
+  el.value = ''
+  renderNpcFigureChips()
+  update()
+}
+function removeNpcFigureChip(val) {
+  npcFiguresManual = npcFiguresManual.filter(f => f !== val)
+  renderNpcFigureChips(); update()
+}
+function renderNpcFigureChips() {
+  const c = document.getElementById('npc-figure-chips')
+  if (!c) return
+  c.innerHTML = npcFiguresManual.map(v => `
+    <span class="chip">${esc(v)}<button onclick="removeNpcFigureChip('${esc(v)}')" title="Remove">×</button></span>
+  `).join('')
+}
+
+function renderFactionSelector() {
+  const c = document.getElementById('faction-selector')
+  if (!c) return
+  const current = document.getElementById('npc-faction')?.value || ''
+
+  if (worldHasFactions()) {
+    const valid = wFactions.filter(f => f.id)
+    c.innerHTML = `
+      <select id="npc-faction" onchange="syncFactionRef(); update()">
+        <option value="">— none —</option>
+        ${valid.map(f => `<option value="${esc(f.id)}" ${current === f.id ? 'selected' : ''}>${esc(f.id)}</option>`).join('')}
+      </select>`
+  } else {
+    c.innerHTML = `<input type="text" id="npc-faction" value="${esc(current)}" placeholder="Insurgency"
+                          oninput="syncFactionRef(); update()" />`
+  }
+}
+
+function syncFactionRef() {
+  const faction = document.getElementById('npc-faction')?.value || ''
+  const ref = document.getElementById('npc-faction-ref')
+  if (ref && !ref.dataset.manuallyEdited) ref.value = faction
+  update()
+}
+
+// ─── Build NPC JSON ───────────────────────────────────────────────────────────
+
+function buildNPC() {
+  const knownEvents  = worldHasTimeline() ? [...npcSelectedEvents]  : [...npcEventsManual]
+  const knownFigures = worldHasFigures()  ? [...npcSelectedFigures] : [...npcFiguresManual]
+  return {
+    name:      gv('npc-name').trim(),
+    age:       parseInt(gv('npc-age')) || 30,
+    cognitive: {
+      self_esteem:      fv('cog-self-esteem'),
+      locus_of_control: fv('cog-locus'),
+      cog_flexibility:  fv('cog-flexibility'),
+    },
+    social: {
+      assertion:       fv('soc-assertion'),
+      conf_indep:      fv('soc-confindep'),
+      empathy:         fv('soc-empathy'),
+      ideology:        getNormalizedIdeology(),
+      wildcard:        gv('npc-wildcard').trim() || null,
+      faction:         document.getElementById('npc-faction')?.value?.trim() || null,
+      social_position: gv('npc-social-position'),
+    },
+    world: {
+      personal_history:  gv('npc-personal-history').trim(),
+      player_history:    '',
+      player_relation:   fv('npc-player-rel'),
+      world_history_ref: gv('npc-world-ref').trim(),
+      faction_ref:       gv('npc-faction-ref').trim(),
+      known_events:      knownEvents,
+      known_figures:     knownFigures,
+      world_history:     '',
+    },
+  }
+}
+
+// ─── Preview ──────────────────────────────────────────────────────────────────
+
+function update() {
+  const obj  = activeTab === 'world' ? buildWorld() : buildNPC()
+  document.getElementById('json-preview').textContent = JSON.stringify(obj, null, 2)
+}
+
+// ─── Download ─────────────────────────────────────────────────────────────────
+
+function downloadJSON() {
+  let json, filename
+
+  if (activeTab === 'world') {
+    json     = JSON.stringify(buildWorld(), null, 2)
+    filename = 'world.json'
+  } else {
+    const name = gv('npc-name').trim()
+    const age  = gv('npc-age')
+    if (!name || !age) {
+      document.getElementById('npc-name').classList.toggle('invalid', !name)
+      document.getElementById('npc-age').classList.toggle('invalid', !age)
+      document.getElementById('validation-msg').classList.remove('hidden')
+      return
+    }
+    document.getElementById('validation-msg').classList.add('hidden')
+    document.getElementById('npc-name').classList.remove('invalid')
+    document.getElementById('npc-age').classList.remove('invalid')
+    json     = JSON.stringify(buildNPC(), null, 2)
+    filename = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/, '') + '.json'
+  }
+
+  const a = document.createElement('a')
+  a.href  = 'data:application/json;charset=utf-8,' + encodeURIComponent(json)
+  a.download = filename
+  a.click()
+}
+
+// ─── Copy ─────────────────────────────────────────────────────────────────────
+
+function copyJSON() {
+  const text = document.getElementById('json-preview').textContent
+  navigator.clipboard.writeText(text).catch(() => {
+    const ta = document.createElement('textarea')
+    ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove()
+  })
+}
+
+// ─── Reset ────────────────────────────────────────────────────────────────────
+
+function resetForm() {
+  if (activeTab === 'world') {
+    document.getElementById('world-history').value = ''
+    wTimeline = []; wFigures = []; wFactions = []; wConcepts = []; wLocations = []
+    renderTimeline(); renderFigures(); renderFactions(); renderConcepts(); renderLocations()
+    updateWorldBadge()
+  } else {
+    document.getElementById('npc-name').value = ''
+    document.getElementById('npc-age').value  = '30';
+    [...COG_SLIDERS, ...SOC_SLIDERS].forEach(s => {
+      const el = document.getElementById(s.id)
+      el.value = s.def; updateSliderBadge(el)
+    })
+    const pr = document.getElementById('npc-player-rel')
+    pr.value = '0.5'; updateSliderBadge(pr)
+    document.getElementById('npc-wildcard').value          = ''
+    document.getElementById('npc-social-position').value   = 'Member'
+    document.getElementById('npc-world-ref').value         = 'data/world.json'
+    document.getElementById('npc-faction-ref').value       = ''
+    document.getElementById('npc-personal-history').value  = ''
+    npcIdeologies = []; npcSelectedEvents = []; npcSelectedFigures = []
+    npcEventsManual = []; npcFiguresManual = []
+    renderIdeologies(); renderKnownEventsSection(); renderKnownFiguresSection(); renderFactionSelector()
+  }
+  update()
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+
+buildSliders(COG_SLIDERS, 'cognitive-sliders')
+buildSliders(SOC_SLIDERS, 'social-sliders')
+renderIdeologies()
+renderTimeline(); renderFigures(); renderFactions(); renderConcepts(); renderLocations()
+renderKnownEventsSection(); renderKnownFiguresSection(); renderFactionSelector()
+updateWorldBadge()
+update()
+</script>
+</body>
+</html>

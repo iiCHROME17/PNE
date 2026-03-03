@@ -1,40 +1,35 @@
 """
 Transition Resolver Module
 
-Handles dynamic routing between conversation nodes based on NPC state.
+Handles deterministic FSM routing between conversation nodes.
 
-Supports TWO transition styles (combinable):
+Transition gates (all present gates must pass; first match wins):
 
-1. Simple condition:
-   { "condition": "player_relation > 0.5", "target": "succeed" }
+1. condition      — Python expression, eval'd with {player_relation, turn_count}
+                    e.g. "player_relation < 0.15"
 
-2. Outcome-match (confidence-based):
-   {
-     "outcome_match": {
-       "intention_keywords": ["Accept Player", "Seek Connection"],
-       "relation_target": 0.7,
-       "relation_tolerance": 0.2,
-       "desire_types": ["affiliation"],          # optional +0.10 bonus
-       "min_desire_intensity": 0.4               # optional hard gate
-     },
-     "min_confidence": 0.6,
-     "condition": "turn_count <= 6",             # optional extra guard
-     "target": "succeed"
-   }
+2. intention_keywords — list[str] substrings matched against the
+                        scenario-defined intention_shift for the chosen action.
+                        e.g. ["Accept Player", "Accept Graduated"]
 
-Both can appear in the same transition — both must pass.
-Transitions evaluated in order; first match wins.
+3. min_relation   — float hard floor; skipped if player_relation < value
 
-Confidence formula
-------------------
-  keyword_score  = 1.0 if any intention_keyword found in last intention_type
-  relation_score = 1 - clamp(|player_relation - relation_target| / tolerance)
-  confidence     = 0.6 * keyword_score + 0.4 * relation_score
-  + 0.10 bonus if desire_types matches last desire_type (capped at 1.0)
+Examples
+--------
+Hard condition gate:
+    { "condition": "player_relation < 0.15", "target": "fail" }
 
-intention_keywords match against canonical INTENTION_REGISTRY names, e.g.:
-  "Accept Player for Trial", "Challenge to Reveal Truth", "Seek Connection"
-Substring matching is used so "Accept Player" matches "Accept Player for Trial".
+Intention + relation gate:
+    { "intention_keywords": ["Accept Player"], "min_relation": 0.5, "target": "succeed" }
+
+Anti-softlock (condition only):
+    { "condition": "turn_count >= 6", "target": "negotiate" }
+
+Combined:
+    { "condition": "turn_count <= 8", "intention_keywords": ["Transactional"], "target": "negotiate" }
+
+Transitions are evaluated in order; first match wins.
+Returns None if nothing matches (caller uses node's default_transition).
 """
 
 from typing import Dict, List, Optional, Any, Tuple, TYPE_CHECKING
@@ -57,27 +52,27 @@ class TransitionResolver:
     def resolve(
         transitions: List[Dict[str, Any]],
         npc_state: "NPCConversationState",
+        intention_shift: Optional[str] = None,
     ) -> Optional[str]:
         """
         Walk the transition list and return the first matching target node_id.
+
+        Parameters
+        ----------
+        transitions     : transition list from the current scenario node
+        npc_state       : live NPC state (for relation + turn_count)
+        intention_shift : the intention_shift string from the chosen interaction
+                          outcome (scenario-defined, authoritative for FSM routing)
+
         Returns None if no transition matches (caller uses default_transition).
         """
         player_relation = npc_state.npc.world.player_relation
         turn_count = npc_state.turn_count
-
-        last_intention = TransitionResolver._last_intention(npc_state)
-        last_desire_type, last_desire_intensity = TransitionResolver._last_desire(npc_state)
-
         eval_ctx = {"player_relation": player_relation, "turn_count": turn_count}
 
         for transition in transitions:
             if TransitionResolver._transition_matches(
-                transition,
-                eval_ctx,
-                player_relation,
-                last_intention,
-                last_desire_type,
-                last_desire_intensity,
+                transition, eval_ctx, player_relation, intention_shift
             ):
                 return transition["target"]
 
@@ -97,16 +92,15 @@ class TransitionResolver:
         transition: Dict[str, Any],
         eval_ctx: Dict[str, Any],
         player_relation: float,
-        last_intention: Optional[str],
-        last_desire_type: Optional[str],
-        last_desire_intensity: Optional[float],
+        intention_shift: Optional[str],
     ) -> bool:
         """
         Returns True only when ALL guards present in this transition pass.
-        Guard keys: "condition" and/or "outcome_match".
+
+        Supported gate keys: "condition", "intention_keywords", "min_relation".
         Unknown keys (e.g. "_comment") are silently ignored.
         """
-        # Guard 1: optional simple condition expression
+        # Guard 1: optional condition expression
         condition_str = transition.get("condition")
         if condition_str:
             try:
@@ -117,93 +111,31 @@ class TransitionResolver:
                 print(f"  [TransitionResolver] condition eval failed '{condition_str}': {e}")
                 return False
 
-        # Guard 2: optional outcome_match confidence block
-        outcome_match = transition.get("outcome_match")
-        if outcome_match:
-            confidence = TransitionResolver._compute_confidence(
-                outcome_match,
-                player_relation,
-                last_intention,
-                last_desire_type,
-                last_desire_intensity,
-            )
-            min_conf = float(transition.get("min_confidence", 0.5))
-            if confidence < min_conf:
+        # Guard 2: optional intention_keywords match
+        keywords: List[str] = transition.get("intention_keywords", [])
+        if keywords:
+            if not intention_shift:
+                return False  # keywords required but no shift available
+            shift_lower = intention_shift.lower()
+            if not any(kw.lower() in shift_lower for kw in keywords):
+                return False
+
+        # Guard 3: optional min_relation floor
+        min_rel = transition.get("min_relation")
+        if min_rel is not None:
+            if player_relation < float(min_rel):
                 return False
 
         return True
 
     # ------------------------------------------------------------------ #
-    # Private: confidence scoring
-    # ------------------------------------------------------------------ #
-
-    @staticmethod
-    def _compute_confidence(
-        outcome_match: Dict[str, Any],
-        player_relation: float,
-        last_intention: Optional[str],
-        last_desire_type: Optional[str] = None,
-        last_desire_intensity: Optional[float] = None,
-    ) -> float:
-        """
-        Score how well the NPC's current state matches this outcome_match spec.
-
-        Supported outcome_match fields
-        ----------------------------------
-        intention_keywords   list[str]   substrings of canonical intention names
-        relation_target      float       ideal player_relation
-        relation_tolerance   float       acceptable deviation (default 0.25)
-        desire_types         list[str]   substrings of desire_type for +0.10 bonus
-        min_desire_intensity float       hard gate — 0.0 returned if not met
-
-        Unknown fields are silently ignored.
-        """
-        # Hard gate: desire intensity
-        min_intensity = outcome_match.get("min_desire_intensity")
-        if min_intensity is not None:
-            if last_desire_intensity is None or last_desire_intensity < min_intensity:
-                return 0.0
-
-        # Keyword score (0-1)
-        keyword_score = 0.0
-        keywords: List[str] = outcome_match.get("intention_keywords", [])
-        if keywords:
-            if last_intention:
-                intention_lower = last_intention.lower()
-                for kw in keywords:
-                    if kw.lower() in intention_lower:
-                        keyword_score = 1.0
-                        break
-            # keyword_score stays 0 if no last_intention and keywords required
-        else:
-            keyword_score = 1.0  # No keywords specified -> full score
-
-        # Relation score (0-1)
-        relation_score = 1.0
-        relation_target = outcome_match.get("relation_target")
-        if relation_target is not None:
-            tolerance = float(outcome_match.get("relation_tolerance", 0.25))
-            distance = abs(player_relation - float(relation_target))
-            relation_score = max(0.0, 1.0 - distance / max(tolerance, 0.01))
-
-        confidence = 0.6 * keyword_score + 0.4 * relation_score
-
-        # Desire-type bonus (+0.10 if match, capped at 1.0)
-        desire_types: List[str] = outcome_match.get("desire_types", [])
-        if desire_types and last_desire_type:
-            desire_lower = last_desire_type.lower()
-            if any(dt.lower() in desire_lower for dt in desire_types):
-                confidence = min(1.0, confidence + 0.10)
-
-        return confidence
-
-    # ------------------------------------------------------------------ #
-    # Private: NPC state extraction
+    # Private: NPC state extraction (kept for choice_filter compatibility)
     # ------------------------------------------------------------------ #
 
     @staticmethod
     def _last_intention(npc_state: "NPCConversationState") -> Optional[str]:
-        """Return the most recent intention_type from NPC conversation history."""
+        """Return the most recent intention_type from NPC conversation history.
+        Used by choice_filter, not by transition resolution."""
         for entry in reversed(npc_state.history):
             meta = entry.get("metadata")
             if meta:
@@ -211,19 +143,3 @@ class TransitionResolver:
                 if intention:
                     return intention.get("intention_type")
         return None
-
-    @staticmethod
-    def _last_desire(
-        npc_state: "NPCConversationState",
-    ) -> Tuple[Optional[str], Optional[float]]:
-        """
-        Return (desire_type, intensity) from the most recent NPC history entry
-        that has desire metadata.  Returns (None, None) if not found.
-        """
-        for entry in reversed(npc_state.history):
-            meta = entry.get("metadata")
-            if meta:
-                desire = meta.get("desire")
-                if desire:
-                    return desire.get("desire_type"), desire.get("intensity")
-        return None, None

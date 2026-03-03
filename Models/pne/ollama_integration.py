@@ -312,3 +312,180 @@ class OllamaResponseGenerator:
         )
 
         return "\n".join(parts)
+
+    def generate_response_with_direction(
+        self,
+        npc,
+        thought: dict,
+        intention: dict,
+        interaction_outcome,
+        history: list,
+        scene_direction: str = "",
+    ) -> str:
+        """
+        Generate NPC dialogue using BDI context dicts + the scenario node's
+        npc_dialogue_prompt as an explicit scene direction.
+
+        Called by the narrative engine after the BDI pipeline runs without Ollama,
+        so we control the full prompt rather than letting the BDI generate it blindly.
+        """
+        def _get(obj, *attrs, default=""):
+            try:
+                for attr in attrs:
+                    obj = getattr(obj, attr)
+                return obj if obj is not None else default
+            except Exception:
+                return default
+
+        name = _get(npc, "name", default="NPC")
+        parts = []
+
+        # Identity
+        age = _get(npc, "age", default="")
+        faction = _get(npc, "social", "faction", default="")
+        age_str = f", age {age}" if age else ""
+        parts.append(f"You are {name}{age_str}.")
+        if faction:
+            parts.append(f"Faction: {faction}.")
+        parts.append("")
+
+        # Background
+        world = getattr(npc, "world", None)
+        personal_history = _get(npc, "world", "personal_history", default="") if world else ""
+        player_relation = float(_get(npc, "world", "player_relation", default=0.5) if world else 0.5)
+        parts.append("## BACKGROUND")
+        if personal_history:
+            parts.append(f"Your history: {personal_history}")
+        parts.append(f"Your current disposition toward this person: {_relation_note(player_relation)}")
+        parts.append("")
+
+        # BDI state
+        belief = thought.get("subjective_belief", "") if isinstance(thought, dict) else ""
+        intention_type = intention.get("intention_type", "") if isinstance(intention, dict) else ""
+        confrontation = float(intention.get("confrontation_level", 0.5) if isinstance(intention, dict) else 0.5)
+        parts.append("## CURRENT INTERNAL STATE")
+        parts.append(f'BELIEF:    "{belief}"')
+        parts.append(f"INTENTION: {intention_type}")
+        parts.append(f"Stance:    {_confrontation_note(confrontation)}")
+        parts.append("")
+
+        # Scene direction (from node's npc_dialogue_prompt)
+        if scene_direction:
+            parts.append("## SCENE DIRECTION")
+            parts.append(scene_direction)
+            parts.append("")
+
+        # Response range calibration
+        min_r = max_r = ""
+        if interaction_outcome is not None:
+            if isinstance(interaction_outcome, dict):
+                min_r = interaction_outcome.get("min_response", "")
+                max_r = interaction_outcome.get("max_response", "")
+            else:
+                min_r = getattr(interaction_outcome, "min_response", "")
+                max_r = getattr(interaction_outcome, "max_response", "")
+        if min_r or max_r:
+            parts.append("## RESPONSE RANGE (calibration — do NOT copy verbatim)")
+            if min_r:
+                parts.append(f'Negative end: "{min_r}"')
+            if max_r:
+                parts.append(f'Positive end:  "{max_r}"')
+            parts.append("")
+
+        # Recent conversation
+        recent = history[-6:] if len(history) > 6 else history
+        if recent:
+            parts.append("## RECENT CONVERSATION")
+            for entry in recent:
+                parts.append(f"{entry['speaker']}: {entry['text']}")
+            parts.append("")
+
+        parts.append(
+            f"Generate ONE line of dialogue as {name}. "
+            "Stay in character. Do NOT describe actions in brackets. "
+            "Respond directly to what was just said. Under 40 words."
+        )
+
+        prompt = "\n".join(parts)
+        options = self._build_ollama_options(npc)
+
+        try:
+            print(f"  → Connecting to Ollama at {self.base_url}...")
+            response = requests.post(
+                self.api_url,
+                json={
+                    "model": self.model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": options,
+                },
+                timeout=60,
+            )
+            if response.status_code == 200:
+                result = response.json()
+                generated = result.get("response", "").strip()
+                if generated:
+                    return generated
+        except Exception as e:
+            print(f"[Ollama Error: {str(e)}]")
+
+        # Fallback to calibration range or empty
+        return min_r or max_r or ""
+
+    def generate_terminal(
+        self,
+        npc,
+        terminal_prompt: str,
+        history: List[dict],
+    ) -> str:
+        """
+        Generate a final NPC line for a terminal node.
+
+        Uses a stripped-down prompt: NPC identity, recent conversation,
+        and the terminal node's npc_dialogue_prompt as the instruction.
+        """
+        name = getattr(npc, "name", "NPC")
+        recent = history[-4:] if len(history) > 4 else history
+        history_lines = "\n".join(
+            f"{e['speaker']}: {e['text']}" for e in recent
+        )
+
+        relation = 0.5
+        try:
+            relation = float(npc.world.player_relation)
+        except Exception:
+            pass
+
+        prompt = (
+            f"You are {name}.\n"
+            f"Your current disposition toward this person: {_relation_note(relation)}\n\n"
+            f"RECENT CONVERSATION:\n{history_lines}\n\n"
+            f"INSTRUCTION: {terminal_prompt}\n\n"
+            f"Generate ONE final line of dialogue as {name}. "
+            "Stay in character. Do NOT describe actions in brackets. Under 30 words."
+        )
+
+        options = self._build_ollama_options(npc)
+        options["num_predict"] = 60  # shorter for final lines
+
+        try:
+            print(f"  → [Terminal] Connecting to Ollama at {self.base_url}...")
+            response = requests.post(
+                self.api_url,
+                json={
+                    "model": self.model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": options,
+                },
+                timeout=60,
+            )
+            if response.status_code == 200:
+                result = response.json()
+                generated = result.get("response", "").strip()
+                if generated:
+                    return generated
+        except Exception as e:
+            print(f"[Ollama Terminal Error: {str(e)}]")
+
+        return ""
