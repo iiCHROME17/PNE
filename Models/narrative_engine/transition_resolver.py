@@ -5,8 +5,9 @@ Handles deterministic FSM routing between conversation nodes.
 
 Transition gates (all present gates must pass; first match wins):
 
-1. condition      — Python expression, eval'd with {player_relation, turn_count}
-                    e.g. "player_relation < 0.15"
+1. condition      — Python expression, eval'd with {player_relation, turn_count, judgement}
+                    e.g. "judgement <= 25"
+                    e.g. "turn_count >= 4 and judgement >= 55"
 
 2. intention_keywords — list[str] substrings matched against the
                         scenario-defined intention_shift for the chosen action.
@@ -66,9 +67,12 @@ class TransitionResolver:
 
         Returns None if no transition matches (caller uses default_transition).
         """
-        player_relation = npc_state.npc.world.player_relation
         turn_count = npc_state.turn_count
-        eval_ctx = {"player_relation": player_relation, "turn_count": turn_count}
+        eval_ctx = {
+            "turn_count": turn_count,
+            "judgement": npc_state.judgement,
+        }
+        player_relation = npc_state.npc.world.player_relation  # kept for _transition_matches arg
 
         for transition in transitions:
             if TransitionResolver._transition_matches(

@@ -102,10 +102,20 @@ def main() -> None:
                 print("\n[No available choices at this node; conversation ends.]")
                 break
 
-            print(f"\n--- Node: {current_node} ---")
+            # Judgement bar
+            j = active[0].judgement
+            filled = j // 10
+            bar = "▓" * filled + "░" * (10 - filled)
+            print(f"\n  Judgement: [{bar}] {j}/100")
+
+            if active[0].recovery_mode:
+                print("  >> RECOVERY — choose your follow-up:")
+            else:
+                print(f"\n--- Node: {current_node} ---")
+
             print("Available choices:")
             for c in choices:
-                print(f"  [{c['index']}] {c['text']}")
+                print(f"  [{c['index']}] {c['text']} | ({c.get('success_pct', 100)}%)")
 
             # Show which NPCs are active and where they are
             if len(active) > 1:

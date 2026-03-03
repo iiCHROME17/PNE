@@ -25,14 +25,19 @@
     {
       "id": "start",
       "npc_mood": "suspicious",
-      "_comment": "First impression. Player establishes who they are and how they approach. One turn, always routes to challenge.",
+      "_comment": "First impression. Judgement starts at 50. Catastrophic opener (≤10) ends immediately; then always routes to challenge.",
       "npc_dialogue_prompt": "Size this stranger up in one sharp line. You're suspicious but not committed either way. Make them feel the weight of your guard without slamming the door.",
 
       "transitions": [
         {
-          "_comment": "Extremely hostile opener — rare, immediate rejection",
-          "condition": "player_relation < 0.2",
+          "_comment": "Catastrophic opener — immediate rejection",
+          "condition": "judgement <= 10",
           "target": "fail"
+        },
+        {
+          "_comment": "Stunning first impression — rare immediate success",
+          "condition": "judgement >= 90",
+          "target": "succeed"
         },
         {
           "_comment": "Standard progression after first turn",
@@ -52,6 +57,8 @@
           "diplomacy_tone": 0.4,
           "empathy_tone": 0.9,
           "manipulation_tone": 0.1,
+          "judgement_delta_success": 10,
+          "judgement_delta_fail": -5,
           "requirements": { "min_empathy": 3 },
           "interaction_outcomes": [
             {
@@ -63,8 +70,55 @@
               "max_response": "At least you see it. That's more than most who knock.",
               "scripted": false
             }
+          ],
+          "failure_outcomes": [
+            {
+              "outcome_id": "dismiss_empathy",
+              "stance_delta": {},
+              "relation_delta": -0.05,
+              "intention_shift": "Dismiss Empathy",
+              "min_response": "Words. Anyone can say words.",
+              "max_response": "Maybe you mean it. Not enough yet.",
+              "scripted": false
+            }
+          ],
+          "recovery_choices": [
+            {
+              "choice_id": "empathy_double_down",
+              "text": "I'm not asking you to trust me. I'm asking you to look at what I'm willing to risk to be standing here.",
+              "language_art": "empathetic",
+              "authority_tone": 0.2,
+              "diplomacy_tone": 0.3,
+              "empathy_tone": 0.8,
+              "manipulation_tone": 0.1,
+              "judgement_delta_success": 7,
+              "judgement_delta_fail": -7,
+              "interaction_outcomes": [
+                {
+                  "outcome_id": "press_sincerity",
+                  "stance_delta": { "social.empathy": 0.03 },
+                  "relation_delta": 0.1,
+                  "intention_shift": "Press Sincerity",
+                  "min_response": "Risk doesn't equal proof.",
+                  "max_response": "You didn't run. I'll give you that.",
+                  "scripted": false
+                }
+              ],
+              "failure_outcomes": [
+                {
+                  "outcome_id": "sincerity_rejected",
+                  "stance_delta": {},
+                  "relation_delta": -0.08,
+                  "intention_shift": "Reject Sincerity",
+                  "min_response": "You're wasting my time.",
+                  "max_response": "That was your chance.",
+                  "scripted": false
+                }
+              ]
+            }
           ]
         },
+
         {
           "choice_id": "open_authority",
           "text": "I don't need to justify myself to a door guard. We're fighting the same war. Open the door.",
@@ -73,19 +127,68 @@
           "diplomacy_tone": 0.1,
           "empathy_tone": 0.2,
           "manipulation_tone": 0.2,
+          "judgement_delta_success": 8,
+          "judgement_delta_fail": -8,
           "requirements": { "min_authority": 5 },
           "interaction_outcomes": [
             {
               "outcome_id": "assert_common_purpose",
               "stance_delta": { "social.assertion": 0.1 },
-              "relation_delta": -0.1,
+              "relation_delta": -0.05,
               "intention_shift": "Assert Common Purpose",
-              "min_response": "Wrong answer. Get out.",
-              "max_response": "Bold. But bold doesn't get you inside.",
+              "min_response": "Bold. But bold doesn't get you inside.",
+              "max_response": "You've got nerve. I respect it. Barely.",
               "scripted": false
+            }
+          ],
+          "failure_outcomes": [
+            {
+              "outcome_id": "reject_authority",
+              "stance_delta": {},
+              "relation_delta": -0.15,
+              "intention_shift": "Reject Authority",
+              "min_response": "Wrong place, wrong attitude. Move.",
+              "max_response": "You picked the wrong door to be rude at.",
+              "scripted": false
+            }
+          ],
+          "recovery_choices": [
+            {
+              "choice_id": "authority_soften",
+              "text": "I pushed too hard. Look — I need in. What do you actually need from me?",
+              "language_art": "diplomatic",
+              "authority_tone": 0.3,
+              "diplomacy_tone": 0.7,
+              "empathy_tone": 0.4,
+              "manipulation_tone": 0.2,
+              "judgement_delta_success": 6,
+              "judgement_delta_fail": -5,
+              "interaction_outcomes": [
+                {
+                  "outcome_id": "soften_stance",
+                  "stance_delta": { "cognitive.cog_flexibility": 0.03 },
+                  "relation_delta": 0.08,
+                  "intention_shift": "Soften Stance",
+                  "min_response": "At least you can read the room.",
+                  "max_response": "That's better. Keep talking.",
+                  "scripted": false
+                }
+              ],
+              "failure_outcomes": [
+                {
+                  "outcome_id": "backpedal_rejected",
+                  "stance_delta": {},
+                  "relation_delta": -0.05,
+                  "intention_shift": "Dismiss Backpedal",
+                  "min_response": "Too late. Should've led with that.",
+                  "max_response": "Asking nicely doesn't undo arrogance.",
+                  "scripted": false
+                }
+              ]
             }
           ]
         },
+
         {
           "choice_id": "open_diplomacy",
           "text": "I understand your caution — you'd be a fool not to have it. Let me explain how what I bring serves what you're trying to protect.",
@@ -94,6 +197,8 @@
           "diplomacy_tone": 0.9,
           "empathy_tone": 0.4,
           "manipulation_tone": 0.2,
+          "judgement_delta_success": 10,
+          "judgement_delta_fail": -4,
           "requirements": { "min_diplomacy": 4 },
           "interaction_outcomes": [
             {
@@ -105,6 +210,52 @@
               "max_response": "You're thinking. Good. Keep going.",
               "scripted": false
             }
+          ],
+          "failure_outcomes": [
+            {
+              "outcome_id": "dismiss_proposal",
+              "stance_delta": {},
+              "relation_delta": -0.05,
+              "intention_shift": "Dismiss Proposal",
+              "min_response": "Smooth talk. I've heard it.",
+              "max_response": "The pitch is fine. The proof isn't.",
+              "scripted": false
+            }
+          ],
+          "recovery_choices": [
+            {
+              "choice_id": "diplomacy_persist",
+              "text": "Then let me be specific. I know three supply routes you don't — and I know which ones the regime has already burned.",
+              "language_art": "diplomatic",
+              "authority_tone": 0.3,
+              "diplomacy_tone": 0.7,
+              "empathy_tone": 0.2,
+              "manipulation_tone": 0.3,
+              "judgement_delta_success": 8,
+              "judgement_delta_fail": -6,
+              "interaction_outcomes": [
+                {
+                  "outcome_id": "offer_intelligence",
+                  "stance_delta": { "cognitive.cog_flexibility": 0.03 },
+                  "relation_delta": 0.1,
+                  "intention_shift": "Offer Intelligence",
+                  "min_response": "Anyone can name routes. How do I know you're not burned too?",
+                  "max_response": "That's the first concrete thing you've said.",
+                  "scripted": false
+                }
+              ],
+              "failure_outcomes": [
+                {
+                  "outcome_id": "intel_doubted",
+                  "stance_delta": {},
+                  "relation_delta": -0.07,
+                  "intention_shift": "Doubt Intelligence",
+                  "min_response": "You know nothing or you're lying. Either way — no.",
+                  "max_response": "I'll need more than that.",
+                  "scripted": false
+                }
+              ]
+            }
           ]
         }
       ]
@@ -113,35 +264,42 @@
     {
       "id": "challenge",
       "npc_mood": "confrontational",
-      "_comment": "The guard presses harder. Player must commit — vague answers end here. Outcome determined by what they say and how much trust has built.",
+      "_comment": "The guard presses harder. Progressive terminal windows: turns narrow the safe range. Risk-scaled dice drives judgement.",
       "npc_dialogue_prompt": "You've heard their opener. You're still not convinced. Press them directly — demand proof, commitment, or something concrete. One sharp question or challenge. Don't let them off easy.",
 
       "transitions": [
         {
-          "_comment": "Relation floor — done with them",
-          "condition": "player_relation < 0.15",
+          "_comment": "Catastrophic collapse — shut it down",
+          "condition": "judgement <= 10",
           "target": "fail"
         },
         {
-          "_comment": "Empathy or common cause path — genuine connection, high enough trust",
-          "intention_keywords": ["Accept Player as Ally", "Seek Common Cause"],
-          "min_relation": 0.55,
+          "_comment": "Blowout success — early decisive win",
+          "condition": "judgement >= 90",
           "target": "succeed"
         },
         {
-          "_comment": "Transactional path — concrete value offered, minimal trust",
-          "intention_keywords": ["Transactional Agreement", "Propose Alliance"],
-          "min_relation": 0.3,
-          "target": "negotiate"
+          "_comment": "Turn 2+: decisive deficit ends it",
+          "condition": "turn_count >= 2 and judgement <= 30",
+          "target": "fail"
         },
         {
-          "_comment": "Authority path — bold challenge earned mutual respect",
-          "intention_keywords": ["Challenge to Reveal Truth", "Assert Common Purpose"],
-          "min_relation": 0.45,
+          "_comment": "Turn 2+: decisive lead earns entry",
+          "condition": "turn_count >= 2 and judgement >= 70",
           "target": "succeed"
         },
         {
-          "_comment": "ANTI-SOFTLOCK: force conclusion after 4 turns",
+          "_comment": "Turn 4+: any lean resolves",
+          "condition": "turn_count >= 4 and judgement <= 45",
+          "target": "fail"
+        },
+        {
+          "_comment": "Turn 4+: any lean resolves",
+          "condition": "turn_count >= 4 and judgement >= 55",
+          "target": "succeed"
+        },
+        {
+          "_comment": "Anti-softlock: middle ground becomes negotiate",
           "condition": "turn_count >= 4",
           "target": "negotiate"
         }
@@ -158,6 +316,8 @@
           "diplomacy_tone": 0.3,
           "empathy_tone": 0.9,
           "manipulation_tone": 0.1,
+          "judgement_delta_success": 15,
+          "judgement_delta_fail": -5,
           "requirements": {
             "min_empathy": 3,
             "min_relation": 0.2
@@ -172,8 +332,55 @@
               "max_response": "Then you understand what's at stake. That rage — use it.",
               "scripted": false
             }
+          ],
+          "failure_outcomes": [
+            {
+              "outcome_id": "doubt_sincerity",
+              "stance_delta": {},
+              "relation_delta": -0.05,
+              "intention_shift": "Doubt Sincerity",
+              "min_response": "Easy to claim losses. Prove it means something.",
+              "max_response": "That's a story. Everyone has one.",
+              "scripted": false
+            }
+          ],
+          "recovery_choices": [
+            {
+              "choice_id": "stake_recover",
+              "text": "I'm not asking for sympathy. I'm telling you I have nothing left to lose — which makes me useful, not dangerous.",
+              "language_art": "empathetic",
+              "authority_tone": 0.3,
+              "diplomacy_tone": 0.4,
+              "empathy_tone": 0.7,
+              "manipulation_tone": 0.2,
+              "judgement_delta_success": 8,
+              "judgement_delta_fail": -8,
+              "interaction_outcomes": [
+                {
+                  "outcome_id": "reframe_loss",
+                  "stance_delta": { "social.empathy": 0.05 },
+                  "relation_delta": 0.1,
+                  "intention_shift": "Reframe as Asset",
+                  "min_response": "Or it makes you reckless.",
+                  "max_response": "That's a different argument. I'm listening.",
+                  "scripted": false
+                }
+              ],
+              "failure_outcomes": [
+                {
+                  "outcome_id": "asset_rejected",
+                  "stance_delta": {},
+                  "relation_delta": -0.08,
+                  "intention_shift": "Dismiss as Liability",
+                  "min_response": "Reckless liability is worse than an enemy.",
+                  "max_response": "You're not convincing me you're stable.",
+                  "scripted": false
+                }
+              ]
+            }
           ]
         },
+
         {
           "choice_id": "concrete_value",
           "text": "I can bring you things you can't get here — food, medicine, weapons. That's not words, that's logistics. What do you need?",
@@ -182,6 +389,8 @@
           "diplomacy_tone": 0.7,
           "empathy_tone": 0.2,
           "manipulation_tone": 0.5,
+          "judgement_delta_success": 12,
+          "judgement_delta_fail": -6,
           "requirements": { "min_relation": 0.15 },
           "interaction_outcomes": [
             {
@@ -193,8 +402,55 @@
               "max_response": "Now we're talking practical. What exactly can you move?",
               "scripted": false
             }
+          ],
+          "failure_outcomes": [
+            {
+              "outcome_id": "reject_transaction",
+              "stance_delta": {},
+              "relation_delta": -0.10,
+              "intention_shift": "Reject Transaction",
+              "min_response": "Supplies you can't deliver are worthless.",
+              "max_response": "Anyone can promise logistics. Show me.",
+              "scripted": false
+            }
+          ],
+          "recovery_choices": [
+            {
+              "choice_id": "value_press",
+              "text": "I brought proof. Three hundred rounds of 9mm, cached two blocks east. Let someone check. I'll wait.",
+              "language_art": "diplomatic",
+              "authority_tone": 0.4,
+              "diplomacy_tone": 0.6,
+              "empathy_tone": 0.1,
+              "manipulation_tone": 0.3,
+              "judgement_delta_success": 10,
+              "judgement_delta_fail": -7,
+              "interaction_outcomes": [
+                {
+                  "outcome_id": "show_proof",
+                  "stance_delta": {},
+                  "relation_delta": 0.15,
+                  "intention_shift": "Show Proof",
+                  "min_response": "Two blocks east. If you're lying, you won't walk away.",
+                  "max_response": "Now that's something. Stay here.",
+                  "scripted": false
+                }
+              ],
+              "failure_outcomes": [
+                {
+                  "outcome_id": "proof_doubted",
+                  "stance_delta": {},
+                  "relation_delta": -0.1,
+                  "intention_shift": "Doubt Proof",
+                  "min_response": "Cache that convenient? This is a setup.",
+                  "max_response": "Convenient claim. Easy to fabricate.",
+                  "scripted": false
+                }
+              ]
+            }
           ]
         },
+
         {
           "choice_id": "mutual_challenge",
           "text": "You've been testing me since I walked up. Fine. But you and I are fighting the same war. Either let me prove that, or we both lose.",
@@ -203,6 +459,8 @@
           "diplomacy_tone": 0.3,
           "empathy_tone": 0.2,
           "manipulation_tone": 0.3,
+          "judgement_delta_success": 10,
+          "judgement_delta_fail": -8,
           "requirements": { "min_authority": 5 },
           "interaction_outcomes": [
             {
@@ -213,6 +471,52 @@
               "min_response": "Prove it. You've got thirty seconds.",
               "max_response": "You've got guts. I respect that. But respect isn't the key.",
               "scripted": false
+            }
+          ],
+          "failure_outcomes": [
+            {
+              "outcome_id": "dismiss_challenge",
+              "stance_delta": {},
+              "relation_delta": -0.05,
+              "intention_shift": "Dismiss Challenge",
+              "min_response": "Guts without proof is just noise.",
+              "max_response": "Maybe. But noise doesn't open doors.",
+              "scripted": false
+            }
+          ],
+          "recovery_choices": [
+            {
+              "choice_id": "challenge_clarify",
+              "text": "Forget the theatrics. Here's the concrete thing: I know where the Voss patrol rotates. That's actionable intelligence. Worth five minutes of your time.",
+              "language_art": "diplomatic",
+              "authority_tone": 0.5,
+              "diplomacy_tone": 0.6,
+              "empathy_tone": 0.2,
+              "manipulation_tone": 0.3,
+              "judgement_delta_success": 8,
+              "judgement_delta_fail": -6,
+              "interaction_outcomes": [
+                {
+                  "outcome_id": "pivot_to_intel",
+                  "stance_delta": { "cognitive.cog_flexibility": 0.03 },
+                  "relation_delta": 0.12,
+                  "intention_shift": "Offer Tactical Value",
+                  "min_response": "Voss patrol. Talk.",
+                  "max_response": "That's the first thing worth saying. Keep going.",
+                  "scripted": false
+                }
+              ],
+              "failure_outcomes": [
+                {
+                  "outcome_id": "intel_dismissed",
+                  "stance_delta": {},
+                  "relation_delta": -0.06,
+                  "intention_shift": "Dismiss Intel",
+                  "min_response": "Everyone has stale intel. That's not a currency here.",
+                  "max_response": "Old news. Try harder.",
+                  "scripted": false
+                }
+              ]
             }
           ]
         }

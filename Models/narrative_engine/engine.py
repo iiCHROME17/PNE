@@ -14,7 +14,7 @@ Everything else is identical to the original.
 
 from typing import Dict, List, Optional, Any
 
-from pne import DialogueProcessor, PlayerSkillSet, OutcomeIndex
+from pne import DialogueProcessor, PlayerSkillSet, OutcomeIndex, SkillCheckSystem, LanguageArt
 from PNE_Models import NPCModel
 
 from .session import ConversationSession, NPCConversationState
@@ -160,10 +160,25 @@ class NarrativeEngine:
         """
         Returns filtered, coherence-checked choices for the given node.
 
-        Filtering pipeline:
+        When a state is in recovery_mode, returns the pending recovery choices
+        instead of the node's normal choices — the CLI loop stays unchanged.
+
+        Filtering pipeline (normal mode only):
           1. ChoiceFilter  – hard gates (skill/relation/state/prerequisite)
           2. DialogueMomentumFilter – coherence scoring (responds to NPC momentum)
         """
+        active = session.active_npcs()
+        if not active:
+            return []
+
+        primary_state = active[0]
+
+        # ── Recovery mode: serve pending recovery choices ────────────────
+        if primary_state.recovery_mode:
+            return self._index_choices_with_pct(
+                primary_state.pending_recovery_choices, primary_state
+            )
+
         node = self.get_node(session, node_id)
         if not node:
             return []
@@ -171,14 +186,6 @@ class NarrativeEngine:
         raw_choices = node.get("choices", [])
         if not raw_choices:
             return []
-
-        # Use the first active NPC as the representative state for filtering.
-        active = session.active_npcs()
-        if not active:
-            return self._index_choices(raw_choices)
-
-        primary_state = active[0]
-        npc = primary_state.npc
 
         # ── Build FilterContext ──────────────────────────────────────────
         filter_ctx = self._build_filter_context(primary_state, node_id)
@@ -192,7 +199,7 @@ class NarrativeEngine:
             dialogue_ctx = self._build_dialogue_context(primary_state, filter_ctx)
             filtered = self._apply_coherence_filter(filtered, dialogue_ctx, verbose_filter)
 
-        return self._index_choices(filtered)
+        return self._index_choices_with_pct(filtered, primary_state)
 
     @staticmethod
     def _index_choices(choices: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -201,6 +208,48 @@ class NarrativeEngine:
             {"index": idx, "choice_id": c["choice_id"], "text": c["text"], "raw": c}
             for idx, c in enumerate(choices, start=1)
         ]
+
+    # Max percentage-point adjustment to success_pct from player_relation.
+    # At relation=1.0 (max): +RELATION_CAP%; at relation=0.0 (min): -RELATION_CAP%.
+    RELATION_CAP = 10
+
+    @staticmethod
+    def _relation_bias(player_relation: float) -> float:
+        """Convert player_relation (0.0-1.0) to a bias_adj for dice weighting.
+
+        Centred at 0.5 (neutral). Maps [0,1] → [−cap/100, +cap/100].
+        Not linear with success_pct — effect is gentle and capped.
+        """
+        return (player_relation - 0.5) * 2.0 * (NarrativeEngine.RELATION_CAP / 100.0)
+
+    @staticmethod
+    def _index_choices_with_pct(
+        choices: List[Dict[str, Any]],
+        state: "NPCConversationState",
+    ) -> List[Dict[str, Any]]:
+        """Index choices and attach success_pct for display."""
+        indexed = NarrativeEngine._index_choices(choices)
+        npc = state.npc
+        player_skills_obj = state.processor.player_skills
+        bias_adj = NarrativeEngine._relation_bias(npc.world.player_relation)
+        for c in indexed:
+            if c["raw"].get("skip_dice"):
+                c["success_pct"] = 100
+                continue
+            la_str = c["raw"].get("language_art", "neutral")
+            try:
+                la = LanguageArt(la_str)
+            except ValueError:
+                la = LanguageArt.NEUTRAL
+            skill = SkillCheckSystem.LANGUAGE_ART_TO_SKILL.get(la)
+            if skill:
+                pval = player_skills_obj.get_skill(skill)
+                c["success_pct"] = SkillCheckSystem.success_probability(
+                    pval, npc, skill, bias_adj=bias_adj
+                )
+            else:
+                c["success_pct"] = 100  # NEUTRAL — no dice check
+        return indexed
 
     # ------------------------------------------------------------------ #
     # Core turn step
@@ -233,7 +282,7 @@ class NarrativeEngine:
         print("Available choices:")
         for c in visible_choices:
             marker = ">>" if c["index"] == choice_index else "  "
-            print(f"{marker} [{c['index']}] {c['text']}")
+            print(f"{marker} [{c['index']}] {c['text']} | ({c.get('success_pct', 100)}%)")
 
         player_input = ScenarioLoader.parse_player_input(choice_data)
         session.player_choice_log.append({
@@ -242,24 +291,70 @@ class NarrativeEngine:
             "text": player_input.choice_text,
         })
 
-        # Extract intention_shift from the scenario's choice definition.
-        # This is the authoritative value for FSM transition matching —
-        # it's what the scenario author declared, not an LLM-generated string.
-        raw_outcomes = choice_data.get("interaction_outcomes", [])
-        intention_shift = raw_outcomes[0].get("intention_shift") if raw_outcomes else None
-
         responses: Dict[str, Any] = {}
-        outcome_index = ScenarioLoader.parse_outcome_index(choice_data)
         transitions = node.get("transitions", [])
 
         for state in session.active_npcs():
+            # ── Recovery mode detection ───────────────────────────────────
+            is_recovery = state.recovery_mode
+            if is_recovery:
+                state.recovery_mode = False
+                state.pending_recovery_choices = []
+
             print(f"\nPlayer → {state.npc.name}: {player_input.choice_text}")
             state.add_exchange("Player", player_input.choice_text)
             state.choices_made.append(choice_data["choice_id"])
 
+            # ── Dice + risk-proportional judgement scaling ────────────────
+            RISK_THRESHOLD = 50
+            skip_dice = choice_data.get("skip_dice", False)
+            la_str = choice_data.get("language_art", "neutral")
+            try:
+                la = LanguageArt(la_str)
+            except ValueError:
+                la = LanguageArt.NEUTRAL
+            skill = SkillCheckSystem.LANGUAGE_ART_TO_SKILL.get(la)
+
+            bias_adj = self._relation_bias(state.npc.world.player_relation)
+            if skip_dice or skill is None:
+                check_success = True
+                dice = None
+                success_pct = 100
+            else:
+                player_val = state.processor.player_skills.get_skill(skill)
+                success_pct = SkillCheckSystem.success_probability(
+                    player_val, state.npc, skill, bias_adj=bias_adj
+                )
+                dice = SkillCheckSystem.roll_dice(
+                    player_val, state.npc, skill, bias_adj=bias_adj
+                )
+                check_success = dice.success
+                print(f"  [Dice] {skill.value.upper()}: "
+                      f"[{dice.player_die}] vs [{dice.npc_die}] → "
+                      f"{'SUCCESS' if check_success else 'FAILURE'}")
+
+            # Risk multiplier: scales delta proportionally when success_pct < threshold
+            multiplier = (RISK_THRESHOLD / success_pct) if success_pct < RISK_THRESHOLD else 1.0
+            base_success = choice_data.get("judgement_delta_success", 0)
+            base_fail    = choice_data.get("judgement_delta_fail", 0)
+            judgement_delta = int(base_success * multiplier) if check_success else int(base_fail * multiplier)
+
+            state.judgement = max(0, min(100, state.judgement + judgement_delta))
+            print(f"  [Judgement] {state.judgement}/100  "
+                  f"(Δ{judgement_delta:+d}{'  ×' + f'{multiplier:.1f}' if multiplier > 1.0 else ''})")
+
+            # ── Select outcome set ────────────────────────────────────────
+            if check_success:
+                outcome_index = ScenarioLoader.parse_outcome_index(choice_data)
+                raw_outcomes = choice_data.get("interaction_outcomes", [])
+                intention_shift = raw_outcomes[0].get("intention_shift") if raw_outcomes else None
+            else:
+                outcome_index = ScenarioLoader.parse_outcome_index(
+                    choice_data, outcome_key="failure_outcomes"
+                )
+                intention_shift = None
+
             # ── BDI pipeline ─────────────────────────────────────────────
-            # Run BDI without Ollama so we can generate the response
-            # ourselves using the node's npc_dialogue_prompt as scene direction.
             state.processor.outcome_index = outcome_index
             context = state.processor.process_dialogue(
                 player_input,
@@ -312,10 +407,19 @@ class NarrativeEngine:
                 },
             )
 
+            # ── Recovery mode entry (main failure only, not recovery failure) ──
+            recovery_choices = choice_data.get("recovery_choices", [])
+            if not check_success and not is_recovery and recovery_choices:
+                state.recovery_mode = True
+                state.pending_recovery_choices = recovery_choices
+                print(f"  [{state.npc.name}] → Entering recovery — choose your follow-up")
+                responses[state.npc_id] = {"context": context, "resolved_node": state.current_node}
+                continue  # skip transition check; recovery choices shown next turn
+
             # ── Transition resolution ─────────────────────────────────────
             resolved_node = TransitionResolver.resolve(transitions, state, intention_shift)
-            if intention_shift:
-                print(f"  [{state.npc.name}] intention_shift='{intention_shift}' → resolved={resolved_node or '(none)'}")
+            print(f"  [{state.npc.name}] judgement={state.judgement} → "
+                  f"resolved={resolved_node or '(default)'}")
 
             if resolved_node:
                 target_node = self.get_node(session, resolved_node)

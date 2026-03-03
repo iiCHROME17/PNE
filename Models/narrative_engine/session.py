@@ -56,6 +56,15 @@ class NPCConversationState:
     is_complete: bool = False
     terminal_outcome: Optional[Dict[str, Any]] = None
 
+    # Judgement-based narrative progress (0=fail territory, 100=succeed territory, 50=neutral)
+    # Drives terminal routing; modified by dice outcomes scaled by risk.
+    judgement: int = 50
+
+    # Recovery sub-turn state — set when main dice fails so the CLI loop
+    # shows recovery choices on the next get_available_choices() call.
+    recovery_mode: bool = False
+    pending_recovery_choices: List[Dict[str, Any]] = field(default_factory=list)
+
     # Fallout-style visible log for this NPC
     history: List[Dict[str, Any]] = field(default_factory=list)
     choices_made: List[str] = field(default_factory=list)

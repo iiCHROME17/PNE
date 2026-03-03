@@ -141,7 +141,10 @@ class ScenarioLoader:
         )
 
     @staticmethod
-    def parse_outcome_index(choice_data: Dict[str, Any]) -> OutcomeIndex:
+    def parse_outcome_index(
+        choice_data: Dict[str, Any],
+        outcome_key: str = "interaction_outcomes",
+    ) -> OutcomeIndex:
         """
         Build an OutcomeIndex from choice metadata.
 
@@ -153,12 +156,14 @@ class ScenarioLoader:
 
         Args:
             choice_data: Dict containing choice outcomes metadata
+            outcome_key: Key to read outcomes from — "interaction_outcomes" (default)
+                         or "failure_outcomes" for dice-check failure branches.
 
         Returns:
             OutcomeIndex with all potential interaction and terminal outcomes
         """
         interaction_outcomes: List[InteractionOutcome] = []
-        for outcome_data in choice_data.get("interaction_outcomes", []):
+        for outcome_data in choice_data.get(outcome_key, []):
             interaction_outcomes.append(
                 InteractionOutcome(
                     outcome_id=outcome_data["outcome_id"],

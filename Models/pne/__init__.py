@@ -83,6 +83,7 @@ from .player_input import (
 # Skill Checks
 from .skill_check import (
     SkillCheckResult,
+    DiceCheckResult,
     SkillCheckSystem
 )
 
@@ -135,6 +136,7 @@ __all__ = [
     
     # Skill System
     'SkillCheckResult',
+    'DiceCheckResult',
     'SkillCheckSystem',
     
     # Cognitive
