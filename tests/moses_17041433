@@ -1,0 +1,261 @@
+{
+  "scenario_id": "door_guard_enhanced",
+  "player_choice_log": [
+    {
+      "node_id": "start",
+      "choice_id": "authority_challenge",
+      "text": "I don't need to prove anything to you. I've fought for survival just like you have. Open the door."
+    },
+    {
+      "node_id": "probing",
+      "choice_id": "demonstrate_value",
+      "text": "I can get supplies from the outside. Food, medicine, weapons. Things you need."
+    },
+    {
+      "node_id": "final_test",
+      "choice_id": "final_commitment",
+      "text": "I'll do whatever it takes. Give me a task and I'll prove myself."
+    },
+    {
+      "node_id": "negotiate",
+      "choice_id": "accept_terms",
+      "text": "Fair enough. What do you need me to do?"
+    }
+  ],
+  "npcs": {
+    "morisson_moses": {
+      "name": "Morisson Moses",
+      "conversation": {
+        "conversation_id": "door_guard_enhanced:morisson_moses",
+        "stage": "opening",
+        "topic": "Test Player's Loyalty and Intentions",
+        "turn_count": 4,
+        "history": [
+          "Player: I don't need to prove anything to you. I've fought for survival just like you have. Open the door.",
+          "NPC: \"Bold. I respect that. But respect isn't enough.\"",
+          "Player: I can get supplies from the outside. Food, medicine, weapons. Things you need.",
+          "NPC: \"Now you're speaking my language. Supplies are always useful.\"",
+          "Player: I'll do whatever it takes. Give me a task and I'll prove myself.",
+          "NPC: \"Given your curiosity, I'll allow you one more chance to prove yourself. Speak your piece and let's see if your intentions truly align with your words.\"\n\n(Please note that the intention is to create a challenging scenario for the player, so I've provided both a positive and negative variant that fits the context.)",
+          "Player: Fair enough. What do you need me to do?",
+          "NPC: \"Good. We'll see if you can back it up.\""
+        ]
+      },
+      "choices_made": [
+        "authority_challenge",
+        "demonstrate_value",
+        "final_commitment",
+        "accept_terms"
+      ],
+      "history": [
+        {
+          "turn": 0,
+          "speaker": "Narrator",
+          "text": "Morisson Moses stands before the reinforced door to the Insurgency hideout. Arms crossed, eyes assessing you with cold calculation. The air is tense.\n\nMorisson Moses: What's your business here?"
+        },
+        {
+          "turn": 0,
+          "speaker": "Player",
+          "text": "I don't need to prove anything to you. I've fought for survival just like you have. Open the door."
+        },
+        {
+          "turn": 1,
+          "speaker": "Morisson Moses",
+          "text": "\"Bold. I respect that. But respect isn't enough.\"",
+          "metadata": {
+            "thought": {
+              "internal_thought": "What are they really saying...?",
+              "subjective_belief": "Their intentions are unclear",
+              "cognitive_state": {
+                "self_esteem": 0.8,
+                "locus_of_control": 0.475,
+                "cog_flexibility": 0.3
+              },
+              "emotional_valence": -0.38000000000000006
+            },
+            "desire": {
+              "immediate_desire": "Test their commitment and sincerity",
+              "desire_type": "information-seeking",
+              "intensity": 0.7
+            },
+            "intention": {
+              "intention_type": "Challenge to Reveal Truth",
+              "confrontation_level": 0.74,
+              "emotional_expression": "direct",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "challenge_back",
+              "stance_delta": {
+                "social.assertion": 0.1
+              },
+              "relation_delta": -0.2,
+              "intention_shift": "Resist Player's Authority",
+              "min_response": "You think you can intimidate ME? Wrong move.",
+              "max_response": "Bold. I respect that. But respect isn't enough.",
+              "scripted": false
+            }
+          }
+        },
+        {
+          "turn": 1,
+          "speaker": "Player",
+          "text": "I can get supplies from the outside. Food, medicine, weapons. Things you need."
+        },
+        {
+          "turn": 2,
+          "speaker": "Morisson Moses",
+          "text": "\"Now you're speaking my language. Supplies are always useful.\"",
+          "metadata": {
+            "thought": {
+              "internal_thought": "What are they really saying...?",
+              "subjective_belief": "Their intentions are unclear",
+              "cognitive_state": {
+                "self_esteem": 0.8,
+                "locus_of_control": 0.475,
+                "cog_flexibility": 0.3326816783939305
+              },
+              "emotional_valence": -0.26
+            },
+            "desire": {
+              "immediate_desire": "Test their commitment and sincerity",
+              "desire_type": "information-seeking",
+              "intensity": 0.7
+            },
+            "intention": {
+              "intention_type": "Challenge to Reveal Truth",
+              "confrontation_level": 0.74,
+              "emotional_expression": "direct",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "transactional_acceptance",
+              "stance_delta": {},
+              "relation_delta": 0.15,
+              "intention_shift": "Consider Transactional Relationship",
+              "min_response": "Supplies? We'll see. Actions speak louder than words.",
+              "max_response": "Now you're speaking my language. Supplies are always useful.",
+              "scripted": false
+            }
+          }
+        },
+        {
+          "turn": 2,
+          "speaker": "Player",
+          "text": "I'll do whatever it takes. Give me a task and I'll prove myself."
+        },
+        {
+          "turn": 3,
+          "speaker": "Morisson Moses",
+          "text": "\"Given your curiosity, I'll allow you one more chance to prove yourself. Speak your piece and let's see if your intentions truly align with your words.\"\n\n(Please note that the intention is to create a challenging scenario for the player, so I've provided both a positive and negative variant that fits the context.)",
+          "metadata": {
+            "thought": {
+              "internal_thought": "What are they really saying...?",
+              "subjective_belief": "Their intentions are unclear",
+              "cognitive_state": {
+                "self_esteem": 0.8,
+                "locus_of_control": 0.475,
+                "cog_flexibility": 0.3893022294347908
+              },
+              "emotional_valence": -0.30000000000000004
+            },
+            "desire": {
+              "immediate_desire": "Test their commitment and sincerity",
+              "desire_type": "information-seeking",
+              "intensity": 0.7
+            },
+            "intention": {
+              "intention_type": "Challenge to Reveal Truth",
+              "confrontation_level": 0.74,
+              "emotional_expression": "direct",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "trial_accepted",
+              "stance_delta": {
+                "social.empathy": 0.05
+              },
+              "relation_delta": 0.25,
+              "intention_shift": "Accept Player for Trial",
+              "min_response": "We'll see if your actions match your words.",
+              "max_response": "Good. I'll give you a chance. Don't waste it.",
+              "scripted": false
+            }
+          }
+        },
+        {
+          "turn": 3,
+          "speaker": "Player",
+          "text": "Fair enough. What do you need me to do?"
+        },
+        {
+          "turn": 4,
+          "speaker": "Morisson Moses",
+          "text": "\"Good. We'll see if you can back it up.\"",
+          "metadata": {
+            "thought": {
+              "internal_thought": "Must maintain the facade of trustworthiness.",
+              "subjective_belief": "Player appears manipulative, despite diplomatic demeanor.",
+              "cognitive_state": {
+                "self_esteem": 0.8,
+                "locus_of_control": 0.475,
+                "cog_flexibility": 0.466295094256255
+              },
+              "emotional_valence": -0.12
+            },
+            "desire": {
+              "immediate_desire": "Defend the cause and test their loyalty",
+              "desire_type": "protection",
+              "intensity": 0.9
+            },
+            "intention": {
+              "intention_type": "Defend Cause Passionately",
+              "confrontation_level": 0.8,
+              "emotional_expression": "explosive",
+              "wildcard_triggered": true
+            },
+            "interaction_outcome": {
+              "outcome_id": "agree_to_trial",
+              "stance_delta": {
+                "social.empathy": 0.05
+              },
+              "relation_delta": 0.2,
+              "intention_shift": "Accept Player for Trial",
+              "min_response": "Good. We'll see if you can back it up.",
+              "max_response": "Reasonable. I'll brief you on what's needed.",
+              "scripted": false
+            }
+          }
+        }
+      ],
+      "terminal_outcome": null,
+      "final_npc_state": {
+        "name": "Morisson Moses",
+        "age": 35,
+        "cognitive": {
+          "self_esteem": 0.8,
+          "locus_of_control": 0.475,
+          "cog_flexibility": 0.466295094256255
+        },
+        "social": {
+          "assertion": 1.0,
+          "conf_indep": 0.7,
+          "empathy": 0.55,
+          "ideology": {
+            "Utilitarianism": 0.8,
+            "Authoritarianism": 0.2
+          },
+          "wildcard": "Martyr",
+          "faction": "Insurgency",
+          "social_position": "Boss"
+        },
+        "world": {
+          "world_history": "Full world history here...",
+          "personal_history": "Moses' personal journey...",
+          "player_history": "",
+          "player_relation": 0.8999999999999999
+        }
+      }
+    }
+  }
+}

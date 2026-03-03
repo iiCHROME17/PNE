@@ -1,609 +1,590 @@
 {
-    "id": "door_guard_scenario_filtered",
-    "title": "The Door Guard Test",
-    "opening": "{{NPC_NAME}} stands before the reinforced door to the Insurgency hideout. Arms crossed, eyes assessing you with cold calculation. The air is tense.\n\n{{NPC_NAME}}: What's your business here?",
-  
-    "conversation_config": {
-      "max_turns": 12,
-      "enable_coherence_filtering": true,
-      "track_dialogue_momentum": true
+  "id": "door_guard_night",
+  "title": "The Door Guard — Night Approach",
+  "opening": "The alley is dark. {{NPC_NAME}} leans against the reinforced door, one hand resting on a weapon. They clock you the moment you round the corner.\n\n{{NPC_NAME}}: Don't move. State your business.",
+
+  "conversation_config": {
+    "max_turns": 12,
+    "enable_coherence_filtering": true,
+    "track_dialogue_momentum": true
+  },
+
+  "npc_role": {
+    "display_name": "Door Guard"
+  },
+
+  "npc_intent": {
+    "baseline_belief": "Strangers arriving at night are threats until proven otherwise. The Insurgency's survival depends on my judgment here.",
+    "long_term_desire": "Protect the Insurgency and prove my worth as its first line of defence",
+    "immediate_intention": "Assess and either admit or turn away this stranger",
+    "stakes": "Insurgency security, operational secrecy, and the guard's own standing"
+  },
+
+  "nodes": [
+
+    {
+      "id": "start",
+      "_comment": "First contact. NPC is on alert — one turn only. Always routes out after turn 1.",
+      "npc_dialogue_prompt": "You just clocked this stranger coming out of the dark. Size them up in one sharp line — make them feel the weight of your suspicion. You haven't decided anything yet.",
+
+      "transitions": [
+        {
+          "_comment": "Hostile or careless opener — immediate rejection",
+          "condition": "player_relation < 0.2",
+          "target": "fail"
+        },
+        {
+          "_comment": "Rare: genuine connection signal on first move with already-warm relation",
+          "outcome_match": {
+            "intention_keywords": ["Seek Connection", "Explore Common Ground"],
+            "relation_target": 0.7,
+            "relation_tolerance": 0.15
+          },
+          "min_confidence": 0.75,
+          "target": "succeed"
+        },
+        {
+          "_comment": "Standard first-turn progression — fires after turn 1 if no earlier match",
+          "condition": "turn_count >= 1",
+          "target": "probing"
+        }
+      ],
+
+      "default_transition": "probing",
+
+      "choices": [
+        {
+          "choice_id": "empathetic_approach",
+          "text": "I've seen what's happened to this land. People are suffering. I want to help make things right.",
+          "language_art": "empathetic",
+          "authority_tone": 0.2,
+          "diplomacy_tone": 0.4,
+          "empathy_tone": 0.8,
+          "manipulation_tone": 0.1,
+          "ideology_alignment": "Communitarianism",
+          "requirements": { "min_empathy": 3 },
+          "interaction_outcomes": [
+            {
+              "outcome_id": "seek_connection",
+              "stance_delta": { "social.empathy": 0.05 },
+              "relation_delta": 0.15,
+              "intention_shift": "Evaluate Player's Sincerity",
+              "min_response": "Easy words. Everyone claims they care when it suits them.",
+              "max_response": "At least you see the suffering. That's more than most.",
+              "scripted": false
+            }
+          ]
+        },
+        {
+          "choice_id": "authority_challenge",
+          "text": "I don't need to prove anything to you. I've fought for survival just like you have. Open the door.",
+          "language_art": "challenge",
+          "authority_tone": 0.9,
+          "diplomacy_tone": 0.1,
+          "empathy_tone": 0.2,
+          "manipulation_tone": 0.3,
+          "requirements": { "min_authority": 5 },
+          "interaction_outcomes": [
+            {
+              "outcome_id": "challenge_back",
+              "stance_delta": { "social.assertion": 0.1 },
+              "relation_delta": -0.2,
+              "intention_shift": "Resist Player",
+              "min_response": "You think you can intimidate ME? Wrong move.",
+              "max_response": "Bold. I respect that. But respect isn't a pass.",
+              "scripted": false
+            }
+          ]
+        },
+        {
+          "choice_id": "manipulative_approach",
+          "text": "Look, we both know the Insurgency needs allies. I have skills you need. Let's not waste time with tests.",
+          "language_art": "manipulative",
+          "authority_tone": 0.4,
+          "diplomacy_tone": 0.5,
+          "empathy_tone": 0.1,
+          "manipulation_tone": 0.9,
+          "ideology_alignment": "Pragmatism",
+          "requirements": { "min_manipulation": 6 },
+          "interaction_outcomes": [
+            {
+              "outcome_id": "suspicious_evaluation",
+              "stance_delta": { "cognitive.self_esteem": -0.05 },
+              "relation_delta": -0.1,
+              "intention_shift": "Carefully Question Motives",
+              "min_response": "Everyone thinks they're clever. What makes you different?",
+              "max_response": "Skills, huh? Maybe. But I've seen too many smooth talkers.",
+              "scripted": false
+            }
+          ]
+        },
+        {
+          "choice_id": "diplomatic_reasoning",
+          "text": "I understand your caution. Let me explain why our goals align and how we can help each other.",
+          "language_art": "diplomatic",
+          "authority_tone": 0.3,
+          "diplomacy_tone": 0.9,
+          "empathy_tone": 0.4,
+          "manipulation_tone": 0.2,
+          "ideology_alignment": "Utilitarianism",
+          "requirements": { "min_diplomacy": 4 },
+          "interaction_outcomes": [
+            {
+              "outcome_id": "consider_alliance",
+              "stance_delta": { "cognitive.cog_flexibility": 0.05 },
+              "relation_delta": 0.1,
+              "intention_shift": "Neutral Evaluation",
+              "min_response": "Mutual benefit? Everyone says that until it costs them something.",
+              "max_response": "You're thinking strategically. I appreciate that. Keep talking.",
+              "scripted": false
+            }
+          ]
+        }
+      ]
     },
-  
-    "npc_role": {
-      "display_name": "Door Guard"
+
+    {
+      "id": "probing",
+      "_comment": "Main mid-game test loop. NPC presses for cracks. Routes to probing_deep, negotiate, succeed, or fail. Most players spend 2-3 turns here.",
+      "npc_dialogue_prompt": "You're not satisfied yet. Push back directly on what they just said. Ask something specific — force them to demonstrate real commitment, not just words. This is a test.",
+
+      "transitions": [
+        {
+          "_comment": "Relation collapsed — end it",
+          "condition": "player_relation < 0.15",
+          "target": "fail"
+        },
+        {
+          "_comment": "NPC fully convinced — accepting intention + high relation",
+          "outcome_match": {
+            "intention_keywords": ["Accept Player", "Accept Graduated"],
+            "relation_target": 0.72,
+            "relation_tolerance": 0.18
+          },
+          "min_confidence": 0.65,
+          "target": "succeed"
+        },
+        {
+          "_comment": "Transactional deal offered — NPC cautiously willing",
+          "outcome_match": {
+            "intention_keywords": ["Transactional Agreement"],
+            "relation_target": 0.55,
+            "relation_tolerance": 0.2
+          },
+          "min_confidence": 0.6,
+          "target": "negotiate"
+        },
+        {
+          "_comment": "NPC still evaluating — escalate depth of test",
+          "outcome_match": {
+            "intention_keywords": ["Neutral Evaluation", "Carefully Question", "Challenge to Reveal"],
+            "relation_target": 0.45,
+            "relation_tolerance": 0.3
+          },
+          "min_confidence": 0.55,
+          "target": "probing_deep"
+        }
+      ],
+
+      "default_transition": "probing_deep",
+
+      "choices": [
+        {
+          "choice_id": "personal_sacrifice",
+          "text": "I've already lost everything. My family, my home. I have nothing left but the will to fight.",
+          "language_art": "empathetic",
+          "authority_tone": 0.3,
+          "diplomacy_tone": 0.3,
+          "empathy_tone": 0.9,
+          "manipulation_tone": 0.1,
+          "requirements": {
+            "min_empathy": 3,
+            "min_relation": 0.2,
+            "allowed_after_intentions": ["Evaluate", "Question", "Scrutinize", "Sincerity"]
+          },
+          "interaction_outcomes": [
+            {
+              "outcome_id": "deep_connection",
+              "stance_delta": { "social.empathy": 0.1 },
+              "relation_delta": 0.25,
+              "intention_shift": "Accept Player as Ally",
+              "min_response": "Loss doesn't make you special. We've all lost.",
+              "max_response": "Then you understand. That loss — that rage — use it well.",
+              "scripted": false
+            }
+          ]
+        },
+        {
+          "choice_id": "specific_offer",
+          "text": "I can get supplies from the outside. Food, medicine, weapons. Things you need.",
+          "language_art": "diplomatic",
+          "authority_tone": 0.3,
+          "diplomacy_tone": 0.7,
+          "empathy_tone": 0.2,
+          "manipulation_tone": 0.6,
+          "ideology_alignment": "Pragmatism",
+          "requirements": {
+            "min_relation": 0.2,
+            "blocked_after_intentions": ["Reject", "Dismiss", "Close Door"]
+          },
+          "interaction_outcomes": [
+            {
+              "outcome_id": "transactional_acceptance",
+              "stance_delta": {},
+              "relation_delta": 0.15,
+              "intention_shift": "Transactional Agreement",
+              "min_response": "Supplies? We'll see. Actions speak louder.",
+              "max_response": "Now you're speaking my language. Supplies are always useful.",
+              "scripted": false
+            }
+          ]
+        },
+        {
+          "choice_id": "practical_plan",
+          "text": "Let me work the outer perimeter first. Prove myself where the stakes are lower.",
+          "language_art": "diplomatic",
+          "authority_tone": 0.2,
+          "diplomacy_tone": 0.9,
+          "empathy_tone": 0.4,
+          "manipulation_tone": 0.2,
+          "ideology_alignment": "Pragmatism",
+          "requirements": {
+            "min_diplomacy": 4,
+            "min_relation": 0.25
+          },
+          "interaction_outcomes": [
+            {
+              "outcome_id": "accept_proposal",
+              "stance_delta": { "cognitive.cog_flexibility": 0.1 },
+              "relation_delta": 0.2,
+              "intention_shift": "Accept Graduated Entry",
+              "min_response": "Smart. At least you're thinking ahead.",
+              "max_response": "That's actually reasonable. I respect the tactical approach.",
+              "scripted": false
+            }
+          ]
+        },
+        {
+          "choice_id": "double_down_authority",
+          "text": "I don't need to be special. I just need to be useful. And I am.",
+          "language_art": "challenge",
+          "authority_tone": 0.8,
+          "diplomacy_tone": 0.2,
+          "empathy_tone": 0.1,
+          "manipulation_tone": 0.4,
+          "requirements": {
+            "min_authority": 6,
+            "blocked_by_choices": ["empathetic_approach"],
+            "allowed_after_intentions": ["Resist", "Challenge", "Test", "Reveal"]
+          },
+          "interaction_outcomes": [
+            {
+              "outcome_id": "standoff",
+              "stance_delta": { "social.assertion": 0.15 },
+              "relation_delta": -0.1,
+              "intention_shift": "Challenge to Reveal Truth",
+              "min_response": "Useful? Prove it. Until then, you're just noise.",
+              "max_response": "Confidence. I like it. But confidence without proof means nothing.",
+              "scripted": false
+            }
+          ]
+        },
+        {
+          "choice_id": "philosophical_debate",
+          "text": "The Insurgency needs to think beyond survival. We need to build a future worth fighting for.",
+          "language_art": "diplomatic",
+          "authority_tone": 0.4,
+          "diplomacy_tone": 0.6,
+          "empathy_tone": 0.6,
+          "manipulation_tone": 0.2,
+          "ideology_alignment": "Utilitarianism",
+          "requirements": {
+            "min_diplomacy": 5,
+            "min_relation": 0.3,
+            "min_self_esteem": 0.6
+          },
+          "interaction_outcomes": [
+            {
+              "outcome_id": "philosophical_alignment",
+              "stance_delta": { "cognitive.cog_flexibility": 0.05, "social.empathy": 0.05 },
+              "relation_delta": 0.15,
+              "intention_shift": "Explore Common Ground",
+              "min_response": "Philosophy won't stop bullets. We need action, not words.",
+              "max_response": "You're not wrong. But survival comes first. Then we talk about the future.",
+              "scripted": false
+            }
+          ]
+        },
+        {
+          "choice_id": "dodge_question",
+          "text": "That's a heavy question. Can we discuss this inside?",
+          "language_art": "neutral",
+          "authority_tone": 0.2,
+          "diplomacy_tone": 0.6,
+          "empathy_tone": 0.3,
+          "manipulation_tone": 0.5,
+          "requirements": { "max_relation": 0.4 },
+          "interaction_outcomes": [
+            {
+              "outcome_id": "distrust_grows",
+              "stance_delta": {},
+              "relation_delta": -0.2,
+              "intention_shift": "Maintain Distance",
+              "min_response": "I thought so. You're just another coward.",
+              "max_response": "Avoiding the question tells me everything I need to know.",
+              "scripted": false
+            }
+          ]
+        }
+      ]
     },
-  
-    "npc_intent": {
-      "baseline_belief": "The Insurgency must be protected at all costs. Strangers are liabilities until proven otherwise.",
-      "long_term_desire": "Secure the future of the Insurgency and establish lasting power",
-      "immediate_intention": "Test Player's Loyalty and Intentions",
-      "stakes": "Trust, alliance, and access to Insurgency resources"
+
+    {
+      "id": "probing_deep",
+      "_comment": "NPC heard the player out but is still not convinced. They push harder now — looking for contradictions, demanding something concrete. DOES NOT loop back to probing. Exits to succeed, negotiate, or fail only. Turn-count safety net at turn 6 forces negotiate to prevent soft-lock.",
+      "npc_dialogue_prompt": "You've heard them. You're still not sure. Push harder — find the contradiction or demand something concrete and irreversible. Give them one real chance to seal it. If they dodge again, it's over.",
+
+      "transitions": [
+        {
+          "_comment": "Relation collapsed under pressure",
+          "condition": "player_relation < 0.15",
+          "target": "fail"
+        },
+        {
+          "_comment": "Player earned full trust: accepting intention + sufficient relation",
+          "outcome_match": {
+            "intention_keywords": ["Accept Player", "Accept for Trial"],
+            "relation_target": 0.68,
+            "relation_tolerance": 0.22
+          },
+          "min_confidence": 0.62,
+          "target": "succeed"
+        },
+        {
+          "_comment": "Authority path: bold challenge earned mutual respect",
+          "outcome_match": {
+            "intention_keywords": ["Challenge Back", "Establish Boundaries"],
+            "relation_target": 0.58,
+            "relation_tolerance": 0.2
+          },
+          "min_confidence": 0.6,
+          "target": "succeed"
+        },
+        {
+          "_comment": "Player is engaging but needs conditional terms",
+          "outcome_match": {
+            "intention_keywords": ["Neutral Evaluation", "Transactional", "Common Ground"],
+            "relation_target": 0.5,
+            "relation_tolerance": 0.25
+          },
+          "min_confidence": 0.55,
+          "target": "negotiate"
+        },
+        {
+          "_comment": "ANTI-SOFTLOCK: after 6 turns force progression to negotiate regardless of intention match",
+          "condition": "turn_count >= 6",
+          "target": "negotiate"
+        }
+      ],
+
+      "default_transition": "negotiate",
+
+      "choices": [
+        {
+          "choice_id": "reaffirm_commitment",
+          "text": "I'm not here to waste your time. Put me where I'm most useful and I'll prove it.",
+          "language_art": "diplomatic",
+          "authority_tone": 0.5,
+          "diplomacy_tone": 0.7,
+          "empathy_tone": 0.4,
+          "manipulation_tone": 0.2,
+          "requirements": { "min_relation": 0.3 },
+          "interaction_outcomes": [
+            {
+              "outcome_id": "pressured_commitment",
+              "stance_delta": { "social.assertion": 0.05, "social.empathy": 0.05 },
+              "relation_delta": 0.2,
+              "intention_shift": "Accept Player for Trial",
+              "min_response": "You sound sure of yourself. We'll see if that holds.",
+              "max_response": "You keep saying the right things. Maybe you're worth the risk.",
+              "scripted": false
+            }
+          ]
+        },
+        {
+          "choice_id": "final_challenge",
+          "text": "You keep testing me. When do I get to test you?",
+          "language_art": "challenge",
+          "authority_tone": 0.9,
+          "diplomacy_tone": 0.2,
+          "empathy_tone": 0.1,
+          "manipulation_tone": 0.4,
+          "requirements": {
+            "min_authority": 7,
+            "min_relation": 0.4,
+            "requires_choices": ["authority_challenge", "double_down_authority"]
+          },
+          "interaction_outcomes": [
+            {
+              "outcome_id": "mutual_respect",
+              "stance_delta": { "social.assertion": 0.1 },
+              "relation_delta": 0.15,
+              "intention_shift": "Challenge Back",
+              "min_response": "You've got guts. I'll give you that.",
+              "max_response": "Fair point. You've earned some trust. Don't waste it.",
+              "scripted": false
+            }
+          ]
+        },
+        {
+          "choice_id": "invoke_ideology",
+          "text": "You and I both know the old world is gone. What we build now decides everything. That's worth fighting for together.",
+          "language_art": "diplomatic",
+          "authority_tone": 0.3,
+          "diplomacy_tone": 0.8,
+          "empathy_tone": 0.5,
+          "manipulation_tone": 0.3,
+          "ideology_alignment": "Utilitarianism",
+          "requirements": {
+            "min_diplomacy": 6,
+            "min_relation": 0.35,
+            "min_self_esteem": 0.5
+          },
+          "interaction_outcomes": [
+            {
+              "outcome_id": "ideological_resonance",
+              "stance_delta": { "cognitive.cog_flexibility": 0.08, "social.empathy": 0.05 },
+              "relation_delta": 0.2,
+              "intention_shift": "Explore Common Ground",
+              "min_response": "Pretty words. But words don't win wars.",
+              "max_response": "You actually believe that. That's... rare. Come in.",
+              "scripted": false
+            }
+          ]
+        }
+      ]
     },
-  
-    "nodes": [
-  
-      {
-        "id": "start",
-  
-        "_comment": "First contact. NPC is cold and evaluating. Transitions driven by early signals.",
-  
-        "npc_dialogue_prompt": "You are sizing up this stranger for the first time. You haven't decided anything yet. Make a brief, sharp statement that puts the pressure on them — then wait.",
-  
-        "transitions": [
-          {
-            "_comment": "Player blew it immediately — hostile opener or very low relation",
-            "condition": "player_relation < 0.2",
-            "target": "fail"
+
+    {
+      "id": "negotiate",
+      "_comment": "NPC offers conditional entry. Player can accept cleanly, push back on terms, or blow it at the last moment. Exits to succeed or fail ONLY — no loops back into probing.",
+      "npc_dialogue_prompt": "You've decided to offer conditional entry. State your terms plainly. Make it clear what you expect and what they get in return. Don't be warm — this is still a transaction, not a welcome.",
+
+      "transitions": [
+        {
+          "_comment": "Relation floor — if it dropped this low during negotiate, cut it",
+          "condition": "player_relation < 0.2",
+          "target": "fail"
+        },
+        {
+          "_comment": "Relation ceiling — high trust overrides everything, just let them through",
+          "condition": "player_relation >= 0.65",
+          "target": "succeed"
+        },
+        {
+          "_comment": "Clean acceptance — player took the terms",
+          "outcome_match": {
+            "intention_keywords": ["Accept Player for Trial", "Transactional Agreement"],
+            "relation_target": 0.65,
+            "relation_tolerance": 0.2
           },
-          {
-            "_comment": "Player somehow earns trust in one move (rare, needs both relation AND accepting intention)",
-            "outcome_match": {
-              "intention_keywords": ["Seek Connection", "Explore Common Ground"],
-              "relation_target": 0.7,
-              "relation_tolerance": 0.15
-            },
-            "min_confidence": 0.75,
-            "target": "succeed"
+          "min_confidence": 0.55,
+          "target": "succeed"
+        },
+        {
+          "_comment": "Player pushed back on terms — NPC respected the boldness",
+          "outcome_match": {
+            "intention_keywords": ["Challenge Back", "Establish Boundaries"],
+            "relation_target": 0.55,
+            "relation_tolerance": 0.2
           },
-          {
-            "_comment": "Standard first-turn progression — NPC probes further",
-            "condition": "turn_count >= 1",
-            "target": "probing"
-          }
-        ],
-  
-        "default_transition": "probing",
-  
-        "choices": [
-          {
-            "choice_id": "empathetic_approach",
-            "text": "I've seen what's happened to this land. People are suffering. I want to help make things right.",
-            "language_art": "empathetic",
-            "authority_tone": 0.2,
-            "diplomacy_tone": 0.4,
-            "empathy_tone": 0.8,
-            "manipulation_tone": 0.1,
-            "ideology_alignment": "Communitarianism",
-            "requirements": {
-              "min_empathy": 3
-            },
-            "interaction_outcomes": [
-              {
-                "outcome_id": "seek_connection",
-                "stance_delta": { "social.empathy": 0.05 },
-                "relation_delta": 0.15,
-                "intention_shift": "Evaluate Player's Sincerity",
-                "min_response": "Easy words. Everyone claims they care when it suits them.",
-                "max_response": "At least you see the suffering. That's more than most.",
-                "scripted": false
-              }
-            ]
+          "min_confidence": 0.55,
+          "target": "succeed"
+        },
+        {
+          "_comment": "Player blew it at the last step",
+          "outcome_match": {
+            "intention_keywords": ["Maintain Distance", "Resist Player"],
+            "relation_target": 0.2,
+            "relation_tolerance": 0.25
           },
-  
-          {
-            "choice_id": "authority_challenge",
-            "text": "I don't need to prove anything to you. I've fought for survival just like you have. Open the door.",
-            "language_art": "challenge",
-            "authority_tone": 0.9,
-            "diplomacy_tone": 0.1,
-            "empathy_tone": 0.2,
-            "manipulation_tone": 0.3,
-            "requirements": {
-              "min_authority": 5
-            },
-            "interaction_outcomes": [
-              {
-                "outcome_id": "challenge_back",
-                "stance_delta": { "social.assertion": 0.1 },
-                "relation_delta": -0.2,
-                "intention_shift": "Resist Player",
-                "min_response": "You think you can intimidate ME? Wrong move.",
-                "max_response": "Bold. I respect that. But respect isn't enough.",
-                "scripted": false
-              }
-            ]
+          "min_confidence": 0.55,
+          "target": "fail"
+        }
+      ],
+
+      "default_transition": "succeed",
+
+      "choices": [
+        {
+          "choice_id": "accept_terms",
+          "text": "Fair enough. What do you need me to do?",
+          "language_art": "diplomatic",
+          "authority_tone": 0.3,
+          "diplomacy_tone": 0.7,
+          "empathy_tone": 0.4,
+          "manipulation_tone": 0.1,
+          "requirements": {},
+          "interaction_outcomes": [
+            {
+              "outcome_id": "agree_to_trial",
+              "stance_delta": { "social.empathy": 0.05 },
+              "relation_delta": 0.2,
+              "intention_shift": "Accept Player for Trial",
+              "min_response": "Good. We'll see if you can back it up.",
+              "max_response": "Reasonable. I'll brief you on what's needed.",
+              "scripted": false
+            }
+          ]
+        },
+        {
+          "choice_id": "push_back_terms",
+          "text": "I'll do it, but I want something in return. Information. Access.",
+          "language_art": "challenge",
+          "authority_tone": 0.6,
+          "diplomacy_tone": 0.4,
+          "empathy_tone": 0.2,
+          "manipulation_tone": 0.5,
+          "requirements": {
+            "min_authority": 5,
+            "min_relation": 0.45
           },
-  
-          {
-            "choice_id": "manipulative_approach",
-            "text": "Look, we both know the Insurgency needs allies. I have skills you need. Let's not waste time with tests.",
-            "language_art": "manipulative",
-            "authority_tone": 0.4,
-            "diplomacy_tone": 0.5,
-            "empathy_tone": 0.1,
-            "manipulation_tone": 0.9,
-            "ideology_alignment": "Pragmatism",
-            "requirements": {
-              "min_manipulation": 6
-            },
-            "interaction_outcomes": [
-              {
-                "outcome_id": "suspicious_evaluation",
-                "stance_delta": { "cognitive.self_esteem": -0.05 },
-                "relation_delta": -0.1,
-                "intention_shift": "Carefully Question Motives",
-                "min_response": "Everyone thinks they're clever. What makes you different?",
-                "max_response": "Skills, huh? Maybe. But I've seen too many smooth talkers.",
-                "scripted": false
-              }
-            ]
-          },
-  
-          {
-            "choice_id": "diplomatic_reasoning",
-            "text": "I understand your caution. Let me explain why our goals align and how we can help each other.",
-            "language_art": "diplomatic",
-            "authority_tone": 0.3,
-            "diplomacy_tone": 0.9,
-            "empathy_tone": 0.4,
-            "manipulation_tone": 0.2,
-            "ideology_alignment": "Utilitarianism",
-            "requirements": {
-              "min_diplomacy": 4
-            },
-            "interaction_outcomes": [
-              {
-                "outcome_id": "consider_alliance",
-                "stance_delta": { "cognitive.cog_flexibility": 0.05 },
-                "relation_delta": 0.1,
-                "intention_shift": "Neutral Evaluation",
-                "min_response": "Mutual benefit? Everyone says that until it costs them something.",
-                "max_response": "You're thinking strategically. I appreciate that. Keep talking.",
-                "scripted": false
-              }
-            ]
-          }
-        ]
-      },
-  
-      {
-        "id": "probing",
-  
-        "_comment": "NPC is unconvinced. They push back on whatever the player said and look for cracks. This is the main test loop. Most players spend 2-3 turns here before routing out.",
-  
-        "npc_dialogue_prompt": "You're not satisfied yet. Push back directly on what they just said. Ask something specific that forces them to demonstrate actual commitment — not just words. Be direct. This is a test.",
-  
-        "transitions": [
-          {
-            "_comment": "Relation collapsed — cut them off",
-            "condition": "player_relation < 0.15",
-            "target": "fail"
-          },
-          {
-            "_comment": "NPC fully convinced — Accept Player as Ally or Accept Graduated Entry fired, relation high",
-            "outcome_match": {
-              "intention_keywords": ["Accept Player", "Accept Graduated"],
-              "relation_target": 0.72,
-              "relation_tolerance": 0.18
-            },
-            "min_confidence": 0.65,
-            "target": "succeed"
-          },
-          {
-            "_comment": "Transactional deal on the table — NPC is cautiously willing",
-            "outcome_match": {
-              "intention_keywords": ["Transactional Agreement"],
-              "relation_target": 0.55,
-              "relation_tolerance": 0.2
-            },
-            "min_confidence": 0.6,
-            "target": "negotiate"
-          },
-          {
-            "_comment": "NPC is engaging philosophically or evaluating — keep probing but go deeper",
-            "outcome_match": {
-              "intention_keywords": ["Neutral Evaluation", "Carefully Question", "Challenge to Reveal"],
-              "relation_target": 0.45,
-              "relation_tolerance": 0.3
-            },
-            "min_confidence": 0.55,
-            "target": "probing_deep"
-          }
-        ],
-  
-        "default_transition": "probing_deep",
-  
-        "choices": [
-          {
-            "choice_id": "personal_sacrifice",
-            "text": "I've already lost everything. My family, my home. I have nothing left but the will to fight.",
-            "language_art": "empathetic",
-            "authority_tone": 0.3,
-            "diplomacy_tone": 0.3,
-            "empathy_tone": 0.9,
-            "manipulation_tone": 0.1,
-            "requirements": {
-              "min_empathy": 3,
-              "min_relation": 0.2,
-              "allowed_after_intentions": ["Evaluate", "Question", "Scrutinize", "Sincerity"]
-            },
-            "interaction_outcomes": [
-              {
-                "outcome_id": "deep_connection",
-                "stance_delta": { "social.empathy": 0.1 },
-                "relation_delta": 0.25,
-                "intention_shift": "Accept Player as Ally",
-                "min_response": "Loss doesn't make you special. We've all lost.",
-                "max_response": "Then you understand. That loss... that rage... use it well.",
-                "scripted": false
-              }
-            ]
-          },
-  
-          {
-            "choice_id": "specific_offer",
-            "text": "I can get supplies from the outside. Food, medicine, weapons. Things you need.",
-            "language_art": "diplomatic",
-            "authority_tone": 0.3,
-            "diplomacy_tone": 0.7,
-            "empathy_tone": 0.2,
-            "manipulation_tone": 0.6,
-            "ideology_alignment": "Pragmatism",
-            "requirements": {
-              "min_relation": 0.2,
-              "blocked_after_intentions": ["Reject", "Dismiss", "Close Door"]
-            },
-            "interaction_outcomes": [
-              {
-                "outcome_id": "transactional_acceptance",
-                "stance_delta": {},
-                "relation_delta": 0.15,
-                "intention_shift": "Transactional Agreement",
-                "min_response": "Supplies? We'll see. Actions speak louder than words.",
-                "max_response": "Now you're speaking my language. Supplies are always useful.",
-                "scripted": false
-              }
-            ]
-          },
-  
-          {
-            "choice_id": "practical_plan",
-            "text": "Let me work on the outer perimeter first. Prove myself where stakes are lower.",
-            "language_art": "diplomatic",
-            "authority_tone": 0.2,
-            "diplomacy_tone": 0.9,
-            "empathy_tone": 0.4,
-            "manipulation_tone": 0.2,
-            "ideology_alignment": "Pragmatism",
-            "requirements": {
-              "min_diplomacy": 4,
-              "min_relation": 0.25
-            },
-            "interaction_outcomes": [
-              {
-                "outcome_id": "accept_proposal",
-                "stance_delta": { "cognitive.cog_flexibility": 0.1 },
-                "relation_delta": 0.2,
-                "intention_shift": "Accept Graduated Entry",
-                "min_response": "Smart. At least you're thinking ahead.",
-                "max_response": "That's actually reasonable. I respect the tactical approach.",
-                "scripted": false
-              }
-            ]
-          },
-  
-          {
-            "choice_id": "double_down_authority",
-            "text": "I don't need to be special. I just need to be useful. And I am.",
-            "language_art": "challenge",
-            "authority_tone": 0.8,
-            "diplomacy_tone": 0.2,
-            "empathy_tone": 0.1,
-            "manipulation_tone": 0.4,
-            "requirements": {
-              "min_authority": 6,
-              "blocked_by_choices": ["empathetic_approach"],
-              "allowed_after_intentions": ["Resist", "Challenge", "Test", "Reveal"]
-            },
-            "interaction_outcomes": [
-              {
-                "outcome_id": "standoff",
-                "stance_delta": { "social.assertion": 0.15 },
-                "relation_delta": -0.1,
-                "intention_shift": "Challenge to Reveal Truth",
-                "min_response": "Useful? Prove it. Until then, you're just noise.",
-                "max_response": "Confidence. I like it. But confidence without proof means nothing.",
-                "scripted": false
-              }
-            ]
-          },
-  
-          {
-            "choice_id": "philosophical_debate",
-            "text": "The Insurgency needs to think beyond survival. We need to build a future worth fighting for.",
-            "language_art": "diplomatic",
-            "authority_tone": 0.4,
-            "diplomacy_tone": 0.6,
-            "empathy_tone": 0.6,
-            "manipulation_tone": 0.2,
-            "ideology_alignment": "Utilitarianism",
-            "requirements": {
-              "min_diplomacy": 5,
-              "min_relation": 0.3,
-              "min_self_esteem": 0.6
-            },
-            "interaction_outcomes": [
-              {
-                "outcome_id": "philosophical_alignment",
-                "stance_delta": { "cognitive.cog_flexibility": 0.05, "social.empathy": 0.05 },
-                "relation_delta": 0.15,
-                "intention_shift": "Explore Common Ground",
-                "min_response": "Philosophy won't stop bullets. We need action, not words.",
-                "max_response": "You're not wrong. But survival comes first. Then we can talk about the future.",
-                "scripted": false
-              }
-            ]
-          },
-  
-          {
-            "choice_id": "dodge_question",
-            "text": "That's a heavy question. Can we discuss this inside?",
-            "language_art": "neutral",
-            "authority_tone": 0.2,
-            "diplomacy_tone": 0.6,
-            "empathy_tone": 0.3,
-            "manipulation_tone": 0.5,
-            "requirements": {
-              "max_relation": 0.4
-            },
-            "interaction_outcomes": [
-              {
-                "outcome_id": "distrust_grows",
-                "stance_delta": {},
-                "relation_delta": -0.2,
-                "intention_shift": "Maintain Distance",
-                "min_response": "I thought so. You're just another coward.",
-                "max_response": "Avoiding the question tells me everything I need to know.",
-                "scripted": false
-              }
-            ]
-          }
-        ]
-      },
-  
-      {
-        "id": "probing_deep",
-  
-        "_comment": "NPC has heard the player out but still isn't convinced. They go harder now — circling answers, looking for contradictions. Player needs to commit concretely or use accumulated trust.",
-  
-        "npc_dialogue_prompt": "You've heard them out. You're still not sure. Push harder now — find the contradiction, or demand something concrete. Give them one real chance to seal it.",
-  
-        "transitions": [
-          {
-            "_comment": "Relation collapsed under pressure",
-            "condition": "player_relation < 0.15",
-            "target": "fail"
-          },
-          {
-            "_comment": "Player earned it — Accept Player as Ally / Accept for Trial",
-            "outcome_match": {
-              "intention_keywords": ["Accept Player", "Accept for Trial"],
-              "relation_target": 0.68,
-              "relation_tolerance": 0.22
-            },
-            "min_confidence": 0.62,
-            "target": "succeed"
-          },
-          {
-            "_comment": "Mutual respect / boldness rewarded — direct challenge path succeeds",
-            "outcome_match": {
-              "intention_keywords": ["Challenge Back", "Establish Boundaries"],
-              "relation_target": 0.58,
-              "relation_tolerance": 0.2
-            },
-            "min_confidence": 0.6,
-            "target": "succeed"
-          },
-          {
-            "_comment": "Player is engaging but needs terms — conditional entry",
-            "outcome_match": {
-              "intention_keywords": ["Neutral Evaluation", "Transactional", "Common Ground"],
-              "relation_target": 0.5,
-              "relation_tolerance": 0.25
-            },
-            "min_confidence": 0.55,
-            "target": "negotiate"
-          }
-        ],
-  
-        "default_transition": "negotiate",
-  
-        "choices": [
-          {
-            "choice_id": "reaffirm_commitment",
-            "text": "I'm not here to waste your time. Put me where I'm most useful and I'll prove it.",
-            "language_art": "diplomatic",
-            "authority_tone": 0.5,
-            "diplomacy_tone": 0.7,
-            "empathy_tone": 0.4,
-            "manipulation_tone": 0.2,
-            "requirements": {
-              "min_relation": 0.3
-            },
-            "interaction_outcomes": [
-              {
-                "outcome_id": "pressured_commitment",
-                "stance_delta": { "social.assertion": 0.05, "social.empathy": 0.05 },
-                "relation_delta": 0.2,
-                "intention_shift": "Accept Player for Trial",
-                "min_response": "You sound sure of yourself. We'll see if that holds.",
-                "max_response": "You keep saying the right things. Maybe you're worth the risk.",
-                "scripted": false
-              }
-            ]
-          },
-  
-          {
-            "choice_id": "final_challenge",
-            "text": "You keep testing me. When do I get to test you?",
-            "language_art": "challenge",
-            "authority_tone": 0.9,
-            "diplomacy_tone": 0.2,
-            "empathy_tone": 0.1,
-            "manipulation_tone": 0.4,
-            "requirements": {
-              "min_authority": 7,
-              "min_relation": 0.4,
-              "requires_choices": ["authority_challenge", "double_down_authority"]
-            },
-            "interaction_outcomes": [
-              {
-                "outcome_id": "mutual_respect",
-                "stance_delta": { "social.assertion": 0.1 },
-                "relation_delta": 0.15,
-                "intention_shift": "Challenge Back",
-                "min_response": "You've got guts. I'll give you that.",
-                "max_response": "Fair point. You've earned some trust. Don't waste it.",
-                "scripted": false
-              }
-            ]
-          },
-  
-          {
-            "choice_id": "invoke_ideology",
-            "text": "You and I both know the old world is gone. What we build now decides everything. That's worth fighting for together.",
-            "language_art": "diplomatic",
-            "authority_tone": 0.3,
-            "diplomacy_tone": 0.8,
-            "empathy_tone": 0.5,
-            "manipulation_tone": 0.3,
-            "ideology_alignment": "Utilitarianism",
-            "requirements": {
-              "min_diplomacy": 6,
-              "min_relation": 0.35,
-              "min_self_esteem": 0.5
-            },
-            "interaction_outcomes": [
-              {
-                "outcome_id": "ideological_resonance",
-                "stance_delta": { "cognitive.cog_flexibility": 0.08, "social.empathy": 0.05 },
-                "relation_delta": 0.2,
-                "intention_shift": "Explore Common Ground",
-                "min_response": "Pretty words. But words don't win wars.",
-                "max_response": "You actually believe that. That's... rare. Come in.",
-                "scripted": false
-              }
-            ]
-          }
-        ]
-      },
-  
-      {
-        "id": "negotiate",
-  
-        "_comment": "NPC is willing to give conditional entry. The player can accept cleanly, push back for better terms, or blow it here. This should feel like the final handshake or a last stumble.",
-  
-        "npc_dialogue_prompt": "You've decided to give them a conditional chance. State your terms plainly. Make it clear what you expect and what they get. Don't be warm — this is still a transaction.",
-  
-        "transitions": [
-          {
-            "_comment": "Clean acceptance — player took the terms",
-            "outcome_match": {
-              "intention_keywords": ["Accept Player for Trial", "Transactional Agreement"],
-              "relation_target": 0.65,
-              "relation_tolerance": 0.2
-            },
-            "min_confidence": 0.55,
-            "target": "succeed"
-          },
-          {
-            "_comment": "Player pushed back on terms but NPC respected it",
-            "outcome_match": {
-              "intention_keywords": ["Challenge Back", "Establish Boundaries"],
-              "relation_target": 0.55,
-              "relation_tolerance": 0.2
-            },
-            "min_confidence": 0.55,
-            "target": "succeed"
-          },
-          {
-            "_comment": "Player blew it at the last step",
-            "outcome_match": {
-              "intention_keywords": ["Maintain Distance", "Resist Player"],
-              "relation_target": 0.2,
-              "relation_tolerance": 0.25
-            },
-            "min_confidence": 0.55,
-            "target": "fail"
-          },
-          {
-            "_comment": "Relation safety net — if it's high enough, just let them through",
-            "condition": "player_relation >= 0.65",
-            "target": "succeed"
-          }
-        ],
-  
-        "default_transition": "succeed",
-  
-        "choices": [
-          {
-            "choice_id": "accept_terms",
-            "text": "Fair enough. What do you need me to do?",
-            "language_art": "diplomatic",
-            "authority_tone": 0.3,
-            "diplomacy_tone": 0.7,
-            "empathy_tone": 0.4,
-            "manipulation_tone": 0.1,
-            "requirements": {},
-            "interaction_outcomes": [
-              {
-                "outcome_id": "agree_to_trial",
-                "stance_delta": { "social.empathy": 0.05 },
-                "relation_delta": 0.2,
-                "intention_shift": "Accept Player for Trial",
-                "min_response": "Good. We'll see if you can back it up.",
-                "max_response": "Reasonable. I'll brief you on what's needed.",
-                "scripted": false
-              }
-            ]
-          },
-  
-          {
-            "choice_id": "push_back_terms",
-            "text": "I'll do it, but I want something in return. Information. Access.",
-            "language_art": "challenge",
-            "authority_tone": 0.6,
-            "diplomacy_tone": 0.4,
-            "empathy_tone": 0.2,
-            "manipulation_tone": 0.5,
-            "requirements": {
-              "min_authority": 5,
-              "min_relation": 0.45
-            },
-            "interaction_outcomes": [
-              {
-                "outcome_id": "counter_negotiate",
-                "stance_delta": { "social.assertion": 0.05 },
-                "relation_delta": -0.05,
-                "intention_shift": "Challenge Back",
-                "min_response": "Careful. Push too hard and the deal's off.",
-                "max_response": "You drive a hard bargain. We'll see what can be arranged.",
-                "scripted": false
-              }
-            ]
-          }
-        ]
-      },
-  
-      {
-        "id": "succeed",
-        "npc_dialogue_prompt": "You've decided to trust them — reluctantly, but genuinely. Welcome them in a way that makes clear this is earned, not given freely.",
-        "transitions": [],
-        "choices": [],
-        "terminal": true,
-        "terminal_id": "succeed",
-        "terminal_result": "Guard grants entry to the Insurgency hideout."
-      },
-  
-      {
-        "id": "fail",
-        "npc_dialogue_prompt": "You've decided they're not trustworthy, or they pushed too hard and burned whatever goodwill they had. Close the door. Be final.",
-        "transitions": [],
-        "choices": [],
-        "terminal": true,
-        "terminal_id": "fail",
-        "terminal_result": "Guard refuses entry. Conversation ends."
-      }
-  
-    ]
-  }
+          "interaction_outcomes": [
+            {
+              "outcome_id": "counter_negotiate",
+              "stance_delta": { "social.assertion": 0.05 },
+              "relation_delta": -0.05,
+              "intention_shift": "Challenge Back",
+              "min_response": "Careful. Push too hard and the deal's off.",
+              "max_response": "You drive a hard bargain. We'll see what can be arranged.",
+              "scripted": false
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "id": "succeed",
+      "_comment": "TERMINAL — player earned entry. NPC gives reluctant but genuine access.",
+      "npc_dialogue_prompt": "You've decided to trust them — reluctantly, but genuinely. Welcome them in a way that makes clear this is earned, not freely given. One short, final line.",
+      "terminal": true,
+      "terminal_id": "succeed",
+      "terminal_result": "Guard grants entry to the Insurgency hideout. Conversation ends.",
+      "transitions": [],
+      "choices": []
+    },
+
+    {
+      "id": "fail",
+      "_comment": "TERMINAL — player failed to convince or actively burned the NPC. Door stays shut.",
+      "npc_dialogue_prompt": "You've decided they're not trustworthy, or they pushed too hard and burned whatever goodwill existed. Close the door. Final. No negotiation.",
+      "terminal": true,
+      "terminal_id": "fail",
+      "terminal_result": "Guard refuses entry. Player is turned away. Conversation ends.",
+      "transitions": [],
+      "choices": []
+    }
+
+  ]
+}

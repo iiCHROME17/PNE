@@ -1,0 +1,311 @@
+{
+  "scenario_id": "door_guard_scenario",
+  "pne_version": "2.0.1-hotfix",
+  "player_choice_log": [
+    {
+      "node_id": "start",
+      "choice_id": "authority_challenge",
+      "text": "I don't need to prove anything to you. I've fought for survival just like you have. Open the door."
+    },
+    {
+      "node_id": "probing",
+      "choice_id": "personal_sacrifice",
+      "text": "I've already lost everything. My family, my home. I have nothing left but the will to fight."
+    },
+    {
+      "node_id": "probing_deep",
+      "choice_id": "reaffirm_commitment",
+      "text": "I'm not here to waste your time. Put me where I'm most useful and I'll prove it."
+    },
+    {
+      "node_id": "negotiate",
+      "choice_id": "accept_terms",
+      "text": "Fair enough. What do you need me to do?"
+    }
+  ],
+  "npcs": {
+    "amourie_othella": {
+      "name": "Amourie Othella",
+      "routing_log": [
+        {
+          "turn": 1,
+          "node_entered": "start",
+          "choice_id": "authority_challenge",
+          "outcome_intention": "Resist Player's Authority",
+          "transition_confidence": null,
+          "target_node": "probing",
+          "relation_before": 0.5,
+          "relation_after": 0.3,
+          "matched_signature": null
+        },
+        {
+          "turn": 2,
+          "node_entered": "probing",
+          "choice_id": "personal_sacrifice",
+          "outcome_intention": "Accept Player as Ally",
+          "transition_confidence": null,
+          "target_node": "probing_deep",
+          "relation_before": 0.3,
+          "relation_after": 0.55,
+          "matched_signature": null
+        },
+        {
+          "turn": 3,
+          "node_entered": "probing_deep",
+          "choice_id": "reaffirm_commitment",
+          "outcome_intention": "Test Under Pressure",
+          "transition_confidence": null,
+          "target_node": "negotiate",
+          "relation_before": 0.55,
+          "relation_after": 0.75,
+          "matched_signature": null
+        },
+        {
+          "turn": 4,
+          "node_entered": "negotiate",
+          "choice_id": "accept_terms",
+          "outcome_intention": "Accept Player for Trial",
+          "transition_confidence": null,
+          "target_node": "succeed",
+          "relation_before": 0.75,
+          "relation_after": 0.95,
+          "matched_signature": null
+        }
+      ],
+      "conversation": {
+        "conversation_id": "door_guard_scenario:amourie_othella",
+        "stage": "opening",
+        "topic": "Test Player's Loyalty and Intentions",
+        "turn_count": 4,
+        "history": [
+          "Player: I don't need to prove anything to you. I've fought for survival just like you have. Open the door.",
+          "NPC: \"Bold. I respect that. But respect isn't enough.\" \n\nThis reply allows for some level of assertiveness without outright hostility, maintaining a cooperative tone while subtly emphasizing the importance of mutual trust and understanding in their relationship.",
+          "Player: I've already lost everything. My family, my home. I have nothing left but the will to fight.",
+          "NPC: \"Then you understand. That loss... that rage... use it well.\"",
+          "Player: I'm not here to waste your time. Put me where I'm most useful and I'll prove it.",
+          "NPC: \"You keep saying the right things. Maybe you're worth the risk.\" \n\nThis response reflects a cautious yet somewhat optimistic stance, indicating a neutral evaluation of the individual's abilities and reliability without outright trust or suspicion. It suggests that there is potential for mutual benefit but also maintains a sense of caution appropriate given Amourie Othella\u2019s communitarian ideology and her inclination towards assessing others' intentions.",
+          "Player: Fair enough. What do you need me to do?",
+          "NPC: \"Reasonable. I'll brief you on what's needed.\""
+        ]
+      },
+      "choices_made": [
+        "authority_challenge",
+        "personal_sacrifice",
+        "reaffirm_commitment",
+        "accept_terms"
+      ],
+      "history": [
+        {
+          "turn": 0,
+          "speaker": "Narrator",
+          "text": "A figure stands before the reinforced door to the Insurgency hideout. Arms crossed, eyes assessing you with cold calculation. The air is tense."
+        },
+        {
+          "turn": 0,
+          "speaker": "Player",
+          "text": "I don't need to prove anything to you. I've fought for survival just like you have. Open the door."
+        },
+        {
+          "turn": 1,
+          "speaker": "Amourie Othella",
+          "text": "\"Bold. I respect that. But respect isn't enough.\" \n\nThis reply allows for some level of assertiveness without outright hostility, maintaining a cooperative tone while subtly emphasizing the importance of mutual trust and understanding in their relationship.",
+          "metadata": {
+            "thought": {
+              "internal_thought": "Maybe their words are genuine, but I can't fully trust them.",
+              "subjective_belief": "They claim empathy but might be using me.",
+              "cognitive_state": {
+                "self_esteem": 0.9,
+                "locus_of_control": 0.2,
+                "cog_flexibility": 0.8
+              },
+              "emotional_valence": -0.26000000000000006
+            },
+            "desire": {
+              "immediate_desire": "Scrutinize their true motives",
+              "desire_type": "information-seeking",
+              "intensity": 0.8
+            },
+            "intention": {
+              "intention_type": "Carefully Question Motives",
+              "confrontation_level": 0.46,
+              "emotional_expression": "measured",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "challenge_back",
+              "stance_delta": {
+                "social.assertion": 0.1
+              },
+              "relation_delta": -0.2,
+              "intention_shift": "Resist Player's Authority",
+              "min_response": "You think you can intimidate ME? Wrong move.",
+              "max_response": "Bold. I respect that. But respect isn't enough.",
+              "scripted": false
+            }
+          }
+        },
+        {
+          "turn": 1,
+          "speaker": "Player",
+          "text": "I've already lost everything. My family, my home. I have nothing left but the will to fight."
+        },
+        {
+          "turn": 2,
+          "speaker": "Amourie Othella",
+          "text": "\"Then you understand. That loss... that rage... use it well.\"",
+          "metadata": {
+            "thought": {
+              "internal_thought": "These words cut deep, real or not?",
+              "subjective_belief": "Player seems genuinely broken and seeking support",
+              "cognitive_state": {
+                "self_esteem": 0.9,
+                "locus_of_control": 0.2,
+                "cog_flexibility": 0.8
+              },
+              "emotional_valence": 0.27
+            },
+            "desire": {
+              "immediate_desire": "Acknowledge but remain guarded",
+              "desire_type": "information-seeking",
+              "intensity": 0.4
+            },
+            "intention": {
+              "intention_type": "Neutral Response",
+              "confrontation_level": 0.6,
+              "emotional_expression": "direct",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "deep_connection",
+              "stance_delta": {
+                "social.empathy": 0.1
+              },
+              "relation_delta": 0.25,
+              "intention_shift": "Accept Player as Ally",
+              "min_response": "Loss doesn't make you special. We've all lost.",
+              "max_response": "Then you understand. That loss... that rage... use it well.",
+              "scripted": false
+            }
+          }
+        },
+        {
+          "turn": 2,
+          "speaker": "Player",
+          "text": "I'm not here to waste your time. Put me where I'm most useful and I'll prove it."
+        },
+        {
+          "turn": 3,
+          "speaker": "Amourie Othella",
+          "text": "\"You keep saying the right things. Maybe you're worth the risk.\" \n\nThis response reflects a cautious yet somewhat optimistic stance, indicating a neutral evaluation of the individual's abilities and reliability without outright trust or suspicion. It suggests that there is potential for mutual benefit but also maintains a sense of caution appropriate given Amourie Othella\u2019s communitarian ideology and her inclination towards assessing others' intentions.",
+          "metadata": {
+            "thought": {
+              "internal_thought": "Maybe they're just as manipulative as I thought.",
+              "subjective_belief": "Player claims usefulness but may be hiding ul",
+              "cognitive_state": {
+                "self_esteem": 0.9,
+                "locus_of_control": 0.2,
+                "cog_flexibility": 0.975885590643596
+              },
+              "emotional_valence": 0.19999999999999996
+            },
+            "desire": {
+              "immediate_desire": "Evaluate if they align with our mission",
+              "desire_type": "information-seeking",
+              "intensity": 0.5
+            },
+            "intention": {
+              "intention_type": "Neutral Evaluation",
+              "confrontation_level": 0.4,
+              "emotional_expression": "analytical",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "pressured_commitment",
+              "stance_delta": {
+                "social.assertion": 0.05,
+                "social.empathy": 0.05
+              },
+              "relation_delta": 0.2,
+              "intention_shift": "Test Under Pressure",
+              "min_response": "You sound sure of yourself. We'll see if that holds.",
+              "max_response": "You keep saying the right things. Maybe you're worth the risk.",
+              "scripted": false
+            }
+          }
+        },
+        {
+          "turn": 3,
+          "speaker": "Player",
+          "text": "Fair enough. What do you need me to do?"
+        },
+        {
+          "turn": 4,
+          "speaker": "Amourie Othella",
+          "text": "\"Reasonable. I'll brief you on what's needed.\"",
+          "metadata": {
+            "thought": {
+              "internal_thought": "What are they really saying...?",
+              "subjective_belief": "[They might be using me or taking advantage of my trust]",
+              "cognitive_state": {
+                "self_esteem": 0.9,
+                "locus_of_control": 0.2,
+                "cog_flexibility": 1.0
+              },
+              "emotional_valence": 0.27999999999999997
+            },
+            "desire": {
+              "immediate_desire": "Scrutinize their true motives",
+              "desire_type": "information-seeking",
+              "intensity": 0.8
+            },
+            "intention": {
+              "intention_type": "Carefully Question Motives",
+              "confrontation_level": 0.46,
+              "emotional_expression": "measured",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "agree_to_trial",
+              "stance_delta": {
+                "social.empathy": 0.05
+              },
+              "relation_delta": 0.2,
+              "intention_shift": "Accept Player for Trial",
+              "min_response": "Good. We'll see if you can back it up.",
+              "max_response": "Reasonable. I'll brief you on what's needed.",
+              "scripted": false
+            }
+          }
+        }
+      ],
+      "terminal_outcome": null,
+      "final_npc_state": {
+        "name": "Amourie Othella",
+        "age": 42,
+        "cognitive": {
+          "self_esteem": 0.9,
+          "locus_of_control": 0.2,
+          "cog_flexibility": 1.0
+        },
+        "social": {
+          "assertion": 0.65,
+          "conf_indep": 0.6,
+          "empathy": 0.4723261198872889,
+          "ideology": {
+            "Communitarianism": 0.7,
+            "Pragmatism": 0.3
+          },
+          "wildcard": "Napoleon",
+          "faction": "The Commonman",
+          "social_position": "Boss"
+        },
+        "world": {
+          "world_history": "Full world history here...",
+          "personal_history": "Othella's journey...",
+          "player_history": "",
+          "player_relation": 0.95
+        }
+      }
+    }
+  }
+}

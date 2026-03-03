@@ -20,9 +20,20 @@
   },
   "world": {
     "world_history_ref": "data/world.json",
-    "personal_history": "Moses served as a military officer under Romancian command before witnessing firsthand the corruption he later exposed. In 2679 he killed a senior official and vanished from formal record, becoming the founding martyr-figure of the Insurgency. He has operated in the shadows since, building the resistance from defectors, artists, and Runners.",
     "faction_ref": "Insurgency",
-    "known_events": ["moses_defection", "hop_removal", "dysphoria_expansion", "romancian_takeover", "commonman_formed"],
+    "known_events": [
+      "moses_defection",
+      "hop_removal",
+      "dysphoria_expansion",
+      "romancian_takeover",
+      "commonman_formed"
+    ],
+    "known_figures": [
+      "jean_pope_chautlier",
+      "amourie_othella",
+      "krystian_krakk"
+    ],
+    "personal_history": "Morisson Moses served as a military officer under Romancian command before exposing corruption and killing a senior official in 2679. He vanished from formal record and now leads the Insurgency from the shadows. His strategy and ethical compass are informed by Jean Pope Chautlier’s philosophies. Moses treats city-wide Dysphoria as a systemic imbalance, acting decisively where corruption threatens survival. He respects the intellectual lineage of Chautlier, integrating it selectively to guide insurgent action without directly engaging with other historical figures.",
     "player_history": "",
     "player_relation": 0.5
   }

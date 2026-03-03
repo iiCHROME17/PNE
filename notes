@@ -1,0 +1,12 @@
+The issue right now is while intention matching works successfully, there is no narrative progression. The NPC stays stuck in a probing state. We need to modify some progression logic to allow the NPC to move forward towards a terminal outcome.
+
+It appears for scenarios there are 6 node states:
+  [1] start
+  [2] probing
+  [3] probing_deep
+  [4] negotiate
+  [5] succeed
+  [6] fail
+
+  in dgn.json, the issue appears to be that there is no negotiate, no succeed, and no fail. The NPC is stuck in probing_deep, and there is no way to transition out of it because it is soft-locked to probing / probing_deep. The intention matching is likely working, but the NPC cannot transition to a non-existent state. There are no terminal outcomes, so the NPC is stuck in an infinite loop of probing. Check the narrative engine code and also restructure the way scenarios are defined in the exmplerary dgn.json to include the missing states and transitions.
+

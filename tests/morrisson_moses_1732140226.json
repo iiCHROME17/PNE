@@ -1,0 +1,314 @@
+{
+  "scenario_id": "door_guard_scenario_filtered",
+  "player_choice_log": [
+    {
+      "node_id": "start",
+      "choice_id": "authority_challenge",
+      "text": "I don't need to prove anything to you. I've fought for survival just like you have. Open the door."
+    },
+    {
+      "node_id": "probing",
+      "choice_id": "philosophical_debate",
+      "text": "The Insurgency needs to think beyond survival. We need to build a future worth fighting for."
+    },
+    {
+      "node_id": "probing",
+      "choice_id": "specific_offer",
+      "text": "I can get supplies from the outside. Food, medicine, weapons. Things you need."
+    },
+    {
+      "node_id": "probing",
+      "choice_id": "practical_plan",
+      "text": "Let me work on the outer perimeter first. Prove myself where stakes are lower."
+    },
+    {
+      "node_id": "probing",
+      "choice_id": "personal_sacrifice",
+      "text": "I've already lost everything. My family, my home. I have nothing left but the will to fight."
+    }
+  ],
+  "npcs": {
+    "morisson_moses": {
+      "name": "Morisson Moses",
+      "conversation": {
+        "conversation_id": "door_guard_scenario_filtered:morisson_moses",
+        "stage": "opening",
+        "topic": "Test Player's Loyalty and Intentions",
+        "turn_count": 5,
+        "history": [
+          "Player: I don't need to prove anything to you. I've fought for survival just like you have. Open the door.",
+          "NPC: \"Bold. I respect that. But respect isn't enough.\"",
+          "Player: The Insurgency needs to think beyond survival. We need to build a future worth fighting for.",
+          "NPC: \"You're not wrong. But survival comes first. Then we can talk about the future.\"",
+          "Player: I can get supplies from the outside. Food, medicine, weapons. Things you need.",
+          "NPC: \"Now you're speaking my language. Supplies are always useful.\"",
+          "Player: Let me work on the outer perimeter first. Prove myself where stakes are lower.",
+          "NPC: \"I see. Your thoughts align with the utilitarian principles we advocate. I respect the tactical approach you've outlined. However, I believe we should delve deeper into the implications and potential consequences of such reasoning.\"",
+          "Player: I've already lost everything. My family, my home. I have nothing left but the will to fight.",
+          "NPC: Private Thought: \"What are they really saying...?\"\n\nIntended Behavior: Challenge to Reveal Truth\n\nConfrontation Level: 0.74\n\nResponse: \"Then you understand. That loss... that rage... use it well.\""
+        ]
+      },
+      "choices_made": [
+        "authority_challenge",
+        "philosophical_debate",
+        "specific_offer",
+        "practical_plan",
+        "personal_sacrifice"
+      ],
+      "history": [
+        {
+          "turn": 0,
+          "speaker": "Narrator",
+          "text": "Morisson Moses stands before the reinforced door to the Insurgency hideout. Arms crossed, eyes assessing you with cold calculation. The air is tense.\n\nMorisson Moses: What's your business here?"
+        },
+        {
+          "turn": 0,
+          "speaker": "Player",
+          "text": "I don't need to prove anything to you. I've fought for survival just like you have. Open the door."
+        },
+        {
+          "turn": 1,
+          "speaker": "Morisson Moses",
+          "text": "\"Bold. I respect that. But respect isn't enough.\"",
+          "metadata": {
+            "thought": {
+              "internal_thought": "What are they really saying...?",
+              "subjective_belief": "Their intentions are unclear",
+              "cognitive_state": {
+                "self_esteem": 0.8,
+                "locus_of_control": 0.475,
+                "cog_flexibility": 0.3
+              },
+              "emotional_valence": -0.38000000000000006
+            },
+            "desire": {
+              "immediate_desire": "Test their commitment and sincerity",
+              "desire_type": "information-seeking",
+              "intensity": 0.7
+            },
+            "intention": {
+              "intention_type": "Challenge to Reveal Truth",
+              "confrontation_level": 0.74,
+              "emotional_expression": "direct",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "challenge_back",
+              "stance_delta": {
+                "social.assertion": 0.1
+              },
+              "relation_delta": -0.2,
+              "intention_shift": "Resist Player's Authority",
+              "min_response": "You think you can intimidate ME? Wrong move.",
+              "max_response": "Bold. I respect that. But respect isn't enough.",
+              "scripted": false
+            }
+          }
+        },
+        {
+          "turn": 1,
+          "speaker": "Player",
+          "text": "The Insurgency needs to think beyond survival. We need to build a future worth fighting for."
+        },
+        {
+          "turn": 2,
+          "speaker": "Morisson Moses",
+          "text": "\"You're not wrong. But survival comes first. Then we can talk about the future.\"",
+          "metadata": {
+            "thought": {
+              "internal_thought": "Diplomacy masks hidden doubts.",
+              "subjective_belief": "Player's words are well-intentioned but I'm skeptical of their sincerity.",
+              "cognitive_state": {
+                "self_esteem": 0.8,
+                "locus_of_control": 0.475,
+                "cog_flexibility": 0.3308994756885053
+              },
+              "emotional_valence": -0.28
+            },
+            "desire": {
+              "immediate_desire": "Test their commitment and sincerity",
+              "desire_type": "information-seeking",
+              "intensity": 0.7
+            },
+            "intention": {
+              "intention_type": "Challenge to Reveal Truth",
+              "confrontation_level": 0.74,
+              "emotional_expression": "direct",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "philosophical_alignment",
+              "stance_delta": {
+                "cognitive.cog_flexibility": 0.05,
+                "social.empathy": 0.05
+              },
+              "relation_delta": 0.15,
+              "intention_shift": "Engage Philosophically",
+              "min_response": "Philosophy won't stop bullets. We need action, not words.",
+              "max_response": "You're not wrong. But survival comes first. Then we can talk about the future.",
+              "scripted": false
+            }
+          }
+        },
+        {
+          "turn": 2,
+          "speaker": "Player",
+          "text": "I can get supplies from the outside. Food, medicine, weapons. Things you need."
+        },
+        {
+          "turn": 3,
+          "speaker": "Morisson Moses",
+          "text": "\"Now you're speaking my language. Supplies are always useful.\"",
+          "metadata": {
+            "thought": {
+              "internal_thought": "What are they really saying...?",
+              "subjective_belief": "Their intentions are unclear",
+              "cognitive_state": {
+                "self_esteem": 0.8,
+                "locus_of_control": 0.475,
+                "cog_flexibility": 0.4495343578603721
+              },
+              "emotional_valence": -0.12
+            },
+            "desire": {
+              "immediate_desire": "Test their commitment and sincerity",
+              "desire_type": "information-seeking",
+              "intensity": 0.7
+            },
+            "intention": {
+              "intention_type": "Challenge to Reveal Truth",
+              "confrontation_level": 0.74,
+              "emotional_expression": "direct",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "transactional_acceptance",
+              "stance_delta": {},
+              "relation_delta": 0.15,
+              "intention_shift": "Consider Transactional Relationship",
+              "min_response": "Supplies? We'll see. Actions speak louder than words.",
+              "max_response": "Now you're speaking my language. Supplies are always useful.",
+              "scripted": false
+            }
+          }
+        },
+        {
+          "turn": 3,
+          "speaker": "Player",
+          "text": "Let me work on the outer perimeter first. Prove myself where stakes are lower."
+        },
+        {
+          "turn": 4,
+          "speaker": "Morisson Moses",
+          "text": "\"I see. Your thoughts align with the utilitarian principles we advocate. I respect the tactical approach you've outlined. However, I believe we should delve deeper into the implications and potential consequences of such reasoning.\"",
+          "metadata": {
+            "thought": {
+              "internal_thought": "What are they really saying...?",
+              "subjective_belief": "Their intentions are unclear",
+              "cognitive_state": {
+                "self_esteem": 0.8,
+                "locus_of_control": 0.475,
+                "cog_flexibility": 0.503799514668194
+              },
+              "emotional_valence": -0.08000000000000002
+            },
+            "desire": {
+              "immediate_desire": "Test their commitment and sincerity",
+              "desire_type": "information-seeking",
+              "intensity": 0.7
+            },
+            "intention": {
+              "intention_type": "Challenge to Reveal Truth",
+              "confrontation_level": 0.74,
+              "emotional_expression": "direct",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "accept_proposal",
+              "stance_delta": {
+                "cognitive.cog_flexibility": 0.1
+              },
+              "relation_delta": 0.2,
+              "intention_shift": "Accept Graduated Entry",
+              "min_response": "Smart. At least you're thinking ahead.",
+              "max_response": "That's actually reasonable. I respect the tactical approach.",
+              "scripted": false
+            }
+          }
+        },
+        {
+          "turn": 4,
+          "speaker": "Player",
+          "text": "I've already lost everything. My family, my home. I have nothing left but the will to fight."
+        },
+        {
+          "turn": 5,
+          "speaker": "Morisson Moses",
+          "text": "Private Thought: \"What are they really saying...?\"\n\nIntended Behavior: Challenge to Reveal Truth\n\nConfrontation Level: 0.74\n\nResponse: \"Then you understand. That loss... that rage... use it well.\"",
+          "metadata": {
+            "thought": {
+              "internal_thought": "What are they really saying...?",
+              "subjective_belief": "Their intentions are unclear",
+              "cognitive_state": {
+                "self_esteem": 0.8,
+                "locus_of_control": 0.475,
+                "cog_flexibility": 0.6037995146681939
+              },
+              "emotional_valence": 0.27
+            },
+            "desire": {
+              "immediate_desire": "Test their commitment and sincerity",
+              "desire_type": "information-seeking",
+              "intensity": 0.7
+            },
+            "intention": {
+              "intention_type": "Challenge to Reveal Truth",
+              "confrontation_level": 0.74,
+              "emotional_expression": "direct",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "deep_connection",
+              "stance_delta": {
+                "social.empathy": 0.1
+              },
+              "relation_delta": 0.25,
+              "intention_shift": "Accept Player as Ally",
+              "min_response": "Loss doesn't make you special. We've all lost.",
+              "max_response": "Then you understand. That loss... that rage... use it well.",
+              "scripted": false
+            }
+          }
+        }
+      ],
+      "terminal_outcome": null,
+      "final_npc_state": {
+        "name": "Morisson Moses",
+        "age": 35,
+        "cognitive": {
+          "self_esteem": 0.8,
+          "locus_of_control": 0.475,
+          "cog_flexibility": 0.6037995146681939
+        },
+        "social": {
+          "assertion": 1.0,
+          "conf_indep": 0.7,
+          "empathy": 0.6302505071511137,
+          "ideology": {
+            "Utilitarianism": 0.8,
+            "Authoritarianism": 0.2
+          },
+          "wildcard": "Martyr",
+          "faction": "Insurgency",
+          "social_position": "Boss"
+        },
+        "world": {
+          "world_history": "Full world history here...",
+          "personal_history": "Moses' personal journey...",
+          "player_history": "",
+          "player_relation": 1.0
+        }
+      }
+    }
+  }
+}

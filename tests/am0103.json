@@ -1,0 +1,268 @@
+{
+  "scenario_id": "door_guard_scenario_filtered",
+  "player_choice_log": [
+    {
+      "node_id": "start",
+      "choice_id": "empathetic_approach",
+      "text": "I've seen what's happened to this land. People are suffering. I want to help make things right."
+    },
+    {
+      "node_id": "probing",
+      "choice_id": "specific_offer",
+      "text": "I can get supplies from the outside. Food, medicine, weapons. Things you need."
+    },
+    {
+      "node_id": "probing",
+      "choice_id": "practical_plan",
+      "text": "Let me work on the outer perimeter first. Prove myself where stakes are lower."
+    },
+    {
+      "node_id": "probing",
+      "choice_id": "personal_sacrifice",
+      "text": "I've already lost everything. My family, my home. I have nothing left but the will to fight."
+    }
+  ],
+  "npcs": {
+    "amourie_othella": {
+      "name": "Amourie Othella",
+      "conversation": {
+        "conversation_id": "door_guard_scenario_filtered:amourie_othella",
+        "stage": "opening",
+        "topic": "Test Player's Loyalty and Intentions",
+        "turn_count": 4,
+        "history": [
+          "Player: I've seen what's happened to this land. People are suffering. I want to help make things right.",
+          "NPC: Perhaps we can find a language that speaks to our shared need for understanding and connection.",
+          "Player: I can get supplies from the outside. Food, medicine, weapons. Things you need.",
+          "NPC: Now you're speaking my language. Supplies are always useful. But let's not forget the need for mutual respect and support among all our people.",
+          "Player: Let me work on the outer perimeter first. Prove myself where stakes are lower.",
+          "NPC: Let us focus on building a community that cares for one another, not just providing resources.",
+          "Player: I've already lost everything. My family, my home. I have nothing left but the will to fight.",
+          "NPC: Then we can work together on strengthening our community from within."
+        ]
+      },
+      "choices_made": [
+        "empathetic_approach",
+        "specific_offer",
+        "practical_plan",
+        "personal_sacrifice"
+      ],
+      "history": [
+        {
+          "turn": 0,
+          "speaker": "Narrator",
+          "text": "Amourie Othella stands before the reinforced door to the Insurgency hideout. Arms crossed, eyes assessing you with cold calculation. The air is tense.\n\nAmourie Othella: What's your business here?"
+        },
+        {
+          "turn": 0,
+          "speaker": "Player",
+          "text": "I've seen what's happened to this land. People are suffering. I want to help make things right."
+        },
+        {
+          "turn": 1,
+          "speaker": "Amourie Othella",
+          "text": "Perhaps we can find a language that speaks to our shared need for understanding and connection.",
+          "metadata": {
+            "thought": {
+              "internal_thought": "How can I truly help without being seen as a savior?",
+              "subjective_belief": "People need guidance, not just hands-on assistance.",
+              "cognitive_state": {
+                "self_esteem": 0.9,
+                "locus_of_control": 0.2,
+                "cog_flexibility": 0.8
+              },
+              "emotional_valence": 0.32
+            },
+            "desire": {
+              "immediate_desire": "Explore shared values and goals",
+              "desire_type": "affiliation",
+              "intensity": 0.7
+            },
+            "intention": {
+              "intention_type": "Explore Common Ground",
+              "confrontation_level": 0.4,
+              "emotional_expression": "curious",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "seek_connection",
+              "stance_delta": {
+                "social.empathy": 0.05
+              },
+              "relation_delta": 0.15,
+              "intention_shift": "Evaluate Player's Sincerity",
+              "min_response": "Easy words. Everyone claims they care when it suits them.",
+              "max_response": "At least you see the suffering. That's more than most.",
+              "scripted": false
+            }
+          }
+        },
+        {
+          "turn": 1,
+          "speaker": "Player",
+          "text": "I can get supplies from the outside. Food, medicine, weapons. Things you need."
+        },
+        {
+          "turn": 2,
+          "speaker": "Amourie Othella",
+          "text": "Now you're speaking my language. Supplies are always useful. But let's not forget the need for mutual respect and support among all our people.",
+          "metadata": {
+            "thought": {
+              "internal_thought": "What are they really saying...?",
+              "subjective_belief": "Their intentions are unclear",
+              "cognitive_state": {
+                "self_esteem": 0.9,
+                "locus_of_control": 0.2,
+                "cog_flexibility": 0.959041422720091
+              },
+              "emotional_valence": 0.21999999999999997
+            },
+            "desire": {
+              "immediate_desire": "Test their commitment and sincerity",
+              "desire_type": "information-seeking",
+              "intensity": 0.7
+            },
+            "intention": {
+              "intention_type": "Carefully Question Motives",
+              "confrontation_level": 0.593,
+              "emotional_expression": "measured",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "transactional_acceptance",
+              "stance_delta": {},
+              "relation_delta": 0.15,
+              "intention_shift": "Transactional Agreement",
+              "min_response": "Supplies? We'll see. Actions speak louder than words.",
+              "max_response": "Now you're speaking my language. Supplies are always useful.",
+              "scripted": false
+            }
+          }
+        },
+        {
+          "turn": 2,
+          "speaker": "Player",
+          "text": "Let me work on the outer perimeter first. Prove myself where stakes are lower."
+        },
+        {
+          "turn": 3,
+          "speaker": "Amourie Othella",
+          "text": "Let us focus on building a community that cares for one another, not just providing resources.",
+          "metadata": {
+            "thought": {
+              "internal_thought": "Seems like they're trying to play me.",
+              "subjective_belief": "The player's strategy might be about proving themselves rather than genuine concern",
+              "cognitive_state": {
+                "self_esteem": 0.9,
+                "locus_of_control": 0.2,
+                "cog_flexibility": 1.0
+              },
+              "emotional_valence": 0.4
+            },
+            "desire": {
+              "immediate_desire": "Acknowledge but remain guarded",
+              "desire_type": "information-seeking",
+              "intensity": 0.4
+            },
+            "intention": {
+              "intention_type": "Neutral Response",
+              "confrontation_level": 0.53,
+              "emotional_expression": "direct",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "accept_proposal",
+              "stance_delta": {
+                "cognitive.cog_flexibility": 0.1
+              },
+              "relation_delta": 0.2,
+              "intention_shift": "Accept Graduated Entry",
+              "min_response": "Smart. At least you're thinking ahead.",
+              "max_response": "That's actually reasonable. I respect the tactical approach.",
+              "scripted": false
+            }
+          }
+        },
+        {
+          "turn": 3,
+          "speaker": "Player",
+          "text": "I've already lost everything. My family, my home. I have nothing left but the will to fight."
+        },
+        {
+          "turn": 4,
+          "speaker": "Amourie Othella",
+          "text": "Then we can work together on strengthening our community from within.",
+          "metadata": {
+            "thought": {
+              "internal_thought": "This seems like a desperate plea.",
+              "subjective_belief": "Player must believe they truly have nothing left to lose.",
+              "cognitive_state": {
+                "self_esteem": 0.9,
+                "locus_of_control": 0.2,
+                "cog_flexibility": 1.0
+              },
+              "emotional_valence": 0.27
+            },
+            "desire": {
+              "immediate_desire": "Evaluate if they align with our mission",
+              "desire_type": "information-seeking",
+              "intensity": 0.5
+            },
+            "intention": {
+              "intention_type": "Neutral Evaluation",
+              "confrontation_level": 0.5,
+              "emotional_expression": "analytical",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "deep_connection",
+              "stance_delta": {
+                "social.empathy": 0.1
+              },
+              "relation_delta": 0.25,
+              "intention_shift": "Accept Player as Ally",
+              "min_response": "Loss doesn't make you special. We've all lost.",
+              "max_response": "Then you understand. That loss... that rage... use it well.",
+              "scripted": false
+            }
+          }
+        }
+      ],
+      "terminal_outcome": null,
+      "final_npc_state": {
+        "name": "Amourie Othella",
+        "age": 42,
+        "cognitive": {
+          "self_esteem": 0.9,
+          "locus_of_control": 0.2,
+          "cog_flexibility": 1.0
+        },
+        "social": {
+          "assertion": 0.5,
+          "conf_indep": 0.6,
+          "empathy": 0.4324607217784626,
+          "ideology": {
+            "Communitarianism": 0.7,
+            "Pragmatism": 0.3
+          },
+          "wildcard": "Napoleon",
+          "faction": "The Commonman",
+          "social_position": "Boss"
+        },
+        "world": {
+          "personal_history": "Amourie Othella was born into inheritance, not comfort. As a descendant of Jessa Reid-Othella and the ideological lineage of Jean Pope Chautlier, she grew up surrounded by stories of resistance, art as responsibility, and culture as civic duty. Her childhood was not defined by rebellion but by observation. She learned early that Romance City\u2019s decline was not loud \u2014 it was quiet. She watched districts grow emotionally dim before they decayed physically. Where others saw politics, she sensed imbalance.\n\nBy adolescence, she had already internalized a core belief: infrastructure fails when empathy fails. Unlike earlier artist leaders who reacted to oppression, Amourie developed during a period of slow deterioration. Dysphoria was spreading, but subtly. Human governance was stable on paper, but spiritually hollow. She concluded that collapse would not come from sudden violence, but from apathy.\n\nAt seventeen, she formalized what older generations had kept informal. She unified scattered artist circles into the Commonman, not as protestors but as stewards. Her leadership was calm, structured, and emotionally literate. She framed art not as rebellion, but as preventative maintenance for society. Under her direction, murals became markers of psychological health, performances became civic rituals, and cultural districts became living diagnostics of the city\u2019s condition.\n\nAmourie\u2019s meta-consciousness is this: she does not believe she is a hero. She believes she is maintenance. She sees society as a living organism that requires constant emotional calibration. Where Moses sees corruption to cut out, and the Runners see terrain to navigate, Amourie sees imbalance to harmonize. Her greatest fear is not war \u2014 it is numbness.",
+          "player_history": "",
+          "player_relation": 1.0,
+          "world_history_ref": "data/world.json",
+          "faction_ref": "Commonman",
+          "known_events": [
+            "commonman_formed",
+            "hop_removal",
+            "dysphoria_expansion"
+          ],
+          "world_history": "Full world history here..."
+        }
+      }
+    }
+  }
+}

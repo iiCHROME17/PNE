@@ -9,7 +9,7 @@
   "social": {
     "assertion": 0.5,
     "conf_indep": 0.6,
-    "empathy": 0.25,
+    "empathy": 0.75,
     "ideology": {
       "Communitarianism": 0.7,
       "Pragmatism": 0.3

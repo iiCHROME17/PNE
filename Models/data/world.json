@@ -41,25 +41,11 @@
     },
 
     "jean_pope_chautlier": {
-  "name": "Jean Pope Chautlier",
-  "era": "Late Romance City pre-takeover",
-  "role": "Preacher",
-  "description": "A fierce cultural visionary and uncompromising public intellectual who transformed artist circles into ideological cells. Chautlier rejected passive stewardship and argued that culture without sovereignty was merely decoration for power. He reframed Dysphoria as systemic pacification rather than accidental decline, accusing centralized governance of consuming emotion while severing communities from control over it. His speeches were sharp, confrontational, and mobilizing — demanding that civic art evolve from maintenance into disciplined resistance.",
-  "ideological_legacy": "Collective agency is non-negotiable. Emotion without control becomes sedation. Culture must defend its own sovereignty."
-  },
-
-    "moore": {
-      "name": "Moore",
-      "era": 2544,
-      "role": "Co-Creator of the Heart of Passion",
-      "description": "Cherubian engineer who co-developed the Passion-Core central system."
-    },
-
-    "vick": {
-      "name": "Vick",
-      "era": 2544,
-      "role": "Co-Creator of the Heart of Passion",
-      "description": "Collaborator in Passion-Core stabilization and emotional energy conversion."
+      "name": "Jean Pope Chautlier",
+      "era": "Late Romance City pre-takeover",
+      "role": "Preacher",
+      "description": "A fierce cultural visionary and uncompromising public intellectual who transformed artist circles into ideological cells. Chautlier rejected passive stewardship and argued that culture without sovereignty was merely decoration for power. He reframed Dysphoria as systemic pacification rather than accidental decline, accusing centralized governance of consuming emotion while severing communities from control over it. His speeches were sharp, confrontational, and mobilizing — demanding that civic art evolve from maintenance into disciplined resistance.",
+      "ideological_legacy": "Collective agency is non-negotiable. Emotion without control becomes sedation. Culture must defend its own sovereignty."
     },
 
     "morisson_moses": {
@@ -69,11 +55,18 @@
       "description": "Exposed Romancian corruption and initiated armed resistance."
     },
 
-    "serotonin_junkie": {
-      "name": "Serotonin Junkie",
-      "era": 2703,
-      "role": "Unknown Operative",
-      "description": "Removed the Heart of Passion, destabilizing Romance City's energy infrastructure."
+    "amourie_othella": {
+      "name": "Amourie Othella",
+      "era": 2690,
+      "role": "Founder of Commonman",
+      "description": "Unified artist circles into a structured civic stewardship organization. Prioritized emotional calibration and cultural maintenance as central to social stability."
+    },
+
+    "krystian_krakk": {
+      "name": "Krystian 'Krakk' Klikowicz",
+      "era": 2708,
+      "role": "Leader of Runner Networks",
+      "description": "Decentralized network leader, prioritizing terrain control and operational autonomy. Respects civic and artistic figures like Amourie, Clark, and Jessa for historical guidance but focuses on practical citywide coordination."
     }
   },
 

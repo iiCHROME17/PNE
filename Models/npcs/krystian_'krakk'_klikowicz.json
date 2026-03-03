@@ -15,12 +15,23 @@
       "Individualism": 0.1
     },
     "wildcard": "Inferiority",
-    "faction": "The Runner Networks",
+    "faction": "Runners",
     "social_position": "Boss"
   },
   "world": {
-    "world_history": "Full world history here...",
-    "personal_history": "Krakk's story...",
+    "world_history_ref": "data/world.json",
+    "faction_ref": "Runners",
+    "known_events": [
+      "hop_removal",
+      "dysphoria_expansion",
+      "runner_coordination"
+    ],
+    "known_figures": [
+      "amourie_othella",
+      "morisson_moses",
+      "jean_pope_chautlier"
+    ],
+    "personal_history": "Krakk grew up navigating the fragmented rooftops of Romance City, learning to read emotional cues and urban signals as survival tools. He organizes the Runner networks, enforcing decentralized coordination and prioritizing autonomy over allegiance. Krakk respects cultural and ideological influences from Amourie Othella, Clark Tolie, and Jessa Reid-Othella, viewing them as historical pillars of structured civic resistance and artistic stewardship. His focus remains on terrain, information flow, and maintaining movement freedom, rather than deep engagement with older historical figures.",
     "player_history": "",
     "player_relation": 0.5
   }

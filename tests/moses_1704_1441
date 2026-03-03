@@ -1,0 +1,261 @@
+{
+  "scenario_id": "door_guard_enhanced",
+  "player_choice_log": [
+    {
+      "node_id": "start",
+      "choice_id": "empathetic_approach",
+      "text": "I've seen what's happened to this land. People are suffering. I want to help make things right."
+    },
+    {
+      "node_id": "probing",
+      "choice_id": "demonstrate_value",
+      "text": "I can get supplies from the outside. Food, medicine, weapons. Things you need."
+    },
+    {
+      "node_id": "final_test",
+      "choice_id": "final_commitment",
+      "text": "I'll do whatever it takes. Give me a task and I'll prove myself."
+    },
+    {
+      "node_id": "negotiate",
+      "choice_id": "accept_terms",
+      "text": "Fair enough. What do you need me to do?"
+    }
+  ],
+  "npcs": {
+    "morisson_moses": {
+      "name": "Morisson Moses",
+      "conversation": {
+        "conversation_id": "door_guard_enhanced:morisson_moses",
+        "stage": "opening",
+        "topic": "Test Player's Loyalty and Intentions",
+        "turn_count": 4,
+        "history": [
+          "Player: I've seen what's happened to this land. People are suffering. I want to help make things right.",
+          "NPC: \"At least you recognize the pain. That insight alone sets you apart.\"",
+          "Player: I can get supplies from the outside. Food, medicine, weapons. Things you need.",
+          "NPC: \"Now you're speaking my language. Supplies are always useful.\"",
+          "Player: I'll do whatever it takes. Give me a task and I'll prove myself.",
+          "NPC: \"Perhaps your patience is as infinite as you claim.\"",
+          "Player: Fair enough. What do you need me to do?",
+          "NPC: Reasonable. I'll brief you on what's needed."
+        ]
+      },
+      "choices_made": [
+        "empathetic_approach",
+        "demonstrate_value",
+        "final_commitment",
+        "accept_terms"
+      ],
+      "history": [
+        {
+          "turn": 0,
+          "speaker": "Narrator",
+          "text": "Morisson Moses stands before the reinforced door to the Insurgency hideout. Arms crossed, eyes assessing you with cold calculation. The air is tense.\n\nMorisson Moses: What's your business here?"
+        },
+        {
+          "turn": 0,
+          "speaker": "Player",
+          "text": "I've seen what's happened to this land. People are suffering. I want to help make things right."
+        },
+        {
+          "turn": 1,
+          "speaker": "Morisson Moses",
+          "text": "\"At least you recognize the pain. That insight alone sets you apart.\"",
+          "metadata": {
+            "thought": {
+              "internal_thought": "Words sincere, motives suspect.",
+              "subjective_belief": "Feigning concern to exploit sympathy",
+              "cognitive_state": {
+                "self_esteem": 0.8,
+                "locus_of_control": 0.475,
+                "cog_flexibility": 0.3
+              },
+              "emotional_valence": -0.16000000000000003
+            },
+            "desire": {
+              "immediate_desire": "Scrutinize their true motives",
+              "desire_type": "information-seeking",
+              "intensity": 0.8
+            },
+            "intention": {
+              "intention_type": "Challenge to Reveal Truth",
+              "confrontation_level": 0.76,
+              "emotional_expression": "direct",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "seek_connection",
+              "stance_delta": {
+                "social.empathy": 0.05
+              },
+              "relation_delta": 0.15,
+              "intention_shift": "Evaluate Player's Sincerity",
+              "min_response": "Easy words. Everyone claims they care when it suits them.",
+              "max_response": "At least you see the suffering. That's more than most.",
+              "scripted": false
+            }
+          }
+        },
+        {
+          "turn": 1,
+          "speaker": "Player",
+          "text": "I can get supplies from the outside. Food, medicine, weapons. Things you need."
+        },
+        {
+          "turn": 2,
+          "speaker": "Morisson Moses",
+          "text": "\"Now you're speaking my language. Supplies are always useful.\"",
+          "metadata": {
+            "thought": {
+              "internal_thought": "Seems to blame me for their problems.",
+              "subjective_belief": "Accuses me of manipulative intentions.",
+              "cognitive_state": {
+                "self_esteem": 0.8,
+                "locus_of_control": 0.475,
+                "cog_flexibility": 0.3375458512264163
+              },
+              "emotional_valence": -0.26
+            },
+            "desire": {
+              "immediate_desire": "Defend the cause and test their loyalty",
+              "desire_type": "protection",
+              "intensity": 0.9
+            },
+            "intention": {
+              "intention_type": "Defend Cause Passionately",
+              "confrontation_level": 0.8,
+              "emotional_expression": "explosive",
+              "wildcard_triggered": true
+            },
+            "interaction_outcome": {
+              "outcome_id": "transactional_acceptance",
+              "stance_delta": {},
+              "relation_delta": 0.15,
+              "intention_shift": "Consider Transactional Relationship",
+              "min_response": "Supplies? We'll see. Actions speak louder than words.",
+              "max_response": "Now you're speaking my language. Supplies are always useful.",
+              "scripted": false
+            }
+          }
+        },
+        {
+          "turn": 2,
+          "speaker": "Player",
+          "text": "I'll do whatever it takes. Give me a task and I'll prove myself."
+        },
+        {
+          "turn": 3,
+          "speaker": "Morisson Moses",
+          "text": "\"Perhaps your patience is as infinite as you claim.\"",
+          "metadata": {
+            "thought": {
+              "internal_thought": "Words soft yet masked with hidden agendas.",
+              "subjective_belief": "Player manipulates to gain leverage",
+              "cognitive_state": {
+                "self_esteem": 0.8,
+                "locus_of_control": 0.475,
+                "cog_flexibility": 0.37691331368835945
+              },
+              "emotional_valence": -0.30000000000000004
+            },
+            "desire": {
+              "immediate_desire": "Maintain distance and protect boundaries",
+              "desire_type": "protection",
+              "intensity": 0.6
+            },
+            "intention": {
+              "intention_type": "Maintain Distance",
+              "confrontation_level": 0.5,
+              "emotional_expression": "suspicious",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "trial_accepted",
+              "stance_delta": {
+                "social.empathy": 0.05
+              },
+              "relation_delta": 0.25,
+              "intention_shift": "Accept Player for Trial",
+              "min_response": "We'll see if your actions match your words.",
+              "max_response": "Good. I'll give you a chance. Don't waste it.",
+              "scripted": false
+            }
+          }
+        },
+        {
+          "turn": 3,
+          "speaker": "Player",
+          "text": "Fair enough. What do you need me to do?"
+        },
+        {
+          "turn": 4,
+          "speaker": "Morisson Moses",
+          "text": "Reasonable. I'll brief you on what's needed.",
+          "metadata": {
+            "thought": {
+              "internal_thought": "Seems like you're just looking to play.",
+              "subjective_belief": "Suspecting player of ulterior motives.",
+              "cognitive_state": {
+                "self_esteem": 0.8,
+                "locus_of_control": 0.475,
+                "cog_flexibility": 0.4300437835955695
+              },
+              "emotional_valence": -0.12
+            },
+            "desire": {
+              "immediate_desire": "Evaluate if they align with our mission",
+              "desire_type": "information-seeking",
+              "intensity": 0.5
+            },
+            "intention": {
+              "intention_type": "Neutral Evaluation",
+              "confrontation_level": 0.4,
+              "emotional_expression": "analytical",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "agree_to_trial",
+              "stance_delta": {
+                "social.empathy": 0.05
+              },
+              "relation_delta": 0.2,
+              "intention_shift": "Accept Player for Trial",
+              "min_response": "Good. We'll see if you can back it up.",
+              "max_response": "Reasonable. I'll brief you on what's needed.",
+              "scripted": false
+            }
+          }
+        }
+      ],
+      "terminal_outcome": null,
+      "final_npc_state": {
+        "name": "Morisson Moses",
+        "age": 35,
+        "cognitive": {
+          "self_esteem": 0.8,
+          "locus_of_control": 0.475,
+          "cog_flexibility": 0.4300437835955695
+        },
+        "social": {
+          "assertion": 1.0,
+          "conf_indep": 0.7,
+          "empathy": 0.6206993777040485,
+          "ideology": {
+            "Utilitarianism": 0.8,
+            "Authoritarianism": 0.2
+          },
+          "wildcard": "Martyr",
+          "faction": "Insurgency",
+          "social_position": "Boss"
+        },
+        "world": {
+          "world_history": "Full world history here...",
+          "personal_history": "Moses' personal journey...",
+          "player_history": "",
+          "player_relation": 1.0
+        }
+      }
+    }
+  }
+}
