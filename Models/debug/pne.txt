@@ -86,6 +86,7 @@ from .player_input import (
 # Skill Checks
 from .skill_check import (
     SkillCheckResult,
+    DiceCheckResult,
     SkillCheckSystem
 )
 
@@ -138,6 +139,7 @@ __all__ = [
     
     # Skill System
     'SkillCheckResult',
+    'DiceCheckResult',
     'SkillCheckSystem',
     
     # Cognitive
@@ -1531,6 +1533,183 @@ class OllamaResponseGenerator:
         )
 
         return "\n".join(parts)
+
+    def generate_response_with_direction(
+        self,
+        npc,
+        thought: dict,
+        intention: dict,
+        interaction_outcome,
+        history: list,
+        scene_direction: str = "",
+    ) -> str:
+        """
+        Generate NPC dialogue using BDI context dicts + the scenario node's
+        npc_dialogue_prompt as an explicit scene direction.
+
+        Called by the narrative engine after the BDI pipeline runs without Ollama,
+        so we control the full prompt rather than letting the BDI generate it blindly.
+        """
+        def _get(obj, *attrs, default=""):
+            try:
+                for attr in attrs:
+                    obj = getattr(obj, attr)
+                return obj if obj is not None else default
+            except Exception:
+                return default
+
+        name = _get(npc, "name", default="NPC")
+        parts = []
+
+        # Identity
+        age = _get(npc, "age", default="")
+        faction = _get(npc, "social", "faction", default="")
+        age_str = f", age {age}" if age else ""
+        parts.append(f"You are {name}{age_str}.")
+        if faction:
+            parts.append(f"Faction: {faction}.")
+        parts.append("")
+
+        # Background
+        world = getattr(npc, "world", None)
+        personal_history = _get(npc, "world", "personal_history", default="") if world else ""
+        player_relation = float(_get(npc, "world", "player_relation", default=0.5) if world else 0.5)
+        parts.append("## BACKGROUND")
+        if personal_history:
+            parts.append(f"Your history: {personal_history}")
+        parts.append(f"Your current disposition toward this person: {_relation_note(player_relation)}")
+        parts.append("")
+
+        # BDI state
+        belief = thought.get("subjective_belief", "") if isinstance(thought, dict) else ""
+        intention_type = intention.get("intention_type", "") if isinstance(intention, dict) else ""
+        confrontation = float(intention.get("confrontation_level", 0.5) if isinstance(intention, dict) else 0.5)
+        parts.append("## CURRENT INTERNAL STATE")
+        parts.append(f'BELIEF:    "{belief}"')
+        parts.append(f"INTENTION: {intention_type}")
+        parts.append(f"Stance:    {_confrontation_note(confrontation)}")
+        parts.append("")
+
+        # Scene direction (from node's npc_dialogue_prompt)
+        if scene_direction:
+            parts.append("## SCENE DIRECTION")
+            parts.append(scene_direction)
+            parts.append("")
+
+        # Response range calibration
+        min_r = max_r = ""
+        if interaction_outcome is not None:
+            if isinstance(interaction_outcome, dict):
+                min_r = interaction_outcome.get("min_response", "")
+                max_r = interaction_outcome.get("max_response", "")
+            else:
+                min_r = getattr(interaction_outcome, "min_response", "")
+                max_r = getattr(interaction_outcome, "max_response", "")
+        if min_r or max_r:
+            parts.append("## RESPONSE RANGE (calibration — do NOT copy verbatim)")
+            if min_r:
+                parts.append(f'Negative end: "{min_r}"')
+            if max_r:
+                parts.append(f'Positive end:  "{max_r}"')
+            parts.append("")
+
+        # Recent conversation
+        recent = history[-6:] if len(history) > 6 else history
+        if recent:
+            parts.append("## RECENT CONVERSATION")
+            for entry in recent:
+                parts.append(f"{entry['speaker']}: {entry['text']}")
+            parts.append("")
+
+        parts.append(
+            f"Generate ONE line of dialogue as {name}. "
+            "Stay in character. Do NOT describe actions in brackets. "
+            "Respond directly to what was just said. Under 40 words."
+        )
+
+        prompt = "\n".join(parts)
+        options = self._build_ollama_options(npc)
+
+        try:
+            print(f"  → Connecting to Ollama at {self.base_url}...")
+            response = requests.post(
+                self.api_url,
+                json={
+                    "model": self.model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": options,
+                },
+                timeout=60,
+            )
+            if response.status_code == 200:
+                result = response.json()
+                generated = result.get("response", "").strip()
+                if generated:
+                    return generated
+        except Exception as e:
+            print(f"[Ollama Error: {str(e)}]")
+
+        # Fallback to calibration range or empty
+        return min_r or max_r or ""
+
+    def generate_terminal(
+        self,
+        npc,
+        terminal_prompt: str,
+        history: List[dict],
+    ) -> str:
+        """
+        Generate a final NPC line for a terminal node.
+
+        Uses a stripped-down prompt: NPC identity, recent conversation,
+        and the terminal node's npc_dialogue_prompt as the instruction.
+        """
+        name = getattr(npc, "name", "NPC")
+        recent = history[-4:] if len(history) > 4 else history
+        history_lines = "\n".join(
+            f"{e['speaker']}: {e['text']}" for e in recent
+        )
+
+        relation = 0.5
+        try:
+            relation = float(npc.world.player_relation)
+        except Exception:
+            pass
+
+        prompt = (
+            f"You are {name}.\n"
+            f"Your current disposition toward this person: {_relation_note(relation)}\n\n"
+            f"RECENT CONVERSATION:\n{history_lines}\n\n"
+            f"INSTRUCTION: {terminal_prompt}\n\n"
+            f"Generate ONE final line of dialogue as {name}. "
+            "Stay in character. Do NOT describe actions in brackets. Under 30 words."
+        )
+
+        options = self._build_ollama_options(npc)
+        options["num_predict"] = 60  # shorter for final lines
+
+        try:
+            print(f"  → [Terminal] Connecting to Ollama at {self.base_url}...")
+            response = requests.post(
+                self.api_url,
+                json={
+                    "model": self.model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": options,
+                },
+                timeout=60,
+            )
+            if response.status_code == 200:
+                result = response.json()
+                generated = result.get("response", "").strip()
+                if generated:
+                    return generated
+        except Exception as e:
+            print(f"[Ollama Terminal Error: {str(e)}]")
+
+        return ""
 # ===== File: pne/outcomes.py =====
 
 """
@@ -1899,7 +2078,8 @@ Author: Jerome Bawa
 """
 
 from dataclasses import dataclass
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
+import math
 import random
 from .enums import LanguageArt, PlayerSkill
 from .player_input import PlayerDialogueInput, PlayerSkillSet
@@ -1921,6 +2101,27 @@ class SkillCheckResult:
             "player_val": self.player_val,
             "threshold": self.threshold,
             "margin": self.margin
+        }
+
+
+@dataclass
+class DiceCheckResult:
+    """Result of a 2-dice (player vs NPC) skill check"""
+    success: bool
+    player_die: int     # 1-6
+    npc_die: int        # 1-6
+    skill_used: PlayerSkill
+    player_bias: float  # 0.0-1.0
+    npc_bias: float     # 0.0-1.0
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "success": self.success,
+            "player_die": self.player_die,
+            "npc_die": self.npc_die,
+            "skill_used": self.skill_used.value,
+            "player_bias": self.player_bias,
+            "npc_bias": self.npc_bias,
         }
 
 
@@ -1991,11 +2192,72 @@ class SkillCheckSystem:
     def apply_modifiers(npc, check_result: SkillCheckResult):
         if not check_result.success:
             return
-        
+
         modifiers = SkillCheckSystem.SKILL_MODIFIERS.get(check_result.skill_used, [])
         for attr_path, mod_func in modifiers:
             new_value = mod_func(npc, abs(check_result.margin))
             npc.apply_temp_mod(attr_path, new_value)
+
+    # ------------------------------------------------------------------ #
+    # 2-Dice System
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _weighted_d6(bias: float) -> List[float]:
+        """6-element probability list for a d6 weighted toward high faces when bias is high.
+
+        bias=0 → uniform; bias=1 → heavily weighted toward 6.
+        Uses P(face k) ∝ exp(bias * k) for k=1..6.
+        """
+        weights = [math.exp(bias * k) for k in range(1, 7)]
+        total = sum(weights)
+        return [w / total for w in weights]
+
+    @staticmethod
+    def success_probability(
+        player_skill: int, npc, skill: "PlayerSkill", bias_adj: float = 0.0
+    ) -> int:
+        """Pre-roll success probability as integer percentage 0-100.
+
+        Computed analytically: P(player_die >= npc_die) across all face combinations.
+        Use this for the (X%) display before the actual roll.
+
+        bias_adj shifts the player die weighting up or down (e.g. +0.1 for high relation).
+        """
+        player_bias = max(0.0, min(1.0, player_skill / 10.0 + bias_adj))
+        npc_bias = SkillCheckSystem.calc_threshold(npc, skill)
+        pp = SkillCheckSystem._weighted_d6(player_bias)
+        np_ = SkillCheckSystem._weighted_d6(npc_bias)
+        p_success = sum(
+            pp[p] * np_[n]
+            for p in range(6) for n in range(6)
+            if (p + 1) >= (n + 1)
+        )
+        return round(p_success * 100)
+
+    @staticmethod
+    def roll_dice(
+        player_skill: int, npc, skill: "PlayerSkill", bias_adj: float = 0.0
+    ) -> DiceCheckResult:
+        """Roll both weighted d6 dice and return the result.
+
+        player_die >= npc_die → success (equal = instant success per spec).
+        bias_adj shifts the player die weighting (e.g. +0.1 for high relation).
+        """
+        player_bias = max(0.0, min(1.0, player_skill / 10.0 + bias_adj))
+        npc_bias = SkillCheckSystem.calc_threshold(npc, skill)
+        pp = SkillCheckSystem._weighted_d6(player_bias)
+        np_ = SkillCheckSystem._weighted_d6(npc_bias)
+        player_die = random.choices(range(1, 7), weights=pp)[0]
+        npc_die = random.choices(range(1, 7), weights=np_)[0]
+        return DiceCheckResult(
+            success=(player_die >= npc_die),
+            player_die=player_die,
+            npc_die=npc_die,
+            skill_used=skill,
+            player_bias=player_bias,
+            npc_bias=npc_bias,
+        )
 # ===== File: pne/social.py =====
 
 """

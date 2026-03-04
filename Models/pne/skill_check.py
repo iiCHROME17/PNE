@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Dict, Any, List, Optional
 import math
 import random
-from .enums import LanguageArt, PlayerSkill
+from .enums import LanguageArt, PlayerSkill, Difficulty
 from .player_input import PlayerDialogueInput, PlayerSkillSet
 
 
@@ -54,7 +54,15 @@ class DiceCheckResult:
 
 class SkillCheckSystem:
     """Handles skill checks based on player input"""
-    
+
+    # Additive adjustment to the player die-weight bias per difficulty level.
+    # Applied on top of the player_relation bias_adj in the engine.
+    DIFFICULTY_ADJ: dict = {
+        Difficulty.SIMPLE:   +0.15,
+        Difficulty.STANDARD:  0.00,
+        Difficulty.STRICT:   -0.15,
+    }
+
     LANGUAGE_ART_TO_SKILL = {
         LanguageArt.CHALLENGE: PlayerSkill.AUTHORITY,
         LanguageArt.DIPLOMATIC: PlayerSkill.DIPLOMACY,

@@ -64,6 +64,13 @@ class NPCConversationState:
     # shows recovery choices on the next get_available_choices() call.
     recovery_mode: bool = False
     pending_recovery_choices: List[Dict[str, Any]] = field(default_factory=list)
+    # choice_id of the main choice that triggered the current recovery sub-turn.
+    # Cleared when recovery resolves (success or fail).
+    pending_recovery_parent: Optional[str] = None
+
+    # choice_ids whose main + recovery dice both failed (fully exhausted).
+    # Filtered out of available choices so the player can't repeat a dead end.
+    failed_choices: set = field(default_factory=set)
 
     # Fallout-style visible log for this NPC
     history: List[Dict[str, Any]] = field(default_factory=list)

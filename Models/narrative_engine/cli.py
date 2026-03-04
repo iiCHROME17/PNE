@@ -26,7 +26,7 @@ The CLI provides:
 from typing import List
 import sys
 
-from pne import PlayerSkillSet
+from pne import PlayerSkillSet, Difficulty
 from .engine import NarrativeEngine
 
 
@@ -56,7 +56,8 @@ def main() -> None:
         print("  python -m narrative_engine.cli morisson_moses.json door_guard_scenario.json")
         print("  python -m narrative_engine.cli moses.json taylor.json door_guard_scenario.json")
         print("\nOptional flags:")
-        print("  --no-ollama : Disable Ollama integration (use fallback responses)")
+        print("  --no-ollama              : Disable Ollama (use fallback responses)")
+        print("  --difficulty=<level>     : simple | standard (default) | strict")
         return
 
     raw_args = [a for a in sys.argv[1:] if not a.startswith("--")]
@@ -67,8 +68,20 @@ def main() -> None:
     *npc_files, scenario_file = raw_args
     use_ollama = "--no-ollama" not in sys.argv
 
+    # Parse --difficulty=<simple|standard|strict>  (default: standard)
+    difficulty = Difficulty.STANDARD
+    for arg in sys.argv[1:]:
+        if arg.startswith("--difficulty="):
+            level = arg.split("=", 1)[1].strip().upper()
+            try:
+                difficulty = Difficulty[level]
+            except KeyError:
+                print(f"Unknown difficulty '{level}'. Options: simple, standard, strict.")
+                return
+
     try:
-        engine = NarrativeEngine(use_ollama=use_ollama)
+        engine = NarrativeEngine(use_ollama=use_ollama, difficulty=difficulty)
+        print(f"Difficulty: {difficulty.value.upper()}")
 
         npc_ids: List[str] = []
         for npc_path in npc_files:

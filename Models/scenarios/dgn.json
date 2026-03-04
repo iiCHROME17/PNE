@@ -305,7 +305,7 @@
         }
       ],
 
-      "default_transition": "negotiate",
+      "default_transition": null,
 
       "choices": [
         {

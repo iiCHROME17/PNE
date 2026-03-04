@@ -14,7 +14,7 @@ Everything else is identical to the original.
 
 from typing import Dict, List, Optional, Any
 
-from pne import DialogueProcessor, PlayerSkillSet, OutcomeIndex, SkillCheckSystem, LanguageArt
+from pne import DialogueProcessor, PlayerSkillSet, OutcomeIndex, SkillCheckSystem, LanguageArt, Difficulty
 from PNE_Models import NPCModel
 
 from .session import ConversationSession, NPCConversationState
@@ -29,9 +29,15 @@ class NarrativeEngine:
     High-level orchestrator for Fallout-style conversations using pne's BDI engine.
     """
 
-    def __init__(self, use_ollama: bool = True, ollama_url: str = "http://localhost:11434"):
+    def __init__(
+        self,
+        use_ollama: bool = True,
+        ollama_url: str = "http://localhost:11434",
+        difficulty: Difficulty = Difficulty.STANDARD,
+    ):
         self.use_ollama = use_ollama
         self.ollama_url = ollama_url
+        self.difficulty = difficulty
         self.scenarios: Dict[str, Dict[str, Any]] = {}
         self.npcs: Dict[str, NPCModel] = {}
         self.sessions: Dict[str, ConversationSession] = {}
@@ -199,6 +205,10 @@ class NarrativeEngine:
             dialogue_ctx = self._build_dialogue_context(primary_state, filter_ctx)
             filtered = self._apply_coherence_filter(filtered, dialogue_ctx, verbose_filter)
 
+        # Exclude choices whose main + recovery dice both failed this session.
+        if primary_state.failed_choices:
+            filtered = [c for c in filtered if c.get("choice_id") not in primary_state.failed_choices]
+
         return self._index_choices_with_pct(filtered, primary_state)
 
     @staticmethod
@@ -222,8 +232,15 @@ class NarrativeEngine:
         """
         return (player_relation - 0.5) * 2.0 * (NarrativeEngine.RELATION_CAP / 100.0)
 
-    @staticmethod
+    def _bias_adj(self, player_relation: float) -> float:
+        """Combined bias adjustment: relation effect + difficulty modifier."""
+        return (
+            self._relation_bias(player_relation)
+            + SkillCheckSystem.DIFFICULTY_ADJ[self.difficulty]
+        )
+
     def _index_choices_with_pct(
+        self,
         choices: List[Dict[str, Any]],
         state: "NPCConversationState",
     ) -> List[Dict[str, Any]]:
@@ -231,7 +248,7 @@ class NarrativeEngine:
         indexed = NarrativeEngine._index_choices(choices)
         npc = state.npc
         player_skills_obj = state.processor.player_skills
-        bias_adj = NarrativeEngine._relation_bias(npc.world.player_relation)
+        bias_adj = self._bias_adj(npc.world.player_relation)
         for c in indexed:
             if c["raw"].get("skip_dice"):
                 c["success_pct"] = 100
@@ -315,7 +332,7 @@ class NarrativeEngine:
                 la = LanguageArt.NEUTRAL
             skill = SkillCheckSystem.LANGUAGE_ART_TO_SKILL.get(la)
 
-            bias_adj = self._relation_bias(state.npc.world.player_relation)
+            bias_adj = self._bias_adj(state.npc.world.player_relation)
             if skip_dice or skill is None:
                 check_success = True
                 dice = None
@@ -332,6 +349,11 @@ class NarrativeEngine:
                 print(f"  [Dice] {skill.value.upper()}: "
                       f"[{dice.player_die}] vs [{dice.npc_die}] → "
                       f"{'SUCCESS' if check_success else 'FAILURE'}")
+
+            dice_description = (
+                f"[{skill.value.upper()}: {dice.player_die} vs {dice.npc_die}]"
+                if dice is not None else ""
+            )
 
             # Risk multiplier: scales delta proportionally when success_pct < threshold
             multiplier = (RISK_THRESHOLD / success_pct) if success_pct < RISK_THRESHOLD else 1.0
@@ -354,6 +376,16 @@ class NarrativeEngine:
                 )
                 intention_shift = None
 
+            # ── Early transition check — going_terminal detection only ────
+            # Run BEFORE process_dialogue so we can skip the mid-turn Ollama
+            # call when the scene is already resolving to a terminal.
+            # turn_count here is pre-increment (off by -1 vs after BDI); that
+            # only matters for routing, not for terminal detection, since
+            # terminals are also guarded by extreme judgement values.
+            _early_resolved = TransitionResolver.resolve(transitions, state, intention_shift)
+            _early_target = self.get_node(session, _early_resolved) if _early_resolved else None
+            going_terminal = bool(_early_target and TransitionResolver.is_terminal(_early_target))
+
             # ── BDI pipeline ─────────────────────────────────────────────
             state.processor.outcome_index = outcome_index
             context = state.processor.process_dialogue(
@@ -365,26 +397,51 @@ class NarrativeEngine:
             desire = context["desire_state"]
             intention = context["behavioural_intention"]
 
-            # ── Generate response with scene direction ────────────────────
-            node_direction = node.get("npc_dialogue_prompt", "")
-            ollama_gen = getattr(state.processor, "ollama", None)
-            if (
-                self.use_ollama
-                and ollama_gen
-                and hasattr(ollama_gen, "generate_response_with_direction")
-            ):
-                raw_response = ollama_gen.generate_response_with_direction(
-                    npc=state.npc,
-                    thought=thought,
-                    intention=intention,
-                    interaction_outcome=context.get("interaction_outcome"),
-                    history=state.history,
-                    scene_direction=node_direction,
-                )
-            else:
-                raw_response = context["npc_response"]
+            # Dice outcome is the authoritative signal for this turn's emotional
+            # reaction. The BDI cognitive interpreter may have fallen back to a
+            # neutral default (e.g. Ollama timeout) — override so the Ollama
+            # response prompt receives a consistent, dice-grounded valence.
+            if dice is not None and isinstance(thought, dict):
+                thought = dict(thought)  # copy — don't mutate context dict
+                thought["emotional_valence"] = 0.45 if check_success else -0.45
 
-            npc_response = self._format_with_npc(raw_response, state.npc.name)
+            # ── Final transition resolution (correct turn_count) ──────────
+            # process_dialogue() has now incremented turn_count, so conditions
+            # like "turn_count >= 4" evaluate correctly here.
+            # Re-resolve; if this yields a terminal we weren't expecting, the
+            # going_terminal flag is already False so the mid-turn response has
+            # already been shown — only routing is affected.
+            resolved_node = TransitionResolver.resolve(transitions, state, intention_shift)
+            target_node = self.get_node(session, resolved_node) if resolved_node else None
+            going_terminal = bool(target_node and TransitionResolver.is_terminal(target_node))
+            print(f"  [{state.npc.name}] judgement={state.judgement} → "
+                  f"resolved={resolved_node or '(default)'}")
+
+            # ── Generate mid-turn response (skipped when going to terminal) ─
+            if not going_terminal:
+                node_direction = node.get("npc_dialogue_prompt", "")
+                ollama_gen = getattr(state.processor, "ollama", None)
+                if (
+                    self.use_ollama
+                    and ollama_gen
+                    and hasattr(ollama_gen, "generate_response_with_direction")
+                ):
+                    raw_response = ollama_gen.generate_response_with_direction(
+                        npc=state.npc,
+                        thought=thought,
+                        intention=intention,
+                        interaction_outcome=context.get("interaction_outcome"),
+                        history=state.history,
+                        scene_direction=node_direction,
+                        check_success=check_success if dice is not None else None,
+                        dice_description=dice_description,
+                    )
+                else:
+                    raw_response = context["npc_response"]
+                npc_response = self._format_with_npc(raw_response, state.npc.name)
+            else:
+                # Use BDI fallback text only — terminal response will replace this.
+                npc_response = self._format_with_npc(context["npc_response"], state.npc.name)
 
             print(f"\n[{state.npc.name} | Belief]: {thought['subjective_belief']}")
             print(
@@ -394,70 +451,82 @@ class NarrativeEngine:
             )
             print(f"[{state.npc.name} | Intention]: {intention['intention_type']} "
                   f"(confrontation={intention['confrontation_level']:.2f})")
-            print(f"\n{state.npc.name}: {npc_response}\n")
 
-            state.add_exchange(
-                state.npc.name,
-                npc_response,
-                metadata={
-                    "thought": thought,
-                    "desire": desire,
-                    "intention": intention,
-                    "interaction_outcome": context.get("interaction_outcome"),
-                },
-            )
+            if not going_terminal:
+                print(f"\n{state.npc.name}: {npc_response}\n")
+                state.add_exchange(
+                    state.npc.name,
+                    npc_response,
+                    metadata={
+                        "thought": thought,
+                        "desire": desire,
+                        "intention": intention,
+                        "interaction_outcome": context.get("interaction_outcome"),
+                    },
+                )
 
-            # ── Recovery mode entry (main failure only, not recovery failure) ──
+            # ── Recovery mode entry (main failure only; skip if going terminal) ──
             recovery_choices = choice_data.get("recovery_choices", [])
-            if not check_success and not is_recovery and recovery_choices:
+            if not check_success and not is_recovery and recovery_choices and not going_terminal:
                 state.recovery_mode = True
                 state.pending_recovery_choices = recovery_choices
+                state.pending_recovery_parent = choice_data["choice_id"]
                 print(f"  [{state.npc.name}] → Entering recovery — choose your follow-up")
                 responses[state.npc_id] = {"context": context, "resolved_node": state.current_node}
-                continue  # skip transition check; recovery choices shown next turn
+                continue  # skip routing; recovery choices shown next turn
 
-            # ── Transition resolution ─────────────────────────────────────
-            resolved_node = TransitionResolver.resolve(transitions, state, intention_shift)
-            print(f"  [{state.npc.name}] judgement={state.judgement} → "
-                  f"resolved={resolved_node or '(default)'}")
+            # ── Routing ───────────────────────────────────────────────────
+            if going_terminal:
+                terminal_id = target_node.get("terminal_id", "unknown")
+                terminal_result = target_node.get("terminal_result", "")
 
-            if resolved_node:
-                target_node = self.get_node(session, resolved_node)
+                final_response = self._generate_terminal_response(state, target_node)
+                if not final_response:
+                    final_response = npc_response  # fallback if Ollama unavailable
 
-                if target_node and TransitionResolver.is_terminal(target_node):
-                    terminal_id = target_node.get("terminal_id", "unknown")
-                    terminal_result = target_node.get("terminal_result", "")
+                state.is_complete = True
+                state.current_node = resolved_node
+                state.pending_recovery_parent = None
+                state.terminal_outcome = {
+                    "terminal_id": terminal_id,
+                    "result": terminal_result,
+                    "final_dialogue": final_response,
+                }
 
-                    # Generate a fresh final line using the terminal node's own prompt.
-                    final_response = self._generate_terminal_response(state, target_node)
-                    if not final_response:
-                        final_response = npc_response  # fallback to current response
+                print(f"\n{'=' * 70}")
+                print(f"OUTCOME: {terminal_id.upper()}")
+                print(f"\n{state.npc.name}: {final_response}")
+                print(f"\n{terminal_result}")
+                print(f"{'=' * 70}\n")
 
-                    state.is_complete = True
-                    state.current_node = resolved_node
-                    state.terminal_outcome = {
-                        "terminal_id": terminal_id,
-                        "result": terminal_result,
-                        "final_dialogue": final_response,
-                    }
+                state.processor.end_conversation()
 
-                    print(f"\n{'=' * 70}")
-                    print(f"OUTCOME: {terminal_id.upper()}")
-                    print(f"\n{state.npc.name}: {final_response}")
-                    print(f"\n{terminal_result}")
-                    print(f"{'=' * 70}\n")
-
-                    state.processor.end_conversation()
-                else:
-                    state.current_node = resolved_node
-                    print(f"  [{state.npc.name}] → routed to node: {resolved_node}")
+            elif resolved_node:
+                state.current_node = resolved_node
+                state.pending_recovery_parent = None
+                print(f"  [{state.npc.name}] → routed to node: {resolved_node}")
             else:
-                default_node = node.get("default_transition")
-                if default_node and self.get_node(session, default_node):
-                    state.current_node = default_node
-                    print(f"  [{state.npc.name}] → no transition matched, defaulting to: {default_node}")
+                # No explicit transition matched.
+                if is_recovery and not check_success:
+                    # Recovery exhausted: mark the parent choice as fully failed,
+                    # stay on the current node so the player can try other options.
+                    if state.pending_recovery_parent:
+                        state.failed_choices.add(state.pending_recovery_parent)
+                        print(f"  [{state.npc.name}] → '{state.pending_recovery_parent}' exhausted; try a different approach")
+                        state.pending_recovery_parent = None
+                elif is_recovery and check_success:
+                    # Recovery succeeded but no transition condition fired yet.
+                    # Return to main choices — the player recovers to keep trying.
+                    state.pending_recovery_parent = None
+                    print(f"  [{state.npc.name}] → recovery succeeded; returning to main choices")
                 else:
-                    print(f"  [{state.npc.name}] → no transition matched, staying on: {node_id}")
+                    state.pending_recovery_parent = None
+                    default_node = node.get("default_transition")
+                    if default_node and self.get_node(session, default_node):
+                        state.current_node = default_node
+                        print(f"  [{state.npc.name}] → no transition matched, defaulting to: {default_node}")
+                    else:
+                        print(f"  [{state.npc.name}] → no transition matched, staying on: {node_id}")
 
             responses[state.npc_id] = {
                 "context": context,

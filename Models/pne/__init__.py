@@ -65,7 +65,8 @@ then call the processor to obtain structured outcomes that drive NPC behaviour.
 from .enums import (
     LanguageArt,
     PlayerSkill,
-    TerminalOutcomeType
+    TerminalOutcomeType,
+    Difficulty,
 )
 
 # Conversation Management
@@ -125,6 +126,7 @@ __all__ = [
     'LanguageArt',
     'PlayerSkill',
     'TerminalOutcomeType',
+    'Difficulty',
     
     # Core Models
     'ConversationModel',

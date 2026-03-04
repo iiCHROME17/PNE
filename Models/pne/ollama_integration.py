@@ -64,6 +64,19 @@ def _relation_note(relation: float) -> str:
     return "Deep distrust. You're close to shutting this down."
 
 
+# ── Emotional valence → per-turn psychological reaction note ────────────────
+def _valence_note(v: float) -> str:
+    if v >= 0.5:
+        return "open and receptive — they responded positively"
+    if v >= 0.2:
+        return "mildly positive — cautiously receptive"
+    if v > -0.2:
+        return "neutral — unmoved either way"
+    if v > -0.5:
+        return "negative — feels threatened or manipulated"
+    return "strongly negative — hostile, resistant, or contemptuous"
+
+
 class OllamaResponseGenerator:
     """Generates NPC dialogue responses using Ollama"""
 
@@ -321,6 +334,8 @@ class OllamaResponseGenerator:
         interaction_outcome,
         history: list,
         scene_direction: str = "",
+        check_success: bool = None,
+        dice_description: str = "",
     ) -> str:
         """
         Generate NPC dialogue using BDI context dicts + the scenario node's
@@ -363,16 +378,36 @@ class OllamaResponseGenerator:
         belief = thought.get("subjective_belief", "") if isinstance(thought, dict) else ""
         intention_type = intention.get("intention_type", "") if isinstance(intention, dict) else ""
         confrontation = float(intention.get("confrontation_level", 0.5) if isinstance(intention, dict) else 0.5)
+        emotional_valence = float(thought.get("emotional_valence", 0.0) if isinstance(thought, dict) else 0.0)
         parts.append("## CURRENT INTERNAL STATE")
         parts.append(f'BELIEF:    "{belief}"')
         parts.append(f"INTENTION: {intention_type}")
         parts.append(f"Stance:    {_confrontation_note(confrontation)}")
+        parts.append(f"Emotional reaction this turn: {emotional_valence:+.2f}  ({_valence_note(emotional_valence)})")
         parts.append("")
 
-        # Scene direction (from node's npc_dialogue_prompt)
+        # Scene direction (from node's npc_dialogue_prompt) — general stance context
         if scene_direction:
             parts.append("## SCENE DIRECTION")
             parts.append(scene_direction)
+            parts.append("")
+
+        # Dice context — placed AFTER scene direction so the LLM prioritises it.
+        # When dice were rolled, this section overrides the general scene stance.
+        if check_success is not None and dice_description:
+            parts.append("## DICE CONTEXT — OVERRIDES SCENE DIRECTION ABOVE")
+            if check_success:
+                parts.append(
+                    f"The player's skill check SUCCEEDED {dice_description}. "
+                    "Their approach got through to you. Let this show in your response — "
+                    "even a guarded character can feel a genuine touch land."
+                )
+            else:
+                parts.append(
+                    f"The player's skill check FAILED {dice_description}. "
+                    "Their approach didn't land. You weren't moved — "
+                    "respond dismissively, sceptically, or simply unmoved."
+                )
             parts.append("")
 
         # Response range calibration

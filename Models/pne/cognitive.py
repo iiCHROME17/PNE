@@ -80,7 +80,7 @@ class CognitiveInterpreter:
                         "num_predict": 80  # Increased for two outputs
                     }
                 },
-                timeout=30
+                timeout=60
             )
             
             if response.status_code == 200:

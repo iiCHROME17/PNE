@@ -479,10 +479,20 @@ def main() -> None:
                 print("\n[No available choices at this node; conversation ends.]")
                 break
 
-            print(f"\n--- Node: {current_node} ---")
+            # Judgement bar
+            j = active[0].judgement
+            filled = j // 10
+            bar = "▓" * filled + "░" * (10 - filled)
+            print(f"\n  Judgement: [{bar}] {j}/100")
+
+            if active[0].recovery_mode:
+                print("  >> RECOVERY — choose your follow-up:")
+            else:
+                print(f"\n--- Node: {current_node} ---")
+
             print("Available choices:")
             for c in choices:
-                print(f"  [{c['index']}] {c['text']}")
+                print(f"  [{c['index']}] {c['text']} | ({c.get('success_pct', 100)}%)")
 
             # Show which NPCs are active and where they are
             if len(active) > 1:
@@ -945,7 +955,7 @@ Everything else is identical to the original.
 
 from typing import Dict, List, Optional, Any
 
-from pne import DialogueProcessor, PlayerSkillSet, OutcomeIndex
+from pne import DialogueProcessor, PlayerSkillSet, OutcomeIndex, SkillCheckSystem, LanguageArt
 from PNE_Models import NPCModel
 
 from .session import ConversationSession, NPCConversationState
@@ -1091,10 +1101,25 @@ class NarrativeEngine:
         """
         Returns filtered, coherence-checked choices for the given node.
 
-        Filtering pipeline:
+        When a state is in recovery_mode, returns the pending recovery choices
+        instead of the node's normal choices — the CLI loop stays unchanged.
+
+        Filtering pipeline (normal mode only):
           1. ChoiceFilter  – hard gates (skill/relation/state/prerequisite)
           2. DialogueMomentumFilter – coherence scoring (responds to NPC momentum)
         """
+        active = session.active_npcs()
+        if not active:
+            return []
+
+        primary_state = active[0]
+
+        # ── Recovery mode: serve pending recovery choices ────────────────
+        if primary_state.recovery_mode:
+            return self._index_choices_with_pct(
+                primary_state.pending_recovery_choices, primary_state
+            )
+
         node = self.get_node(session, node_id)
         if not node:
             return []
@@ -1102,14 +1127,6 @@ class NarrativeEngine:
         raw_choices = node.get("choices", [])
         if not raw_choices:
             return []
-
-        # Use the first active NPC as the representative state for filtering.
-        active = session.active_npcs()
-        if not active:
-            return self._index_choices(raw_choices)
-
-        primary_state = active[0]
-        npc = primary_state.npc
 
         # ── Build FilterContext ──────────────────────────────────────────
         filter_ctx = self._build_filter_context(primary_state, node_id)
@@ -1123,7 +1140,11 @@ class NarrativeEngine:
             dialogue_ctx = self._build_dialogue_context(primary_state, filter_ctx)
             filtered = self._apply_coherence_filter(filtered, dialogue_ctx, verbose_filter)
 
-        return self._index_choices(filtered)
+        # Exclude choices whose main + recovery dice both failed this session.
+        if primary_state.failed_choices:
+            filtered = [c for c in filtered if c.get("choice_id") not in primary_state.failed_choices]
+
+        return self._index_choices_with_pct(filtered, primary_state)
 
     @staticmethod
     def _index_choices(choices: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -1132,6 +1153,48 @@ class NarrativeEngine:
             {"index": idx, "choice_id": c["choice_id"], "text": c["text"], "raw": c}
             for idx, c in enumerate(choices, start=1)
         ]
+
+    # Max percentage-point adjustment to success_pct from player_relation.
+    # At relation=1.0 (max): +RELATION_CAP%; at relation=0.0 (min): -RELATION_CAP%.
+    RELATION_CAP = 10
+
+    @staticmethod
+    def _relation_bias(player_relation: float) -> float:
+        """Convert player_relation (0.0-1.0) to a bias_adj for dice weighting.
+
+        Centred at 0.5 (neutral). Maps [0,1] → [−cap/100, +cap/100].
+        Not linear with success_pct — effect is gentle and capped.
+        """
+        return (player_relation - 0.5) * 2.0 * (NarrativeEngine.RELATION_CAP / 100.0)
+
+    @staticmethod
+    def _index_choices_with_pct(
+        choices: List[Dict[str, Any]],
+        state: "NPCConversationState",
+    ) -> List[Dict[str, Any]]:
+        """Index choices and attach success_pct for display."""
+        indexed = NarrativeEngine._index_choices(choices)
+        npc = state.npc
+        player_skills_obj = state.processor.player_skills
+        bias_adj = NarrativeEngine._relation_bias(npc.world.player_relation)
+        for c in indexed:
+            if c["raw"].get("skip_dice"):
+                c["success_pct"] = 100
+                continue
+            la_str = c["raw"].get("language_art", "neutral")
+            try:
+                la = LanguageArt(la_str)
+            except ValueError:
+                la = LanguageArt.NEUTRAL
+            skill = SkillCheckSystem.LANGUAGE_ART_TO_SKILL.get(la)
+            if skill:
+                pval = player_skills_obj.get_skill(skill)
+                c["success_pct"] = SkillCheckSystem.success_probability(
+                    pval, npc, skill, bias_adj=bias_adj
+                )
+            else:
+                c["success_pct"] = 100  # NEUTRAL — no dice check
+        return indexed
 
     # ------------------------------------------------------------------ #
     # Core turn step
@@ -1164,7 +1227,7 @@ class NarrativeEngine:
         print("Available choices:")
         for c in visible_choices:
             marker = ">>" if c["index"] == choice_index else "  "
-            print(f"{marker} [{c['index']}] {c['text']}")
+            print(f"{marker} [{c['index']}] {c['text']} | ({c.get('success_pct', 100)}%)")
 
         player_input = ScenarioLoader.parse_player_input(choice_data)
         session.player_choice_log.append({
@@ -1174,25 +1237,112 @@ class NarrativeEngine:
         })
 
         responses: Dict[str, Any] = {}
-        outcome_index = ScenarioLoader.parse_outcome_index(choice_data)
         transitions = node.get("transitions", [])
 
         for state in session.active_npcs():
+            # ── Recovery mode detection ───────────────────────────────────
+            is_recovery = state.recovery_mode
+            if is_recovery:
+                state.recovery_mode = False
+                state.pending_recovery_choices = []
+
             print(f"\nPlayer → {state.npc.name}: {player_input.choice_text}")
             state.add_exchange("Player", player_input.choice_text)
             state.choices_made.append(choice_data["choice_id"])
+
+            # ── Dice + risk-proportional judgement scaling ────────────────
+            RISK_THRESHOLD = 50
+            skip_dice = choice_data.get("skip_dice", False)
+            la_str = choice_data.get("language_art", "neutral")
+            try:
+                la = LanguageArt(la_str)
+            except ValueError:
+                la = LanguageArt.NEUTRAL
+            skill = SkillCheckSystem.LANGUAGE_ART_TO_SKILL.get(la)
+
+            bias_adj = self._relation_bias(state.npc.world.player_relation)
+            if skip_dice or skill is None:
+                check_success = True
+                dice = None
+                success_pct = 100
+            else:
+                player_val = state.processor.player_skills.get_skill(skill)
+                success_pct = SkillCheckSystem.success_probability(
+                    player_val, state.npc, skill, bias_adj=bias_adj
+                )
+                dice = SkillCheckSystem.roll_dice(
+                    player_val, state.npc, skill, bias_adj=bias_adj
+                )
+                check_success = dice.success
+                print(f"  [Dice] {skill.value.upper()}: "
+                      f"[{dice.player_die}] vs [{dice.npc_die}] → "
+                      f"{'SUCCESS' if check_success else 'FAILURE'}")
+
+            # Risk multiplier: scales delta proportionally when success_pct < threshold
+            multiplier = (RISK_THRESHOLD / success_pct) if success_pct < RISK_THRESHOLD else 1.0
+            base_success = choice_data.get("judgement_delta_success", 0)
+            base_fail    = choice_data.get("judgement_delta_fail", 0)
+            judgement_delta = int(base_success * multiplier) if check_success else int(base_fail * multiplier)
+
+            state.judgement = max(0, min(100, state.judgement + judgement_delta))
+            print(f"  [Judgement] {state.judgement}/100  "
+                  f"(Δ{judgement_delta:+d}{'  ×' + f'{multiplier:.1f}' if multiplier > 1.0 else ''})")
+
+            # ── Select outcome set ────────────────────────────────────────
+            if check_success:
+                outcome_index = ScenarioLoader.parse_outcome_index(choice_data)
+                raw_outcomes = choice_data.get("interaction_outcomes", [])
+                intention_shift = raw_outcomes[0].get("intention_shift") if raw_outcomes else None
+            else:
+                outcome_index = ScenarioLoader.parse_outcome_index(
+                    choice_data, outcome_key="failure_outcomes"
+                )
+                intention_shift = None
+
+            # ── Transition resolution (BEFORE response generation) ────────
+            # Knowing the outcome lets us suppress the mid-turn NPC line when
+            # the scene is already resolving to a terminal, preventing the NPC
+            # from saying something contradictory right before their final word.
+            resolved_node = TransitionResolver.resolve(transitions, state, intention_shift)
+            target_node = self.get_node(session, resolved_node) if resolved_node else None
+            going_terminal = bool(target_node and TransitionResolver.is_terminal(target_node))
+            print(f"  [{state.npc.name}] judgement={state.judgement} → "
+                  f"resolved={resolved_node or '(default)'}")
 
             # ── BDI pipeline ─────────────────────────────────────────────
             state.processor.outcome_index = outcome_index
             context = state.processor.process_dialogue(
                 player_input,
-                generate_with_ollama=self.use_ollama,
+                generate_with_ollama=False,
             )
 
             thought = context["thought_reaction"]
             desire = context["desire_state"]
             intention = context["behavioural_intention"]
-            npc_response = self._format_with_npc(context["npc_response"], state.npc.name)
+
+            # ── Generate mid-turn response (skipped when going to terminal) ─
+            if not going_terminal:
+                node_direction = node.get("npc_dialogue_prompt", "")
+                ollama_gen = getattr(state.processor, "ollama", None)
+                if (
+                    self.use_ollama
+                    and ollama_gen
+                    and hasattr(ollama_gen, "generate_response_with_direction")
+                ):
+                    raw_response = ollama_gen.generate_response_with_direction(
+                        npc=state.npc,
+                        thought=thought,
+                        intention=intention,
+                        interaction_outcome=context.get("interaction_outcome"),
+                        history=state.history,
+                        scene_direction=node_direction,
+                    )
+                else:
+                    raw_response = context["npc_response"]
+                npc_response = self._format_with_npc(raw_response, state.npc.name)
+            else:
+                # Use BDI fallback text only — terminal response will replace this.
+                npc_response = self._format_with_npc(context["npc_response"], state.npc.name)
 
             print(f"\n[{state.npc.name} | Belief]: {thought['subjective_belief']}")
             print(
@@ -1202,54 +1352,77 @@ class NarrativeEngine:
             )
             print(f"[{state.npc.name} | Intention]: {intention['intention_type']} "
                   f"(confrontation={intention['confrontation_level']:.2f})")
-            print(f"\n{state.npc.name}: {npc_response}\n")
 
-            state.add_exchange(
-                state.npc.name,
-                npc_response,
-                metadata={
-                    "thought": thought,
-                    "desire": desire,
-                    "intention": intention,
-                    "interaction_outcome": context.get("interaction_outcome"),
-                },
-            )
+            if not going_terminal:
+                print(f"\n{state.npc.name}: {npc_response}\n")
+                state.add_exchange(
+                    state.npc.name,
+                    npc_response,
+                    metadata={
+                        "thought": thought,
+                        "desire": desire,
+                        "intention": intention,
+                        "interaction_outcome": context.get("interaction_outcome"),
+                    },
+                )
 
-            # ── Transition resolution ─────────────────────────────────────
-            resolved_node = TransitionResolver.resolve(transitions, state)
+            # ── Recovery mode entry (main failure only; skip if going terminal) ──
+            recovery_choices = choice_data.get("recovery_choices", [])
+            if not check_success and not is_recovery and recovery_choices and not going_terminal:
+                state.recovery_mode = True
+                state.pending_recovery_choices = recovery_choices
+                state.pending_recovery_parent = choice_data["choice_id"]
+                print(f"  [{state.npc.name}] → Entering recovery — choose your follow-up")
+                responses[state.npc_id] = {"context": context, "resolved_node": state.current_node}
+                continue  # skip routing; recovery choices shown next turn
 
-            if resolved_node:
-                target_node = self.get_node(session, resolved_node)
+            # ── Routing ───────────────────────────────────────────────────
+            if going_terminal:
+                terminal_id = target_node.get("terminal_id", "unknown")
+                terminal_result = target_node.get("terminal_result", "")
 
-                if target_node and TransitionResolver.is_terminal(target_node):
-                    terminal_id = target_node.get("terminal_id", "unknown")
-                    terminal_result = target_node.get("terminal_result", "")
+                final_response = self._generate_terminal_response(state, target_node)
+                if not final_response:
+                    final_response = npc_response  # fallback if Ollama unavailable
 
-                    state.is_complete = True
-                    state.terminal_outcome = {
-                        "terminal_id": terminal_id,
-                        "result": terminal_result,
-                        "final_dialogue": npc_response,
-                    }
-                    state.current_node = resolved_node
+                state.is_complete = True
+                state.current_node = resolved_node
+                state.pending_recovery_parent = None
+                state.terminal_outcome = {
+                    "terminal_id": terminal_id,
+                    "result": terminal_result,
+                    "final_dialogue": final_response,
+                }
 
-                    print(f"\n{'=' * 70}")
-                    print(f"TERMINAL OUTCOME for {state.npc.name}: {terminal_id.upper()}")
-                    print(f"Result: {terminal_result}")
-                    print(f"{state.npc.name}: {npc_response}")
-                    print(f"{'=' * 70}\n")
+                print(f"\n{'=' * 70}")
+                print(f"OUTCOME: {terminal_id.upper()}")
+                print(f"\n{state.npc.name}: {final_response}")
+                print(f"\n{terminal_result}")
+                print(f"{'=' * 70}\n")
 
-                    state.processor.end_conversation()
-                else:
-                    state.current_node = resolved_node
-                    print(f"  [{state.npc.name}] → routed to node: {resolved_node}")
+                state.processor.end_conversation()
+
+            elif resolved_node:
+                state.current_node = resolved_node
+                state.pending_recovery_parent = None
+                print(f"  [{state.npc.name}] → routed to node: {resolved_node}")
             else:
-                default_node = node.get("default_transition", "probing")
-                if self.get_node(session, default_node):
-                    state.current_node = default_node
-                    print(f"  [{state.npc.name}] → no transition matched, defaulting to: {default_node}")
+                # No explicit transition matched.
+                if is_recovery and not check_success:
+                    # Recovery exhausted: mark the parent choice as fully failed,
+                    # stay on the current node so the player can try other options.
+                    if state.pending_recovery_parent:
+                        state.failed_choices.add(state.pending_recovery_parent)
+                        print(f"  [{state.npc.name}] → '{state.pending_recovery_parent}' exhausted; try a different approach")
+                        state.pending_recovery_parent = None
                 else:
-                    print(f"  [{state.npc.name}] → no transition matched, staying on: {node_id}")
+                    state.pending_recovery_parent = None
+                    default_node = node.get("default_transition")
+                    if default_node and self.get_node(session, default_node):
+                        state.current_node = default_node
+                        print(f"  [{state.npc.name}] → no transition matched, defaulting to: {default_node}")
+                    else:
+                        print(f"  [{state.npc.name}] → no transition matched, staying on: {node_id}")
 
             responses[state.npc_id] = {
                 "context": context,
@@ -1291,6 +1464,29 @@ class NarrativeEngine:
         print(f"\n✓ Session log exported to {filepath}")
 
     # ------------------------------------------------------------------ #
+    # Private: terminal response generation
+    # ------------------------------------------------------------------ #
+
+    def _generate_terminal_response(
+        self,
+        state: "NPCConversationState",
+        terminal_node: Dict[str, Any],
+    ) -> str:
+        """
+        Generate the NPC's final words using the terminal node's npc_dialogue_prompt.
+        Falls back to an empty string if Ollama is unavailable.
+        """
+        terminal_prompt = terminal_node.get("npc_dialogue_prompt", "")
+        if not terminal_prompt:
+            return ""
+
+        ollama = getattr(state.processor, "ollama", None)
+        if self.use_ollama and ollama and hasattr(ollama, "generate_terminal"):
+            return ollama.generate_terminal(state.npc, terminal_prompt, state.history)
+
+        return ""
+
+    # ------------------------------------------------------------------ #
     # Private: filter context builders
     # ------------------------------------------------------------------ #
 
@@ -1310,7 +1506,23 @@ class NarrativeEngine:
             "manipulation": processor.player_skills.manipulation,
         }
 
-        # Grab last intention from history if available
+        # last_intention_shift: read from interaction_outcome.intention_shift
+        # (the scenario-defined value, authoritative for choice filtering).
+        # Using the BDI intention_type here caused all allowed_after_intentions
+        # checks to fail because the BDI always generates generic types.
+        last_intention_shift = None
+        for entry in reversed(state.history):
+            meta = entry.get("metadata")
+            if meta:
+                outcome = meta.get("interaction_outcome")
+                if outcome and isinstance(outcome, dict):
+                    shift = outcome.get("intention_shift")
+                    if shift:
+                        last_intention_shift = shift
+                        break
+
+        # last_intention: BDI intention_type — used for npc_current_intention
+        # in the Ollama prompt and for coherence momentum tagging.
         last_intention = None
         for entry in reversed(state.history):
             meta = entry.get("metadata")
@@ -1356,7 +1568,7 @@ class NarrativeEngine:
             npc_current_desire_type=last_desire_type,
             choices_made=state.choices_made,
             turn_count=state.turn_count,
-            last_intention_shift=last_intention,
+            last_intention_shift=last_intention_shift,
             conversation_topic=node_id,
             conversation_stage=stage,
         )
@@ -1569,7 +1781,10 @@ class ScenarioLoader:
         )
 
     @staticmethod
-    def parse_outcome_index(choice_data: Dict[str, Any]) -> OutcomeIndex:
+    def parse_outcome_index(
+        choice_data: Dict[str, Any],
+        outcome_key: str = "interaction_outcomes",
+    ) -> OutcomeIndex:
         """
         Build an OutcomeIndex from choice metadata.
 
@@ -1581,12 +1796,14 @@ class ScenarioLoader:
 
         Args:
             choice_data: Dict containing choice outcomes metadata
+            outcome_key: Key to read outcomes from — "interaction_outcomes" (default)
+                         or "failure_outcomes" for dice-check failure branches.
 
         Returns:
             OutcomeIndex with all potential interaction and terminal outcomes
         """
         interaction_outcomes: List[InteractionOutcome] = []
-        for outcome_data in choice_data.get("interaction_outcomes", []):
+        for outcome_data in choice_data.get(outcome_key, []):
             interaction_outcomes.append(
                 InteractionOutcome(
                     outcome_id=outcome_data["outcome_id"],
@@ -1678,6 +1895,22 @@ class NPCConversationState:
     current_node: str = "start"
     is_complete: bool = False
     terminal_outcome: Optional[Dict[str, Any]] = None
+
+    # Judgement-based narrative progress (0=fail territory, 100=succeed territory, 50=neutral)
+    # Drives terminal routing; modified by dice outcomes scaled by risk.
+    judgement: int = 50
+
+    # Recovery sub-turn state — set when main dice fails so the CLI loop
+    # shows recovery choices on the next get_available_choices() call.
+    recovery_mode: bool = False
+    pending_recovery_choices: List[Dict[str, Any]] = field(default_factory=list)
+    # choice_id of the main choice that triggered the current recovery sub-turn.
+    # Cleared when recovery resolves (success or fail).
+    pending_recovery_parent: Optional[str] = None
+
+    # choice_ids whose main + recovery dice both failed (fully exhausted).
+    # Filtered out of available choices so the player can't repeat a dead end.
+    failed_choices: set = field(default_factory=set)
 
     # Fallout-style visible log for this NPC
     history: List[Dict[str, Any]] = field(default_factory=list)
@@ -1782,40 +2015,36 @@ class ConversationSession:
 """
 Transition Resolver Module
 
-Handles dynamic routing between conversation nodes based on NPC state.
+Handles deterministic FSM routing between conversation nodes.
 
-Supports TWO transition styles (combinable):
+Transition gates (all present gates must pass; first match wins):
 
-1. Simple condition:
-   { "condition": "player_relation > 0.5", "target": "succeed" }
+1. condition      — Python expression, eval'd with {player_relation, turn_count, judgement}
+                    e.g. "judgement <= 25"
+                    e.g. "turn_count >= 4 and judgement >= 55"
 
-2. Outcome-match (confidence-based):
-   {
-     "outcome_match": {
-       "intention_keywords": ["Accept Player", "Seek Connection"],
-       "relation_target": 0.7,
-       "relation_tolerance": 0.2,
-       "desire_types": ["affiliation"],          # optional +0.10 bonus
-       "min_desire_intensity": 0.4               # optional hard gate
-     },
-     "min_confidence": 0.6,
-     "condition": "turn_count <= 6",             # optional extra guard
-     "target": "succeed"
-   }
+2. intention_keywords — list[str] substrings matched against the
+                        scenario-defined intention_shift for the chosen action.
+                        e.g. ["Accept Player", "Accept Graduated"]
 
-Both can appear in the same transition — both must pass.
-Transitions evaluated in order; first match wins.
+3. min_relation   — float hard floor; skipped if player_relation < value
 
-Confidence formula
-------------------
-  keyword_score  = 1.0 if any intention_keyword found in last intention_type
-  relation_score = 1 - clamp(|player_relation - relation_target| / tolerance)
-  confidence     = 0.6 * keyword_score + 0.4 * relation_score
-  + 0.10 bonus if desire_types matches last desire_type (capped at 1.0)
+Examples
+--------
+Hard condition gate:
+    { "condition": "player_relation < 0.15", "target": "fail" }
 
-intention_keywords match against canonical INTENTION_REGISTRY names, e.g.:
-  "Accept Player for Trial", "Challenge to Reveal Truth", "Seek Connection"
-Substring matching is used so "Accept Player" matches "Accept Player for Trial".
+Intention + relation gate:
+    { "intention_keywords": ["Accept Player"], "min_relation": 0.5, "target": "succeed" }
+
+Anti-softlock (condition only):
+    { "condition": "turn_count >= 6", "target": "negotiate" }
+
+Combined:
+    { "condition": "turn_count <= 8", "intention_keywords": ["Transactional"], "target": "negotiate" }
+
+Transitions are evaluated in order; first match wins.
+Returns None if nothing matches (caller uses node's default_transition).
 """
 
 from typing import Dict, List, Optional, Any, Tuple, TYPE_CHECKING
@@ -1838,27 +2067,30 @@ class TransitionResolver:
     def resolve(
         transitions: List[Dict[str, Any]],
         npc_state: "NPCConversationState",
+        intention_shift: Optional[str] = None,
     ) -> Optional[str]:
         """
         Walk the transition list and return the first matching target node_id.
+
+        Parameters
+        ----------
+        transitions     : transition list from the current scenario node
+        npc_state       : live NPC state (for relation + turn_count)
+        intention_shift : the intention_shift string from the chosen interaction
+                          outcome (scenario-defined, authoritative for FSM routing)
+
         Returns None if no transition matches (caller uses default_transition).
         """
-        player_relation = npc_state.npc.world.player_relation
         turn_count = npc_state.turn_count
-
-        last_intention = TransitionResolver._last_intention(npc_state)
-        last_desire_type, last_desire_intensity = TransitionResolver._last_desire(npc_state)
-
-        eval_ctx = {"player_relation": player_relation, "turn_count": turn_count}
+        eval_ctx = {
+            "turn_count": turn_count,
+            "judgement": npc_state.judgement,
+        }
+        player_relation = npc_state.npc.world.player_relation  # kept for _transition_matches arg
 
         for transition in transitions:
             if TransitionResolver._transition_matches(
-                transition,
-                eval_ctx,
-                player_relation,
-                last_intention,
-                last_desire_type,
-                last_desire_intensity,
+                transition, eval_ctx, player_relation, intention_shift
             ):
                 return transition["target"]
 
@@ -1878,16 +2110,15 @@ class TransitionResolver:
         transition: Dict[str, Any],
         eval_ctx: Dict[str, Any],
         player_relation: float,
-        last_intention: Optional[str],
-        last_desire_type: Optional[str],
-        last_desire_intensity: Optional[float],
+        intention_shift: Optional[str],
     ) -> bool:
         """
         Returns True only when ALL guards present in this transition pass.
-        Guard keys: "condition" and/or "outcome_match".
+
+        Supported gate keys: "condition", "intention_keywords", "min_relation".
         Unknown keys (e.g. "_comment") are silently ignored.
         """
-        # Guard 1: optional simple condition expression
+        # Guard 1: optional condition expression
         condition_str = transition.get("condition")
         if condition_str:
             try:
@@ -1898,93 +2129,31 @@ class TransitionResolver:
                 print(f"  [TransitionResolver] condition eval failed '{condition_str}': {e}")
                 return False
 
-        # Guard 2: optional outcome_match confidence block
-        outcome_match = transition.get("outcome_match")
-        if outcome_match:
-            confidence = TransitionResolver._compute_confidence(
-                outcome_match,
-                player_relation,
-                last_intention,
-                last_desire_type,
-                last_desire_intensity,
-            )
-            min_conf = float(transition.get("min_confidence", 0.5))
-            if confidence < min_conf:
+        # Guard 2: optional intention_keywords match
+        keywords: List[str] = transition.get("intention_keywords", [])
+        if keywords:
+            if not intention_shift:
+                return False  # keywords required but no shift available
+            shift_lower = intention_shift.lower()
+            if not any(kw.lower() in shift_lower for kw in keywords):
+                return False
+
+        # Guard 3: optional min_relation floor
+        min_rel = transition.get("min_relation")
+        if min_rel is not None:
+            if player_relation < float(min_rel):
                 return False
 
         return True
 
     # ------------------------------------------------------------------ #
-    # Private: confidence scoring
-    # ------------------------------------------------------------------ #
-
-    @staticmethod
-    def _compute_confidence(
-        outcome_match: Dict[str, Any],
-        player_relation: float,
-        last_intention: Optional[str],
-        last_desire_type: Optional[str] = None,
-        last_desire_intensity: Optional[float] = None,
-    ) -> float:
-        """
-        Score how well the NPC's current state matches this outcome_match spec.
-
-        Supported outcome_match fields
-        ----------------------------------
-        intention_keywords   list[str]   substrings of canonical intention names
-        relation_target      float       ideal player_relation
-        relation_tolerance   float       acceptable deviation (default 0.25)
-        desire_types         list[str]   substrings of desire_type for +0.10 bonus
-        min_desire_intensity float       hard gate — 0.0 returned if not met
-
-        Unknown fields are silently ignored.
-        """
-        # Hard gate: desire intensity
-        min_intensity = outcome_match.get("min_desire_intensity")
-        if min_intensity is not None:
-            if last_desire_intensity is None or last_desire_intensity < min_intensity:
-                return 0.0
-
-        # Keyword score (0-1)
-        keyword_score = 0.0
-        keywords: List[str] = outcome_match.get("intention_keywords", [])
-        if keywords:
-            if last_intention:
-                intention_lower = last_intention.lower()
-                for kw in keywords:
-                    if kw.lower() in intention_lower:
-                        keyword_score = 1.0
-                        break
-            # keyword_score stays 0 if no last_intention and keywords required
-        else:
-            keyword_score = 1.0  # No keywords specified -> full score
-
-        # Relation score (0-1)
-        relation_score = 1.0
-        relation_target = outcome_match.get("relation_target")
-        if relation_target is not None:
-            tolerance = float(outcome_match.get("relation_tolerance", 0.25))
-            distance = abs(player_relation - float(relation_target))
-            relation_score = max(0.0, 1.0 - distance / max(tolerance, 0.01))
-
-        confidence = 0.6 * keyword_score + 0.4 * relation_score
-
-        # Desire-type bonus (+0.10 if match, capped at 1.0)
-        desire_types: List[str] = outcome_match.get("desire_types", [])
-        if desire_types and last_desire_type:
-            desire_lower = last_desire_type.lower()
-            if any(dt.lower() in desire_lower for dt in desire_types):
-                confidence = min(1.0, confidence + 0.10)
-
-        return confidence
-
-    # ------------------------------------------------------------------ #
-    # Private: NPC state extraction
+    # Private: NPC state extraction (kept for choice_filter compatibility)
     # ------------------------------------------------------------------ #
 
     @staticmethod
     def _last_intention(npc_state: "NPCConversationState") -> Optional[str]:
-        """Return the most recent intention_type from NPC conversation history."""
+        """Return the most recent intention_type from NPC conversation history.
+        Used by choice_filter, not by transition resolution."""
         for entry in reversed(npc_state.history):
             meta = entry.get("metadata")
             if meta:
@@ -1992,19 +2161,3 @@ class TransitionResolver:
                 if intention:
                     return intention.get("intention_type")
         return None
-
-    @staticmethod
-    def _last_desire(
-        npc_state: "NPCConversationState",
-    ) -> Tuple[Optional[str], Optional[float]]:
-        """
-        Return (desire_type, intensity) from the most recent NPC history entry
-        that has desire metadata.  Returns (None, None) if not found.
-        """
-        for entry in reversed(npc_state.history):
-            meta = entry.get("metadata")
-            if meta:
-                desire = meta.get("desire")
-                if desire:
-                    return desire.get("desire_type"), desire.get("intensity")
-        return None, None

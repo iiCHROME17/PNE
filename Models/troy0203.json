@@ -1,0 +1,164 @@
+{
+  "scenario_id": "door_guard_night",
+  "player_choice_log": [
+    {
+      "node_id": "start",
+      "choice_id": "open_diplomacy",
+      "text": "I understand your caution \u2014 you'd be a fool not to have it. Let me explain how what I bring serves what you're trying to protect."
+    },
+    {
+      "node_id": "challenge",
+      "choice_id": "mutual_challenge",
+      "text": "You've been testing me since I walked up. Fine. But you and I are fighting the same war. Either let me prove that, or we both lose."
+    }
+  ],
+  "npcs": {
+    "troy": {
+      "name": "Troy",
+      "conversation": {
+        "conversation_id": "door_guard_night:troy",
+        "stage": "opening",
+        "topic": "Assess and either admit or turn away this stranger",
+        "turn_count": 2,
+        "history": [
+          "Player: I understand your caution \u2014 you'd be a fool not to have it. Let me explain how what I bring serves what you're trying to protect.",
+          "NPC: Everyone has a pitch. What makes yours worth hearing?",
+          "Player: You've been testing me since I walked up. Fine. But you and I are fighting the same war. Either let me prove that, or we both lose.",
+          "NPC: Prove it. You've got thirty seconds."
+        ]
+      },
+      "choices_made": [
+        "open_diplomacy",
+        "mutual_challenge"
+      ],
+      "history": [
+        {
+          "turn": 0,
+          "speaker": "Narrator",
+          "text": "The alley is dark. Troy leans against the reinforced door, one hand resting on a weapon. They clock you the moment you round the corner.\n\nTroy: Don't move. State your business."
+        },
+        {
+          "turn": 0,
+          "speaker": "Player",
+          "text": "I understand your caution \u2014 you'd be a fool not to have it. Let me explain how what I bring serves what you're trying to protect."
+        },
+        {
+          "turn": 1,
+          "speaker": "Troy",
+          "text": "Your explanations are welcome, but for now, let's keep it simple and direct. What exactly do you bring?",
+          "metadata": {
+            "thought": {
+              "internal_thought": "What are they really saying...?",
+              "subjective_belief": "Their intentions are unclear",
+              "cognitive_state": {
+                "self_esteem": 0.2,
+                "locus_of_control": 0.85,
+                "cog_flexibility": 0.10724444756910718
+              },
+              "emotional_valence": -0.37
+            },
+            "desire": {
+              "immediate_desire": "Protect myself from being deceived",
+              "desire_type": "protection",
+              "intensity": 0.8
+            },
+            "intention": {
+              "intention_type": "Maintain Distance",
+              "confrontation_level": 0.6,
+              "emotional_expression": "suspicious",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "propose_alliance",
+              "stance_delta": {
+                "cognitive.cog_flexibility": 0.05
+              },
+              "relation_delta": 0.1,
+              "intention_shift": "Propose Alliance",
+              "min_response": "Everyone has a pitch. What makes yours worth hearing?",
+              "max_response": "You're thinking. Good. Keep going.",
+              "scripted": false
+            }
+          }
+        },
+        {
+          "turn": 1,
+          "speaker": "Player",
+          "text": "You've been testing me since I walked up. Fine. But you and I are fighting the same war. Either let me prove that, or we both lose."
+        },
+        {
+          "turn": 2,
+          "speaker": "Troy",
+          "text": "You've been testing me? Prove you have something real now.",
+          "metadata": {
+            "thought": {
+              "internal_thought": "What are they really saying...?",
+              "subjective_belief": "Their intentions are unclear",
+              "cognitive_state": {
+                "self_esteem": 0.2,
+                "locus_of_control": 0.85,
+                "cog_flexibility": 0.1572444475691072
+              },
+              "emotional_valence": -0.45
+            },
+            "desire": {
+              "immediate_desire": "Protect myself from being deceived",
+              "desire_type": "protection",
+              "intensity": 0.8
+            },
+            "intention": {
+              "intention_type": "Maintain Distance",
+              "confrontation_level": 0.6,
+              "emotional_expression": "suspicious",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "challenge_accepted",
+              "stance_delta": {
+                "social.assertion": 0.1
+              },
+              "relation_delta": 0.1,
+              "intention_shift": "Challenge to Reveal Truth",
+              "min_response": "Prove it. You've got thirty seconds.",
+              "max_response": "You've got guts. I respect that. But respect isn't the key.",
+              "scripted": false
+            }
+          }
+        }
+      ],
+      "terminal_outcome": null,
+      "final_npc_state": {
+        "name": "Troy",
+        "age": 25,
+        "cognitive": {
+          "self_esteem": 0.2,
+          "locus_of_control": 0.85,
+          "cog_flexibility": 0.1572444475691072
+        },
+        "social": {
+          "assertion": 0.9,
+          "conf_indep": 0.1,
+          "empathy": 0.5,
+          "ideology": {},
+          "wildcard": null,
+          "faction": "Insurgency",
+          "social_position": "Vice"
+        },
+        "world": {
+          "personal_history": "Troy is one of the earliest members of the Insurgency. He is not a founder of the insurgency, nor was he a higher-up when he first joined but he witnessed countless insurgent deaths in the more chaotic early RI conflicts. He is devout loyal to Moses. He might question his logic, but he doesn't question his heart.",
+          "player_history": "",
+          "player_relation": 1.0,
+          "world_history_ref": "data/world.json",
+          "faction_ref": "",
+          "known_events": [
+            "moses_defection"
+          ],
+          "known_figures": [
+            "morisson_moses"
+          ],
+          "world_history": ""
+        }
+      }
+    }
+  }
+}
