@@ -12,7 +12,7 @@ KEY CHANGES vs original
 Everything else is identical to the original.
 """
 
-from typing import Dict, List, Optional, Any
+from typing import Callable, Dict, List, Optional, Any
 
 from pne import DialogueProcessor, PlayerSkillSet, OutcomeIndex, SkillCheckSystem, LanguageArt, Difficulty
 from PNE_Models import NPCModel
@@ -33,10 +33,12 @@ class NarrativeEngine:
         self,
         use_ollama: bool = True,
         ollama_url: str = "http://localhost:11434",
+        ollama_model: str = "llama3.2:1b",
         difficulty: Difficulty = Difficulty.STANDARD,
     ):
         self.use_ollama = use_ollama
         self.ollama_url = ollama_url
+        self.ollama_model = ollama_model
         self.difficulty = difficulty
         self.scenarios: Dict[str, Dict[str, Any]] = {}
         self.npcs: Dict[str, NPCModel] = {}
@@ -110,6 +112,7 @@ class NarrativeEngine:
                 conversation_id=f"{scenario_id}:{npc_id}",
                 use_ollama=self.use_ollama,
                 ollama_url=self.ollama_url,
+                ollama_model=self.ollama_model,
             )
 
             npc_states[npc_id] = NPCConversationState(
@@ -277,6 +280,7 @@ class NarrativeEngine:
         session: ConversationSession,
         node_id: str,
         choice_index: int,
+        on_token: Optional[Callable[[str, str], None]] = None,
     ) -> Dict[str, Any]:
         """
         Apply a single player choice (1-based index) to all active NPCs.
@@ -426,7 +430,7 @@ class NarrativeEngine:
                     and ollama_gen
                     and hasattr(ollama_gen, "generate_response_with_direction")
                 ):
-                    raw_response = ollama_gen.generate_response_with_direction(
+                    ollama_kwargs = dict(
                         npc=state.npc,
                         thought=thought,
                         intention=intention,
@@ -436,6 +440,14 @@ class NarrativeEngine:
                         check_success=check_success if dice is not None else None,
                         dice_description=dice_description,
                     )
+                    if on_token and hasattr(ollama_gen, "generate_response_with_direction_streaming"):
+                        raw_response = ""
+                        for token in ollama_gen.generate_response_with_direction_streaming(**ollama_kwargs):
+                            on_token(state.npc.name, token)
+                            raw_response += token
+                        raw_response = raw_response.strip()
+                    else:
+                        raw_response = ollama_gen.generate_response_with_direction(**ollama_kwargs)
                 else:
                     raw_response = context["npc_response"]
                 npc_response = self._format_with_npc(raw_response, state.npc.name)
@@ -467,12 +479,34 @@ class NarrativeEngine:
 
             # ── Recovery mode entry (main failure only; skip if going terminal) ──
             recovery_choices = choice_data.get("recovery_choices", [])
-            if not check_success and not is_recovery and recovery_choices and not going_terminal:
+            _entered_recovery = (
+                not check_success and not is_recovery
+                and bool(recovery_choices) and not going_terminal
+            )
+            if _entered_recovery:
                 state.recovery_mode = True
                 state.pending_recovery_choices = recovery_choices
                 state.pending_recovery_parent = choice_data["choice_id"]
                 print(f"  [{state.npc.name}] → Entering recovery — choose your follow-up")
-                responses[state.npc_id] = {"context": context, "resolved_node": state.current_node}
+                responses[state.npc_id] = {
+                    "context": context,
+                    "resolved_node": state.current_node,
+                    "dice": {
+                        "player_die":      dice.player_die if dice else None,
+                        "npc_die":         dice.npc_die    if dice else None,
+                        "success":         check_success,
+                        "skill":           skill.value     if skill else None,
+                        "success_pct":     success_pct,
+                        "risk_multiplier": round(multiplier, 2),
+                        "judgement_delta": judgement_delta,
+                    },
+                    "player_choice": {
+                        "choice_id":    choice_data["choice_id"],
+                        "text":         player_input.choice_text,
+                        "language_art": la_str,
+                    },
+                    "entered_recovery": True,
+                }
                 continue  # skip routing; recovery choices shown next turn
 
             # ── Routing ───────────────────────────────────────────────────
@@ -480,7 +514,22 @@ class NarrativeEngine:
                 terminal_id = target_node.get("terminal_id", "unknown")
                 terminal_result = target_node.get("terminal_result", "")
 
-                final_response = self._generate_terminal_response(state, target_node)
+                ollama_gen = getattr(state.processor, "ollama", None)
+                terminal_prompt = target_node.get("npc_dialogue_prompt", "")
+                if (
+                    on_token
+                    and self.use_ollama
+                    and ollama_gen
+                    and terminal_prompt
+                    and hasattr(ollama_gen, "generate_terminal_streaming")
+                ):
+                    final_response = ""
+                    for token in ollama_gen.generate_terminal_streaming(state.npc, terminal_prompt, state.history):
+                        on_token(state.npc.name, token)
+                        final_response += token
+                    final_response = final_response.strip()
+                else:
+                    final_response = self._generate_terminal_response(state, target_node)
                 if not final_response:
                     final_response = npc_response  # fallback if Ollama unavailable
 
@@ -531,6 +580,21 @@ class NarrativeEngine:
             responses[state.npc_id] = {
                 "context": context,
                 "resolved_node": state.current_node,
+                "dice": {
+                    "player_die":      dice.player_die if dice else None,
+                    "npc_die":         dice.npc_die    if dice else None,
+                    "success":         check_success,
+                    "skill":           skill.value     if skill else None,
+                    "success_pct":     success_pct,
+                    "risk_multiplier": round(multiplier, 2),
+                    "judgement_delta": judgement_delta,
+                },
+                "player_choice": {
+                    "choice_id":    choice_data["choice_id"],
+                    "text":         player_input.choice_text,
+                    "language_art": la_str,
+                },
+                "entered_recovery": False,
             }
 
         return responses

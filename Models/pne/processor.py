@@ -34,7 +34,7 @@ class DialogueProcessor:
         conversation_id: str,
         use_ollama: bool = True,
         ollama_url: str = "http://localhost:11434",
-        ollama_model: str = "qwen2.5:3b"
+        ollama_model: str = "llama3.2:1b"
     ):
         self.npc = npc
         self.player_skills = player_skills

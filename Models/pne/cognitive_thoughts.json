@@ -1,0 +1,810 @@
+[
+  {
+    "id": "hostile_authority_read",
+    "bias_type": "hostile_attribution",
+    "thought_variants": [
+      "They think rank means something here...",
+      "This authority act is a mask for something else.",
+      "Power play. Classic."
+    ],
+    "belief_variants": [
+      "They're using authority to bypass real trust.",
+      "Their confidence feels like a threat dressed up.",
+      "They want compliance, not connection."
+    ],
+    "match_weights": {
+      "language_art": {"challenge": 0.8, "manipulative": 0.5},
+      "npc_self_esteem": {"max": 0.5, "weight": 0.6},
+      "npc_locus_of_control": {"max": 0.4, "weight": 0.5},
+      "authority_tone": {"min": 0.6, "weight": 0.7},
+      "player_relation": {"max": 0.5, "weight": 0.3}
+    }
+  },
+  {
+    "id": "hostile_diplomatic_read",
+    "bias_type": "hostile_attribution",
+    "thought_variants": [
+      "Softness like that is never free. What do they actually want?",
+      "Too smooth. People don't talk like that unless they need something.",
+      "They're wrapping a demand in pretty words."
+    ],
+    "belief_variants": [
+      "The diplomacy is a tool — there's a demand underneath it.",
+      "They're trying to disarm me before they ask for something.",
+      "This politeness is engineered, not genuine."
+    ],
+    "match_weights": {
+      "language_art": {"diplomatic": 0.8, "empathetic": 0.4},
+      "npc_self_esteem": {"max": 0.45, "weight": 0.5},
+      "npc_locus_of_control": {"max": 0.45, "weight": 0.5},
+      "diplomacy_tone": {"min": 0.55, "weight": 0.6},
+      "player_relation": {"max": 0.4, "weight": 0.4}
+    }
+  },
+  {
+    "id": "hostile_neutral_read",
+    "bias_type": "hostile_attribution",
+    "thought_variants": [
+      "Blank face. That's not neutral — that's calculated.",
+      "Nothing in their eyes. That's usually bad.",
+      "They're giving me nothing. Why? What are they hiding?"
+    ],
+    "belief_variants": [
+      "The neutrality is deliberate — they're reading me, not trusting me.",
+      "They're withholding on purpose. This isn't openness.",
+      "The blankness is a tactic to make me fill the silence."
+    ],
+    "match_weights": {
+      "language_art": {"neutral": 0.7},
+      "npc_self_esteem": {"max": 0.4, "weight": 0.5},
+      "npc_locus_of_control": {"max": 0.45, "weight": 0.5},
+      "authority_tone": {"max": 0.4, "weight": 0.3},
+      "player_relation": {"max": 0.45, "weight": 0.4}
+    }
+  },
+  {
+    "id": "hostile_empathy_manipulation",
+    "bias_type": "hostile_attribution",
+    "thought_variants": [
+      "They're playing at empathy. Nobody comes here to feel things together.",
+      "Empathy first, ask later. That's the oldest trick there is.",
+      "They want me to drop my guard. Not happening."
+    ],
+    "belief_variants": [
+      "The emotional appeal is a lever. They're testing how far it gets them.",
+      "They're using shared pain as currency to buy my cooperation.",
+      "The empathy is real enough — but it's got a price tag."
+    ],
+    "match_weights": {
+      "language_art": {"empathetic": 0.8},
+      "npc_self_esteem": {"max": 0.4, "weight": 0.5},
+      "empathy_tone": {"min": 0.6, "weight": 0.5},
+      "manipulation_tone": {"min": 0.4, "weight": 0.5},
+      "player_relation": {"max": 0.4, "weight": 0.4}
+    }
+  },
+  {
+    "id": "hostile_assertion",
+    "bias_type": "hostile_attribution",
+    "thought_variants": [
+      "Whoever they are, they didn't come here to cooperate.",
+      "I've seen this kind before. They think they can take.",
+      "Everything about them reads as a threat."
+    ],
+    "belief_variants": [
+      "Their intention is to extract, not to share.",
+      "They're positioning themselves over me. That's not what allies do.",
+      "Whatever they say, the posture tells me the truth."
+    ],
+    "match_weights": {
+      "npc_self_esteem": {"max": 0.35, "weight": 0.6},
+      "npc_locus_of_control": {"max": 0.35, "weight": 0.6},
+      "authority_tone": {"min": 0.5, "weight": 0.5},
+      "manipulation_tone": {"min": 0.5, "weight": 0.5},
+      "player_relation": {"max": 0.35, "weight": 0.5}
+    }
+  },
+  {
+    "id": "optimist_open_hope",
+    "bias_type": "optimism_bias",
+    "thought_variants": [
+      "Maybe this one actually means it.",
+      "There's something genuine here. Or I want there to be.",
+      "I've been cynical long enough. This could be different."
+    ],
+    "belief_variants": [
+      "Their intention feels real — I'm willing to extend some good faith.",
+      "They seem genuinely invested in this, not just passing through.",
+      "I think they're telling the truth, or something close to it."
+    ],
+    "match_weights": {
+      "language_art": {"empathetic": 0.7, "diplomatic": 0.5},
+      "npc_cog_flexibility": {"min": 0.6, "weight": 0.6},
+      "empathy_tone": {"min": 0.5, "weight": 0.5},
+      "player_relation": {"min": 0.5, "weight": 0.5}
+    }
+  },
+  {
+    "id": "optimist_action_read",
+    "bias_type": "optimism_bias",
+    "thought_variants": [
+      "Bold, but bold people are the ones who actually do things.",
+      "They came here with purpose. That counts for something.",
+      "At least they're not hedging. I can work with directness."
+    ],
+    "belief_variants": [
+      "Their confidence suggests they've thought this through.",
+      "They're pushing because they believe in what they're saying.",
+      "The direct approach means they're willing to be held to their word."
+    ],
+    "match_weights": {
+      "language_art": {"challenge": 0.6, "neutral": 0.4},
+      "npc_cog_flexibility": {"min": 0.55, "weight": 0.5},
+      "npc_locus_of_control": {"min": 0.6, "weight": 0.5},
+      "authority_tone": {"min": 0.5, "weight": 0.4},
+      "player_relation": {"min": 0.4, "weight": 0.4}
+    }
+  },
+  {
+    "id": "optimist_reframes_soft",
+    "bias_type": "optimism_bias",
+    "thought_variants": [
+      "They're being careful with me. That's not weakness — that's respect.",
+      "Soft approach doesn't mean soft commitment.",
+      "They're choosing words that won't push me away. That's thoughtful."
+    ],
+    "belief_variants": [
+      "The diplomatic tone shows they actually care how I receive this.",
+      "They're trying to reach me, not bulldoze me. That means something.",
+      "They're calibrating their approach. That's not manipulation — that's care."
+    ],
+    "match_weights": {
+      "language_art": {"diplomatic": 0.7, "empathetic": 0.5},
+      "npc_cog_flexibility": {"min": 0.65, "weight": 0.6},
+      "npc_self_esteem": {"min": 0.5, "weight": 0.4},
+      "diplomacy_tone": {"min": 0.5, "weight": 0.4}
+    }
+  },
+  {
+    "id": "optimist_solidarity",
+    "bias_type": "optimism_bias",
+    "thought_variants": [
+      "If they're really fighting the same cause, we can't afford to be suspicious of each other.",
+      "Shared enemies make strange allies. But sometimes that's enough.",
+      "Maybe the movement needs people like this."
+    ],
+    "belief_variants": [
+      "They genuinely believe in what they're saying. The cause is real to them.",
+      "Whatever their flaws, their commitment seems authentic.",
+      "They're not here by accident — they came because they chose to."
+    ],
+    "match_weights": {
+      "language_art": {"empathetic": 0.6, "diplomatic": 0.4},
+      "npc_cog_flexibility": {"min": 0.5, "weight": 0.5},
+      "empathy_tone": {"min": 0.4, "weight": 0.4},
+      "diplomacy_tone": {"min": 0.4, "weight": 0.4},
+      "player_relation": {"min": 0.45, "weight": 0.4}
+    }
+  },
+  {
+    "id": "confirms_distrust",
+    "bias_type": "confirmation_bias",
+    "thought_variants": [
+      "There it is. Exactly what I expected.",
+      "I knew they'd push like this. They always do.",
+      "This just confirms what I already felt."
+    ],
+    "belief_variants": [
+      "Their behaviour matches what I suspected — they're not trustworthy.",
+      "The way they're approaching this proves my guard was right.",
+      "Everything I thought about them is playing out exactly."
+    ],
+    "match_weights": {
+      "player_relation": {"max": 0.35, "weight": 0.7},
+      "npc_locus_of_control": {"max": 0.45, "weight": 0.5},
+      "authority_tone": {"min": 0.5, "weight": 0.4},
+      "manipulation_tone": {"min": 0.4, "weight": 0.4}
+    }
+  },
+  {
+    "id": "confirms_ally",
+    "bias_type": "confirmation_bias",
+    "thought_variants": [
+      "This is why I thought we could work together.",
+      "They're showing up the way I hoped they would.",
+      "Knew it. They're solid."
+    ],
+    "belief_variants": [
+      "They're proving the trust I extended was warranted.",
+      "Their approach confirms they're on the right side of this.",
+      "I read them correctly — they're genuine."
+    ],
+    "match_weights": {
+      "player_relation": {"min": 0.6, "weight": 0.7},
+      "npc_cog_flexibility": {"min": 0.5, "weight": 0.4},
+      "empathy_tone": {"min": 0.45, "weight": 0.4},
+      "diplomacy_tone": {"min": 0.45, "weight": 0.3}
+    }
+  },
+  {
+    "id": "confirms_ideology",
+    "bias_type": "confirmation_bias",
+    "thought_variants": [
+      "They're thinking the same way I do. Can't fake that.",
+      "The framing gives them away — they see the world like I do.",
+      "Either they believe it or they've done their homework. Either works."
+    ],
+    "belief_variants": [
+      "Their worldview aligns with mine — the approach confirms it.",
+      "They're framing this through the same lens I use.",
+      "Their values and mine are close enough to matter."
+    ],
+    "match_weights": {
+      "language_art": {"diplomatic": 0.5, "empathetic": 0.4},
+      "npc_cog_flexibility": {"max": 0.55, "weight": 0.4},
+      "diplomacy_tone": {"min": 0.4, "weight": 0.4},
+      "player_relation": {"min": 0.4, "weight": 0.4}
+    }
+  },
+  {
+    "id": "confirms_threat",
+    "bias_type": "confirmation_bias",
+    "thought_variants": [
+      "Here we go. Every stranger becomes a problem eventually.",
+      "I knew something was off from the start.",
+      "Threat confirmed. Now I know how to handle this."
+    ],
+    "belief_variants": [
+      "Their approach confirms this situation is dangerous.",
+      "Everything about them says I was right to be on guard.",
+      "They're not hiding what they are — they're just hoping I won't see it."
+    ],
+    "match_weights": {
+      "npc_locus_of_control": {"max": 0.4, "weight": 0.6},
+      "npc_self_esteem": {"max": 0.45, "weight": 0.4},
+      "authority_tone": {"min": 0.55, "weight": 0.5},
+      "player_relation": {"max": 0.4, "weight": 0.4}
+    }
+  },
+  {
+    "id": "confirms_futility",
+    "bias_type": "confirmation_bias",
+    "thought_variants": [
+      "Same old approach. Never works.",
+      "They think this is new. I've seen it a hundred times.",
+      "Nothing ever changes — and this conversation won't either."
+    ],
+    "belief_variants": [
+      "They're following a script. One I already know the ending of.",
+      "This approach has never changed anything before. It won't now.",
+      "They mean well, probably. But it doesn't matter."
+    ],
+    "match_weights": {
+      "language_art": {"manipulative": 0.6, "challenge": 0.4},
+      "npc_cog_flexibility": {"max": 0.35, "weight": 0.6},
+      "npc_locus_of_control": {"max": 0.4, "weight": 0.4},
+      "manipulation_tone": {"min": 0.5, "weight": 0.5}
+    }
+  },
+  {
+    "id": "empathy_moved",
+    "bias_type": "empathy_resonance",
+    "thought_variants": [
+      "That lands. That actually lands.",
+      "I wasn't expecting to feel that.",
+      "Something about what they said cuts through."
+    ],
+    "belief_variants": [
+      "They understand something real about what this costs people.",
+      "The feeling behind what they said is genuine — I can feel it.",
+      "They're not performing empathy. They actually carry some of this weight."
+    ],
+    "match_weights": {
+      "language_art": {"empathetic": 0.9},
+      "npc_cog_flexibility": {"min": 0.5, "weight": 0.5},
+      "empathy_tone": {"min": 0.65, "weight": 0.7},
+      "player_relation": {"min": 0.35, "weight": 0.3}
+    }
+  },
+  {
+    "id": "empathy_sincere",
+    "bias_type": "empathy_resonance",
+    "thought_variants": [
+      "They're choosing words that mean something. That takes care.",
+      "That's not what someone says when they're lying. At least not usually.",
+      "There's something underneath what they're saying. Something real."
+    ],
+    "belief_variants": [
+      "Their sincerity seems genuine — the words and the feeling match.",
+      "They're not trying to impress me. They're trying to reach me.",
+      "This feels like an honest attempt to connect."
+    ],
+    "match_weights": {
+      "language_art": {"diplomatic": 0.6, "empathetic": 0.7},
+      "npc_cog_flexibility": {"min": 0.55, "weight": 0.5},
+      "empathy_tone": {"min": 0.5, "weight": 0.5},
+      "diplomacy_tone": {"min": 0.5, "weight": 0.4}
+    }
+  },
+  {
+    "id": "empathy_desperation",
+    "bias_type": "empathy_resonance",
+    "thought_variants": [
+      "They're not asking from strength. They're asking from need.",
+      "Whatever front they put up — there's something desperate underneath.",
+      "I know that feeling. The one they're barely hiding."
+    ],
+    "belief_variants": [
+      "They're in a difficult position and they know it. That makes this real.",
+      "Their urgency is genuine — this matters to them more than they're showing.",
+      "The desperation in how they're framing this tells me more than the words do."
+    ],
+    "match_weights": {
+      "language_art": {"challenge": 0.5, "empathetic": 0.6},
+      "empathy_tone": {"min": 0.5, "weight": 0.5},
+      "authority_tone": {"min": 0.5, "weight": 0.4},
+      "player_relation": {"max": 0.5, "weight": 0.3},
+      "npc_cog_flexibility": {"min": 0.5, "weight": 0.4}
+    }
+  },
+  {
+    "id": "empathy_overcomes",
+    "bias_type": "empathy_resonance",
+    "thought_variants": [
+      "I didn't expect that to get to me. But it did.",
+      "I was ready to dismiss them. Something stopped me.",
+      "Whatever I thought about them before — this is changing it."
+    ],
+    "belief_variants": [
+      "They reached past my defences with something I couldn't argue with.",
+      "Their appeal landed in a way that bypassed my usual filters.",
+      "Despite my instinct to resist, something in what they said got through."
+    ],
+    "match_weights": {
+      "language_art": {"empathetic": 0.8},
+      "empathy_tone": {"min": 0.6, "weight": 0.6},
+      "player_relation": {"max": 0.45, "weight": 0.5},
+      "npc_cog_flexibility": {"min": 0.55, "weight": 0.5}
+    }
+  },
+  {
+    "id": "cynical_wait",
+    "bias_type": "cynical_realism",
+    "thought_variants": [
+      "Let them talk. People reveal themselves eventually.",
+      "I'll hear them out. Nothing more yet.",
+      "Keep watching. Don't commit."
+    ],
+    "belief_variants": [
+      "Their intentions are unclear — I'm withholding judgment.",
+      "I don't have enough information yet to know what this is.",
+      "Whatever they want, they haven't shown it yet."
+    ],
+    "match_weights": {
+      "language_art": {"neutral": 0.6},
+      "npc_cog_flexibility": {"min": 0.4, "max": 0.65, "weight": 0.4},
+      "npc_self_esteem": {"min": 0.4, "max": 0.7, "weight": 0.3}
+    }
+  },
+  {
+    "id": "cynical_pragmatic",
+    "bias_type": "cynical_realism",
+    "thought_variants": [
+      "Nice words. What do they actually cost?",
+      "I'm not in this for speeches. What does this actually change?",
+      "The framing is good. Let's see if the substance holds up."
+    ],
+    "belief_variants": [
+      "They have a point, but I need to see what it costs before I commit.",
+      "The argument is reasonable — I'm just not convinced yet.",
+      "They're offering something real, probably. I need to think about what I give in return."
+    ],
+    "match_weights": {
+      "language_art": {"diplomatic": 0.6, "empathetic": 0.4},
+      "npc_cog_flexibility": {"min": 0.45, "weight": 0.4},
+      "diplomacy_tone": {"min": 0.4, "weight": 0.4},
+      "player_relation": {"min": 0.35, "max": 0.65, "weight": 0.3}
+    }
+  },
+  {
+    "id": "cynical_cost_read",
+    "bias_type": "cynical_realism",
+    "thought_variants": [
+      "Bold ask. What are they offering in return?",
+      "They want something. Fine. Let's see what's on the table.",
+      "Every ask has a price attached somewhere."
+    ],
+    "belief_variants": [
+      "Their approach is transactional — there's a trade here if I look for it.",
+      "They're direct enough. But I need to know what this costs before I agree.",
+      "Whatever they're pushing for, they've decided it's worth the risk. That tells me something."
+    ],
+    "match_weights": {
+      "language_art": {"challenge": 0.6, "manipulative": 0.4},
+      "authority_tone": {"min": 0.45, "weight": 0.5},
+      "npc_cog_flexibility": {"min": 0.4, "weight": 0.3},
+      "player_relation": {"min": 0.35, "weight": 0.3}
+    }
+  },
+  {
+    "id": "cynical_pattern",
+    "bias_type": "cynical_realism",
+    "thought_variants": [
+      "I've seen this play before. Doesn't mean it's wrong — just not new.",
+      "Classic approach. Whether it means anything depends on the follow-through.",
+      "Standard line. Let's see if there's anything behind it."
+    ],
+    "belief_variants": [
+      "Their approach follows a familiar pattern. Doesn't tell me much about their actual intent.",
+      "I know this script. It can be genuine or not — I can't tell yet.",
+      "They're doing what people do when they want something. Usual tells, no clear signal."
+    ],
+    "match_weights": {
+      "language_art": {"manipulative": 0.5, "diplomatic": 0.4},
+      "npc_cog_flexibility": {"max": 0.55, "weight": 0.4},
+      "manipulation_tone": {"min": 0.4, "weight": 0.4},
+      "player_relation": {"min": 0.3, "max": 0.6, "weight": 0.3}
+    }
+  },
+  {
+    "id": "ideology_validates",
+    "bias_type": "ideological_filter",
+    "thought_variants": [
+      "They see the world the way it actually is.",
+      "Finally — someone who understands what we're actually up against.",
+      "The framing is right. That's not nothing."
+    ],
+    "belief_variants": [
+      "They're coming from the right place ideologically — this can work.",
+      "Their understanding of the situation aligns with mine.",
+      "They see the same fault lines I do. That's a good foundation."
+    ],
+    "match_weights": {
+      "language_art": {"diplomatic": 0.5, "empathetic": 0.5},
+      "npc_cog_flexibility": {"max": 0.55, "weight": 0.4},
+      "empathy_tone": {"min": 0.4, "weight": 0.3},
+      "diplomacy_tone": {"min": 0.4, "weight": 0.3},
+      "player_relation": {"min": 0.45, "weight": 0.4}
+    }
+  },
+  {
+    "id": "ideology_challenges",
+    "bias_type": "ideological_filter",
+    "thought_variants": [
+      "They're framing this wrong. The whole premise is off.",
+      "I can hear where they're coming from — and it's not where I am.",
+      "They think they're on the right side. I'm not sure they've thought about it properly."
+    ],
+    "belief_variants": [
+      "Their framing is ideologically misaligned — they're not seeing what I see.",
+      "Whatever their intentions, they're working from a different set of assumptions.",
+      "The way they're framing this tells me they haven't fully reckoned with what this costs."
+    ],
+    "match_weights": {
+      "language_art": {"challenge": 0.6, "neutral": 0.4},
+      "npc_cog_flexibility": {"max": 0.5, "weight": 0.5},
+      "authority_tone": {"min": 0.5, "weight": 0.4},
+      "player_relation": {"max": 0.5, "weight": 0.4}
+    }
+  },
+  {
+    "id": "ideology_tests",
+    "bias_type": "ideological_filter",
+    "thought_variants": [
+      "Let me see if they hold up under a real question.",
+      "Words are easy. Let's see how they handle the hard version.",
+      "I need to know if they actually believe this or if they just know what to say."
+    ],
+    "belief_variants": [
+      "They understand the surface of this — I need to know if they understand the depth.",
+      "They're saying the right things. I need to test whether they mean them.",
+      "The pitch is solid. The real question is whether they'd still be here when it got harder."
+    ],
+    "match_weights": {
+      "language_art": {"empathetic": 0.5, "diplomatic": 0.5},
+      "npc_cog_flexibility": {"max": 0.6, "weight": 0.4},
+      "npc_self_esteem": {"min": 0.5, "weight": 0.4},
+      "player_relation": {"min": 0.35, "max": 0.65, "weight": 0.3}
+    }
+  },
+  {
+    "id": "ideology_suspects",
+    "bias_type": "ideological_filter",
+    "thought_variants": [
+      "Too smooth to be genuine. Someone trained them to say this.",
+      "People who are really with us don't have to sell it this hard.",
+      "This feels scripted. The words are right but the conviction isn't."
+    ],
+    "belief_variants": [
+      "They know the right language but I'm not sure they actually believe it.",
+      "Their framing is practiced — they've said this before, to others.",
+      "Something about the delivery makes me doubt the commitment."
+    ],
+    "match_weights": {
+      "language_art": {"manipulative": 0.7, "diplomatic": 0.4},
+      "npc_cog_flexibility": {"max": 0.5, "weight": 0.4},
+      "manipulation_tone": {"min": 0.5, "weight": 0.6},
+      "player_relation": {"max": 0.45, "weight": 0.4}
+    }
+  },
+  {
+    "id": "self_ref_sacrifice",
+    "bias_type": "self_referential",
+    "thought_variants": [
+      "Everything I've done — and now they want more.",
+      "I gave up everything for this. Does that count for nothing?",
+      "They're asking from someone who already has nothing left to give."
+    ],
+    "belief_variants": [
+      "Their request is framed without any acknowledgement of what I've already sacrificed.",
+      "They're treating me as a means, not as someone who's been through the same fire.",
+      "They want something from me without seeing what it cost to still be here."
+    ],
+    "match_weights": {
+      "language_art": {"challenge": 0.6, "empathetic": 0.4},
+      "npc_self_esteem": {"min": 0.55, "weight": 0.5},
+      "npc_locus_of_control": {"min": 0.5, "weight": 0.4},
+      "authority_tone": {"min": 0.5, "weight": 0.4}
+    }
+  },
+  {
+    "id": "self_ref_attack",
+    "bias_type": "self_referential",
+    "thought_variants": [
+      "Is this about me? Is this what they think of me?",
+      "They're not just asking — they're judging.",
+      "Every word they say is landing somewhere personal."
+    ],
+    "belief_variants": [
+      "Their approach feels like a commentary on who I am, not just what I can do.",
+      "The way they're framing this implies something about my worth.",
+      "They might not mean it personally — but it lands personally."
+    ],
+    "match_weights": {
+      "npc_self_esteem": {"max": 0.4, "weight": 0.7},
+      "authority_tone": {"min": 0.5, "weight": 0.5},
+      "manipulation_tone": {"min": 0.4, "weight": 0.4},
+      "player_relation": {"max": 0.5, "weight": 0.3}
+    }
+  },
+  {
+    "id": "self_ref_standing",
+    "bias_type": "self_referential",
+    "thought_variants": [
+      "What does this say about my position here?",
+      "How they treat me right now is how they'll treat me later.",
+      "I'm measuring everything they say against what I am here."
+    ],
+    "belief_variants": [
+      "Their approach tells me what they think my role is in this.",
+      "The way they're coming at me is a statement about the hierarchy they expect.",
+      "This conversation is as much about status as it is about substance."
+    ],
+    "match_weights": {
+      "language_art": {"challenge": 0.6, "manipulative": 0.4},
+      "npc_self_esteem": {"min": 0.5, "weight": 0.5},
+      "npc_locus_of_control": {"min": 0.55, "weight": 0.4},
+      "authority_tone": {"min": 0.5, "weight": 0.5}
+    }
+  },
+  {
+    "id": "self_ref_validation",
+    "bias_type": "self_referential",
+    "thought_variants": [
+      "They came to me. That means something.",
+      "They're asking me specifically. Not anyone else.",
+      "There's a reason they're standing at my door."
+    ],
+    "belief_variants": [
+      "Their choice to approach me is itself a signal of recognition.",
+      "They need something that only I can give. That's meaningful.",
+      "They see something in me that made me the right person to ask."
+    ],
+    "match_weights": {
+      "language_art": {"diplomatic": 0.5, "empathetic": 0.6},
+      "npc_self_esteem": {"min": 0.55, "weight": 0.5},
+      "empathy_tone": {"min": 0.45, "weight": 0.4},
+      "player_relation": {"min": 0.4, "weight": 0.4}
+    }
+  },
+  {
+    "id": "projects_fear",
+    "bias_type": "projection",
+    "thought_variants": [
+      "They're scared. I can see it even if they won't say it.",
+      "There's something they're not saying — because it terrifies them.",
+      "Whatever bravado this is, there's fear underneath."
+    ],
+    "belief_variants": [
+      "They're projecting calm but they're running on anxiety.",
+      "Their urgency tells me they're afraid of what happens if this fails.",
+      "They're as scared as I am. They're just hiding it better."
+    ],
+    "match_weights": {
+      "language_art": {"challenge": 0.5, "empathetic": 0.4},
+      "npc_locus_of_control": {"max": 0.5, "weight": 0.5},
+      "authority_tone": {"min": 0.4, "weight": 0.4},
+      "player_relation": {"max": 0.55, "weight": 0.3}
+    }
+  },
+  {
+    "id": "projects_ambition",
+    "bias_type": "projection",
+    "thought_variants": [
+      "They want something bigger than they're admitting.",
+      "This ask is just the first one. There'll be more.",
+      "People don't come here for small things. They want something real."
+    ],
+    "belief_variants": [
+      "Their goal is larger than what they're stating — this is a foot in the door.",
+      "They're ambitious. This conversation is part of a longer plan.",
+      "Whatever they're asking for now, it's not the end of what they want."
+    ],
+    "match_weights": {
+      "language_art": {"challenge": 0.6, "manipulative": 0.5},
+      "npc_locus_of_control": {"min": 0.55, "weight": 0.5},
+      "authority_tone": {"min": 0.5, "weight": 0.4},
+      "manipulation_tone": {"min": 0.4, "weight": 0.4}
+    }
+  },
+  {
+    "id": "projects_doubt",
+    "bias_type": "projection",
+    "thought_variants": [
+      "They're not sure about this either. I can tell.",
+      "Whatever confidence they're showing — they have doubts they're not voicing.",
+      "They came here uncertain and they're hoping I make them more certain."
+    ],
+    "belief_variants": [
+      "They're second-guessing themselves even as they make the ask.",
+      "The hesitation is there if you know where to look.",
+      "Their conviction isn't as solid as they're presenting it."
+    ],
+    "match_weights": {
+      "language_art": {"diplomatic": 0.5, "neutral": 0.4},
+      "npc_self_esteem": {"max": 0.5, "weight": 0.5},
+      "diplomacy_tone": {"min": 0.4, "weight": 0.4},
+      "player_relation": {"min": 0.35, "max": 0.6, "weight": 0.3}
+    }
+  },
+  {
+    "id": "ingroup_tests",
+    "bias_type": "in_group_bias",
+    "thought_variants": [
+      "Let's see if they actually know what we know.",
+      "Anyone can say the right things. Do they understand them?",
+      "I need to know if they're one of ours or just passing through."
+    ],
+    "belief_variants": [
+      "They're claiming allegiance — I need to verify that before I act on it.",
+      "The surface seems right. I'm checking for the depth.",
+      "They could be genuine. They could be a test sent by someone else."
+    ],
+    "match_weights": {
+      "language_art": {"empathetic": 0.5, "diplomatic": 0.5},
+      "npc_cog_flexibility": {"max": 0.55, "weight": 0.4},
+      "npc_self_esteem": {"min": 0.45, "weight": 0.3},
+      "player_relation": {"min": 0.3, "max": 0.6, "weight": 0.4}
+    }
+  },
+  {
+    "id": "ingroup_outsider",
+    "bias_type": "in_group_bias",
+    "thought_variants": [
+      "They're not from here. The way they carry themselves gives it away.",
+      "Outside energy in a place that doesn't need any more complications.",
+      "I don't know them. And not knowing is the problem."
+    ],
+    "belief_variants": [
+      "They're an outsider — their motivations aren't aligned with ours by default.",
+      "Whatever they want, they don't have the same skin in this that we do.",
+      "They haven't earned the kind of trust this conversation assumes."
+    ],
+    "match_weights": {
+      "language_art": {"challenge": 0.6, "neutral": 0.4},
+      "npc_cog_flexibility": {"max": 0.5, "weight": 0.5},
+      "player_relation": {"max": 0.4, "weight": 0.6},
+      "authority_tone": {"min": 0.4, "weight": 0.3}
+    }
+  },
+  {
+    "id": "ingroup_solidarity",
+    "bias_type": "in_group_bias",
+    "thought_variants": [
+      "They're with us. You can feel when someone actually is.",
+      "Whatever their background — they're here. That's what matters.",
+      "One of ours. Finally."
+    ],
+    "belief_variants": [
+      "Their loyalty seems genuine — they're not performing this.",
+      "They're in this with us, not just adjacent to it.",
+      "They chose this side. That has weight."
+    ],
+    "match_weights": {
+      "language_art": {"empathetic": 0.7, "diplomatic": 0.4},
+      "player_relation": {"min": 0.6, "weight": 0.6},
+      "empathy_tone": {"min": 0.45, "weight": 0.4},
+      "npc_cog_flexibility": {"min": 0.45, "weight": 0.3}
+    }
+  },
+  {
+    "id": "bw_us_or_them",
+    "bias_type": "black_white_thinking",
+    "thought_variants": [
+      "There's no middle ground here. Never was.",
+      "Either they're with us or they're not. Simple.",
+      "I stopped pretending there's a third option a long time ago."
+    ],
+    "belief_variants": [
+      "Their position is either aligned with ours or it's opposed. No grey area.",
+      "I need to know which side of this they're on before I say another word.",
+      "The situation doesn't have room for ambiguity right now."
+    ],
+    "match_weights": {
+      "language_art": {"challenge": 0.7, "manipulative": 0.4},
+      "npc_cog_flexibility": {"max": 0.35, "weight": 0.7},
+      "authority_tone": {"min": 0.5, "weight": 0.5},
+      "player_relation": {"max": 0.6, "weight": 0.3}
+    }
+  },
+  {
+    "id": "bw_now_or_never",
+    "bias_type": "black_white_thinking",
+    "thought_variants": [
+      "This moment decides things. That's just the truth.",
+      "We're past the point where indecision is a safe choice.",
+      "There's no coming back from this conversation with nothing."
+    ],
+    "belief_variants": [
+      "The stakes here are absolute — this isn't a place for hedging.",
+      "They either commit now or the answer is no. Permanently.",
+      "This is a threshold moment. How they handle it tells me everything."
+    ],
+    "match_weights": {
+      "language_art": {"challenge": 0.6, "neutral": 0.4},
+      "npc_cog_flexibility": {"max": 0.4, "weight": 0.6},
+      "npc_locus_of_control": {"max": 0.45, "weight": 0.5},
+      "authority_tone": {"min": 0.5, "weight": 0.4}
+    }
+  },
+  {
+    "id": "scarcity_hoards_trust",
+    "bias_type": "scarcity_mindset",
+    "thought_variants": [
+      "Trust is the one thing I can't afford to lose.",
+      "I don't have much left — and they're asking for the most valuable part.",
+      "Every piece of trust I give away is a piece I can't get back."
+    ],
+    "belief_variants": [
+      "Whatever they're offering, the cost is trust I can't spare.",
+      "They're asking me to risk something I have very little of.",
+      "The exchange they're proposing is asymmetric — they get more than I do."
+    ],
+    "match_weights": {
+      "language_art": {"diplomatic": 0.5, "empathetic": 0.4},
+      "npc_self_esteem": {"max": 0.5, "weight": 0.5},
+      "npc_locus_of_control": {"max": 0.45, "weight": 0.5},
+      "player_relation": {"max": 0.5, "weight": 0.5}
+    }
+  },
+  {
+    "id": "scarcity_bargaining",
+    "bias_type": "scarcity_mindset",
+    "thought_variants": [
+      "What do I get out of this?",
+      "Everything here runs on trade. So what are they trading?",
+      "I can work with almost anyone — if the terms are right."
+    ],
+    "belief_variants": [
+      "Their request has value to them — which means it has leverage for me.",
+      "They want something. That puts me in a position to negotiate.",
+      "Nothing gets given away for free here. There's a deal in this somewhere."
+    ],
+    "match_weights": {
+      "language_art": {"manipulative": 0.6, "challenge": 0.5},
+      "manipulation_tone": {"min": 0.45, "weight": 0.6},
+      "authority_tone": {"min": 0.4, "weight": 0.4},
+      "npc_locus_of_control": {"max": 0.5, "weight": 0.3}
+    }
+  }
+]

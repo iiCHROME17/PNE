@@ -80,7 +80,7 @@ def _valence_note(v: float) -> str:
 class OllamaResponseGenerator:
     """Generates NPC dialogue responses using Ollama"""
 
-    def __init__(self, base_url: str = "http://localhost:11434", model: str = "llama3"):
+    def __init__(self, base_url: str = "http://localhost:11434", model: str = "llama3.2:1b"):
         self.base_url = base_url
         self.model = model
         self.api_url = f"{base_url}/api/generate"
@@ -326,7 +326,7 @@ class OllamaResponseGenerator:
 
         return "\n".join(parts)
 
-    def generate_response_with_direction(
+    def _build_prompt_with_direction(
         self,
         npc,
         thought: dict,
@@ -337,13 +337,7 @@ class OllamaResponseGenerator:
         check_success: bool = None,
         dice_description: str = "",
     ) -> str:
-        """
-        Generate NPC dialogue using BDI context dicts + the scenario node's
-        npc_dialogue_prompt as an explicit scene direction.
-
-        Called by the narrative engine after the BDI pipeline runs without Ollama,
-        so we control the full prompt rather than letting the BDI generate it blindly.
-        """
+        """Build the Ollama prompt for a mid-turn NPC response."""
         def _get(obj, *attrs, default=""):
             try:
                 for attr in attrs:
@@ -386,14 +380,11 @@ class OllamaResponseGenerator:
         parts.append(f"Emotional reaction this turn: {emotional_valence:+.2f}  ({_valence_note(emotional_valence)})")
         parts.append("")
 
-        # Scene direction (from node's npc_dialogue_prompt) — general stance context
         if scene_direction:
             parts.append("## SCENE DIRECTION")
             parts.append(scene_direction)
             parts.append("")
 
-        # Dice context — placed AFTER scene direction so the LLM prioritises it.
-        # When dice were rolled, this section overrides the general scene stance.
         if check_success is not None and dice_description:
             parts.append("## DICE CONTEXT — OVERRIDES SCENE DIRECTION ABOVE")
             if check_success:
@@ -410,7 +401,6 @@ class OllamaResponseGenerator:
                 )
             parts.append("")
 
-        # Response range calibration
         min_r = max_r = ""
         if interaction_outcome is not None:
             if isinstance(interaction_outcome, dict):
@@ -427,7 +417,6 @@ class OllamaResponseGenerator:
                 parts.append(f'Positive end:  "{max_r}"')
             parts.append("")
 
-        # Recent conversation
         recent = history[-6:] if len(history) > 6 else history
         if recent:
             parts.append("## RECENT CONVERSATION")
@@ -441,8 +430,39 @@ class OllamaResponseGenerator:
             "Respond directly to what was just said. Under 40 words."
         )
 
-        prompt = "\n".join(parts)
+        return "\n".join(parts)
+
+    def generate_response_with_direction(
+        self,
+        npc,
+        thought: dict,
+        intention: dict,
+        interaction_outcome,
+        history: list,
+        scene_direction: str = "",
+        check_success: bool = None,
+        dice_description: str = "",
+    ) -> str:
+        """
+        Generate NPC dialogue using BDI context dicts + the scenario node's
+        npc_dialogue_prompt as an explicit scene direction.
+
+        Called by the narrative engine after the BDI pipeline runs without Ollama,
+        so we control the full prompt rather than letting the BDI generate it blindly.
+        """
+        prompt = self._build_prompt_with_direction(
+            npc, thought, intention, interaction_outcome, history,
+            scene_direction, check_success, dice_description,
+        )
         options = self._build_ollama_options(npc)
+
+        # Fallback text from calibration range
+        min_r = ""
+        if interaction_outcome is not None:
+            if isinstance(interaction_outcome, dict):
+                min_r = interaction_outcome.get("min_response", "")
+            else:
+                min_r = getattr(interaction_outcome, "min_response", "")
 
         try:
             print(f"  → Connecting to Ollama at {self.base_url}...")
@@ -464,8 +484,73 @@ class OllamaResponseGenerator:
         except Exception as e:
             print(f"[Ollama Error: {str(e)}]")
 
-        # Fallback to calibration range or empty
-        return min_r or max_r or ""
+        return min_r or ""
+
+    def generate_response_with_direction_streaming(
+        self,
+        npc,
+        thought: dict,
+        intention: dict,
+        interaction_outcome,
+        history: list,
+        scene_direction: str = "",
+        check_success: bool = None,
+        dice_description: str = "",
+    ):
+        """
+        Streaming version of generate_response_with_direction.
+        Yields token strings as Ollama produces them.
+        Falls back to yielding the calibration min_response on error.
+        """
+        from typing import Generator
+        prompt = self._build_prompt_with_direction(
+            npc, thought, intention, interaction_outcome, history,
+            scene_direction, check_success, dice_description,
+        )
+        options = self._build_ollama_options(npc)
+
+        min_r = ""
+        if interaction_outcome is not None:
+            if isinstance(interaction_outcome, dict):
+                min_r = interaction_outcome.get("min_response", "")
+            else:
+                min_r = getattr(interaction_outcome, "min_response", "")
+
+        try:
+            import json as _json
+            response = requests.post(
+                self.api_url,
+                json={
+                    "model": self.model,
+                    "prompt": prompt,
+                    "stream": True,
+                    "options": options,
+                },
+                stream=True,
+                timeout=60,
+            )
+            if response.status_code == 200:
+                for line in response.iter_lines():
+                    if not line:
+                        continue
+                    try:
+                        chunk = _json.loads(line)
+                    except Exception:
+                        continue
+                    token = chunk.get("response", "")
+                    if token:
+                        yield token
+                    if chunk.get("done"):
+                        break
+                return
+        except Exception as e:
+            print(f"[Ollama Streaming Error: {str(e)}]")
+
+        # Fallback: yield the calibration text word by word
+        fallback = min_r or ""
+        if fallback:
+            for word in fallback.split():
+                yield word + " "
 
     def generate_terminal(
         self,
@@ -524,3 +609,62 @@ class OllamaResponseGenerator:
             print(f"[Ollama Terminal Error: {str(e)}]")
 
         return ""
+
+    def generate_terminal_streaming(self, npc, terminal_prompt: str, history: List[dict]):
+        """
+        Streaming version of generate_terminal.
+        Yields token strings as Ollama produces them.
+        """
+        name = getattr(npc, "name", "NPC")
+        recent = history[-4:] if len(history) > 4 else history
+        history_lines = "\n".join(
+            f"{e['speaker']}: {e['text']}" for e in recent
+        )
+
+        relation = 0.5
+        try:
+            relation = float(npc.world.player_relation)
+        except Exception:
+            pass
+
+        prompt = (
+            f"You are {name}.\n"
+            f"Your current disposition toward this person: {_relation_note(relation)}\n\n"
+            f"RECENT CONVERSATION:\n{history_lines}\n\n"
+            f"INSTRUCTION: {terminal_prompt}\n\n"
+            f"Generate ONE final line of dialogue as {name}. "
+            "Stay in character. Do NOT describe actions in brackets. Under 30 words."
+        )
+
+        options = self._build_ollama_options(npc)
+        options["num_predict"] = 60
+
+        try:
+            import json as _json
+            response = requests.post(
+                self.api_url,
+                json={
+                    "model": self.model,
+                    "prompt": prompt,
+                    "stream": True,
+                    "options": options,
+                },
+                stream=True,
+                timeout=60,
+            )
+            if response.status_code == 200:
+                for line in response.iter_lines():
+                    if not line:
+                        continue
+                    try:
+                        chunk = _json.loads(line)
+                    except Exception:
+                        continue
+                    token = chunk.get("response", "")
+                    if token:
+                        yield token
+                    if chunk.get("done"):
+                        break
+                return
+        except Exception as e:
+            print(f"[Ollama Terminal Streaming Error: {str(e)}]")

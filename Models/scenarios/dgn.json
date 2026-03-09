@@ -1,7 +1,7 @@
 {
   "id": "door_guard_night",
   "title": "The Door Guard — Night Approach",
-  "opening": "The alley is dark. {{NPC_NAME}} leans against the reinforced door, one hand resting on a weapon. They clock you the moment you round the corner.\n\n{{NPC_NAME}}: Don't move. State your business.",
+  "opening": "Don't move. State your business.",
 
   "conversation_config": {
     "max_turns": 6,

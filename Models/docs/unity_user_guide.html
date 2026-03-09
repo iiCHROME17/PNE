@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PNE API — Unity Integration Guide</title>
+
+  <!-- Syntax highlighting -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/csharp.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+
+  <style>
+    /* ── Variables ─────────────────────────────────────────────────────── */
+    :root {
+      --sidebar-width: clamp(13rem, 26vw, 21rem);
+      --accent-bg:     #eef0f2;
+      --accent-border: #c8cdd2;
+      --link:          #3660a5;
+      --link-hover:    #1a4d9e;
+      --code-bg:       #f6f8fa;
+      --text:          #1c2024;
+      --muted:         #6c757d;
+      --tip-bg:        #e8f5e9;
+      --tip-border:    #66bb6a;
+      --note-bg:       #e3f2fd;
+      --note-border:   #42a5f5;
+      --tag-succeed:   #2e7d32;
+      --tag-fail:      #c62828;
+      --tag-negotiate: #1565c0;
+      --tag-other:     #6a1599;
+    }
+
+    /* ── Reset & base ──────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 1rem;
+      line-height: 1.6;
+      color: var(--text);
+      background: #fff;
+    }
+
+    /* ── Sidebar ───────────────────────────────────────────────────────── */
+    nav {
+      position: fixed;
+      top: 0; left: 0;
+      width: var(--sidebar-width);
+      height: 100vh;
+      overflow-y: auto;
+      background: var(--accent-bg);
+      border-right: 1px solid var(--accent-border);
+      padding: 1.5rem 1rem 2rem 1.5rem;
+      scrollbar-width: thin;
+      scrollbar-color: var(--accent-border) transparent;
+    }
+    nav .brand {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 0.25rem;
+    }
+    nav h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 0 0 1rem;
+      color: var(--text);
+    }
+    nav ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    nav ul li { line-height: 1.3; }
+    nav ul li a {
+      display: block;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.875rem;
+      transition: background 80ms;
+    }
+    nav ul li a:hover { background: rgba(0,0,0,0.07); color: var(--link); }
+    nav ul li.sub a { padding-left: 1.2rem; color: var(--muted); font-size: 0.825rem; }
+    nav ul li.sub a:hover { color: var(--link); }
+    nav hr { border: none; border-top: 1px solid var(--accent-border); margin: 0.75rem 0; }
+    nav footer {
+      margin-top: 2rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    nav footer a { color: var(--muted); }
+
+    /* ── Main content ──────────────────────────────────────────────────── */
+    main {
+      margin-left: var(--sidebar-width);
+      padding: 3rem 3rem 4rem calc(3rem + 0.5vw);
+      max-width: calc(var(--sidebar-width) + 56rem);
+    }
+
+    /* ── Typography ────────────────────────────────────────────────────── */
+    h1 { font-size: 2rem; font-weight: 300; margin: 0 0 0.25rem; }
+    h1 .subtitle { font-size: 1rem; font-weight: 400; color: var(--muted); }
+    h2 { font-size: 1.45rem; font-weight: 500; margin: 2.5rem 0 0.6rem; border-bottom: 1px solid var(--accent-border); padding-bottom: 0.3rem; }
+    h3 { font-size: 1.1rem; font-weight: 600; margin: 1.75rem 0 0.5rem; }
+    h4 { font-size: 1rem; font-weight: 600; margin: 1.25rem 0 0.4rem; color: var(--muted); }
+    p  { margin: 0 0 1rem; }
+    a  { color: var(--link); text-decoration: none; }
+    a:hover { color: var(--link-hover); text-decoration: underline; }
+    strong { font-weight: 600; }
+
+    /* ── Inline code ───────────────────────────────────────────────────── */
+    code {
+      font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 0.85em;
+      background: var(--accent-bg);
+      border: 1px solid var(--accent-border);
+      border-radius: 4px;
+      padding: 0.1em 0.35em;
+      color: #c7254e;
+    }
+
+    /* ── Code blocks ───────────────────────────────────────────────────── */
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--accent-border);
+      border-radius: 6px;
+      padding: 1rem 1.1rem;
+      overflow-x: auto;
+      margin: 0 0 1.25rem;
+      font-size: 0.875rem;
+      line-height: 1.5;
+    }
+    pre code {
+      background: none;
+      border: none;
+      padding: 0;
+      color: inherit;
+      font-size: inherit;
+      border-radius: 0;
+    }
+    /* Language label */
+    .code-wrap { position: relative; margin-bottom: 1.25rem; }
+    .code-wrap pre { margin-bottom: 0; }
+    .code-lang {
+      position: absolute;
+      top: 0.4rem; right: 0.6rem;
+      font-size: 0.7rem;
+      font-family: ui-monospace, monospace;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      pointer-events: none;
+    }
+
+    /* Diagram / plain code block */
+    pre.diagram {
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 0.82rem;
+      line-height: 1.45;
+      background: #1e2329;
+      color: #cdd9e5;
+      border-color: #2d333b;
+    }
+
+    /* ── Tables ────────────────────────────────────────────────────────── */
+    table { border-collapse: collapse; width: 100%; margin-bottom: 1.25rem; font-size: 0.9rem; }
+    th, td { padding: 0.5rem 0.75rem; border: 1px solid var(--accent-border); text-align: left; vertical-align: top; }
+    th { background: var(--accent-bg); font-weight: 600; }
+    tr:nth-child(even) td { background: #fafbfc; }
+
+    /* ── Callouts ──────────────────────────────────────────────────────── */
+    .callout {
+      border-left: 4px solid var(--tip-border);
+      background: var(--tip-bg);
+      padding: 0.75rem 1rem;
+      border-radius: 0 6px 6px 0;
+      margin-bottom: 1.25rem;
+      font-size: 0.9rem;
+    }
+    .callout.note { border-color: var(--note-border); background: var(--note-bg); }
+    .callout p:last-child { margin-bottom: 0; }
+
+    /* ── Tag badges (terminal IDs) ─────────────────────────────────────── */
+    .tag {
+      display: inline-block;
+      font-family: ui-monospace, monospace;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.15em 0.5em;
+      border-radius: 3px;
+      color: #fff;
+      margin: 0 0.15rem;
+      vertical-align: middle;
+    }
+    .tag-succeed    { background: var(--tag-succeed); }
+    .tag-fail       { background: var(--tag-fail); }
+    .tag-negotiate  { background: var(--tag-negotiate); }
+    .tag-other      { background: var(--tag-other); }
+
+    /* ── Sequence diagram box ──────────────────────────────────────────── */
+    .seq { margin-bottom: 1.25rem; }
+
+    /* ── Lists ─────────────────────────────────────────────────────────── */
+    ul, ol { padding-left: 1.5rem; margin: 0 0 1rem; }
+    li { margin-bottom: 0.2rem; }
+
+    /* ── Section divider ───────────────────────────────────────────────── */
+    hr.section { border: none; border-top: 1px solid var(--accent-border); margin: 2rem 0; }
+
+    /* ── Responsive ────────────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      nav { display: none; }
+      main { margin-left: 0; padding: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ SIDEBAR ══════════════════════════════════════════════════════════════ -->
+<nav>
+  <div class="brand">PNE Docs</div>
+  <h2>Unity Integration</h2>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#prerequisites">Prerequisites</a></li>
+    <li><a href="#starting-server">Starting the Server</a></li>
+    <li><a href="#project-setup">Unity Project Setup</a>
+      <ul>
+        <li class="sub"><a href="#install-packages">Install Packages</a></li>
+        <li class="sub"><a href="#copy-files">Copy C# Files</a></li>
+        <li class="sub"><a href="#webgl">WebGL / Standalone</a></li>
+      </ul>
+    </li>
+    <li><a href="#scene-setup">Setting Up the Scene</a>
+      <ul>
+        <li class="sub"><a href="#scene-structure">Scene Structure</a></li>
+        <li class="sub"><a href="#inspector-client">Configure PNEClient</a></li>
+        <li class="sub"><a href="#inspector-ui">Configure PNEDialogueUI</a></li>
+      </ul>
+    </li>
+    <li><a href="#client-reference">PNEClient Reference</a>
+      <ul>
+        <li class="sub"><a href="#events">Events</a></li>
+        <li class="sub"><a href="#methods">Methods</a></li>
+        <li class="sub"><a href="#properties">Properties</a></li>
+      </ul>
+    </li>
+    <li><a href="#ws-messages">WebSocket Messages</a>
+      <ul>
+        <li class="sub"><a href="#msg-player-choice">player_choice</a></li>
+        <li class="sub"><a href="#msg-token">token</a></li>
+        <li class="sub"><a href="#msg-turn-result">turn_result</a></li>
+        <li class="sub"><a href="#msg-choices">choices</a></li>
+        <li class="sub"><a href="#msg-terminal">terminal</a></li>
+        <li class="sub"><a href="#msg-error">error</a></li>
+      </ul>
+    </li>
+    <li><a href="#rest-reference">REST Reference</a></li>
+    <li><a href="#skills-difficulty">Skills &amp; Difficulty</a></li>
+    <li><a href="#ui-patterns">Common UI Patterns</a>
+      <ul>
+        <li class="sub"><a href="#ui-patterns">Streaming text</a></li>
+        <li class="sub"><a href="#gotchas">Arcade / dice mode</a></li>
+      </ul>
+    </li>
+    <li><a href="#gotchas">Tips &amp; Gotchas</a></li>
+    <li><a href="#troubleshooting">Troubleshooting</a></li>
+  </ul>
+  <hr />
+  <ul>
+    <li><a href="index.html">← Module Docs</a></li>
+  </ul>
+  <footer>PNE API v1.0</footer>
+</nav>
+
+<!-- ══ MAIN CONTENT ═════════════════════════════════════════════════════════ -->
+<main>
+
+  <h1>
+    PNE API — Unity Integration Guide
+    <br /><span class="subtitle">Connect Godot's rival to the Psychological Narrative Engine</span>
+  </h1>
+  <p style="color:var(--muted); font-size:0.875rem;">
+    Companion files: <code>docs/unity/PNETypes.cs</code> &nbsp;·&nbsp;
+    <code>docs/unity/PNEClient.cs</code> &nbsp;·&nbsp;
+    <code>docs/unity/PNEDialogueUI.cs</code>
+  </p>
+
+  <!-- ── Overview ──────────────────────────────────────────────────────── -->
+  <h2 id="overview">Overview</h2>
+  <p>
+    The Psychological Narrative Engine (PNE) runs as a local HTTP + WebSocket server.
+    Unity connects to it to drive BDI-powered NPC conversations:
+  </p>
+  <ul>
+    <li><strong>Session management</strong> via REST — create sessions, list NPCs and scenarios.</li>
+    <li><strong>Turn gameplay</strong> via WebSocket — send player choices, receive streaming NPC dialogue and full BDI state.</li>
+  </ul>
+
+  <p>A single conversation turn flows like this:</p>
+  <div class="seq">
+    <pre class="diagram">Unity                             PNE Server
+  │── POST /sessions ──────────►  load NPCs + scenario, create session
+  │◄── { session_id, choices } ─  opening choice list returned
+  │
+  │══ WS /sessions/{id}/play ══►  WebSocket connection opened
+  │── { "choice_index": 2 } ────►  player picks choice 2
+  │◄── { "type": "player_choice" } echo player's line immediately
+  │◄── { "type": "token" } ─────  Ollama streams word by word (2–10 s)
+  │◄── { "type": "token" } ─────
+  │◄── { "type": "turn_result" }  BDI + dice roll data
+  │◄── { "type": "choices" } ───  next set of choices
+  │        … repeat per turn …
+  │◄── { "type": "terminal" } ──  conversation ends; NPC JSONs auto-saved</pre>
+  </div>
+
+  <!-- ── Prerequisites ─────────────────────────────────────────────────── -->
+  <h2 id="prerequisites">Prerequisites</h2>
+  <table>
+    <thead><tr><th>Requirement</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Unity 2021 LTS or later</td><td>Tested on 2021, 2022, 2023</td></tr>
+      <tr><td>TextMeshPro</td><td>Already bundled with most Unity installs</td></tr>
+      <tr><td>Input System package</td><td>Required — <code>PNEDialogueUI</code> uses <code>UnityEngine.InputSystem</code></td></tr>
+      <tr><td>PNE server running</td><td>See <a href="#starting-server">Starting the Server</a></td></tr>
+      <tr><td>Python 3.10+ on the server machine</td><td>Required to run the PNE server</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ── Starting the Server ───────────────────────────────────────────── -->
+  <h2 id="starting-server">Starting the Server</h2>
+  <p>On the machine running the PNE (can be the same machine as Unity):</p>
+  <div class="code-wrap">
+    <span class="code-lang">bash</span>
+    <pre><code class="language-bash">cd path/to/cs3ip/Models
+pip install fastapi "uvicorn[standard]"
+
+uvicorn api.main:app --host 0.0.0.0 --port 8000</code></pre>
+  </div>
+  <p>
+    Verify it's running by opening
+    <a href="http://localhost:8000/docs" target="_blank">http://localhost:8000/docs</a>
+    in a browser — you'll see the interactive Swagger UI.
+  </p>
+  <div class="callout note">
+    <p><strong>Tip:</strong> Add <code>--reload</code> during development so the server restarts
+    automatically when Python files change.</p>
+  </div>
+
+  <!-- ── Unity Project Setup ───────────────────────────────────────────── -->
+  <h2 id="project-setup">Unity Project Setup</h2>
+
+  <h3 id="install-packages">1. Install required packages</h3>
+  <p>Open <strong>Window → Package Manager</strong>.</p>
+
+  <h4>Input System</h4>
+  <ol>
+    <li>Click <strong>+</strong> → <em>Add package from registry</em></li>
+    <li>Search for <strong>Input System</strong> and click <strong>Install</strong></li>
+    <li>When prompted to switch active Input Handling, click <strong>Yes</strong> — this sets Player Settings to <em>Input System Package (New)</em></li>
+  </ol>
+
+  <h4>NativeWebSocket</h4>
+  <ol>
+    <li>Click <strong>+</strong> → <em>Add package from git URL</em></li>
+    <li>Paste: <code>https://github.com/endel/NativeWebSocket.git#upm</code></li>
+    <li>Click <strong>Add</strong></li>
+  </ol>
+
+  <h4>Newtonsoft Json (JSON.NET)</h4>
+  <ol>
+    <li>Click <strong>+</strong> → <em>Add package from git URL</em></li>
+    <li>Paste: <code>com.unity.nuget.newtonsoft-json</code></li>
+    <li>Click <strong>Add</strong></li>
+  </ol>
+
+  <div class="callout">
+    <p>All three packages are required. <strong>Input System</strong> provides keyboard handling in <code>PNEDialogueUI</code> (E / Space to skip or advance). <strong>NativeWebSocket</strong> handles the WebSocket streaming (including WebGL). <strong>Newtonsoft Json</strong> parses the dynamic API messages reliably — Unity's built-in <code>JsonUtility</code> cannot handle the flexible shapes the server sends.</p>
+  </div>
+
+  <h3 id="copy-files">2. Copy the C# files into your project</h3>
+  <p>
+    Copy all three files from <code>Models/docs/unity/</code> into your Unity project's
+    <code>Assets/</code> folder (any subfolder is fine):
+  </p>
+  <div class="code-wrap">
+    <span class="code-lang">text</span>
+    <pre><code>Assets/
+  PNE/
+    PNETypes.cs        ← Data classes matching all API JSON shapes
+    PNEClient.cs       ← MonoBehaviour — HTTP + WebSocket client
+    PNEDialogueUI.cs   ← Example UI controller</code></pre>
+  </div>
+
+  <h3 id="webgl">3. Build settings</h3>
+  <p>
+    <strong>WebGL:</strong> no extra steps — NativeWebSocket handles platform differences automatically.<br />
+    <strong>Standalone</strong> (Windows / Mac / Linux): everything works out of the box.
+  </p>
+
+  <!-- ── Scene Setup ────────────────────────────────────────────────────── -->
+  <h2 id="scene-setup">Setting Up the Scene</h2>
+
+  <h3 id="scene-structure">Minimal scene structure</h3>
+  <div class="code-wrap">
+    <pre><code>Scene
+├── PNEManager (GameObject)
+│     ├── PNEClient       ← MonoBehaviour
+│     └── PNEDialogueUI   ← MonoBehaviour
+│
+└── Canvas
+      ├── DialoguePanel              ← shown during NPC text; hidden when choices appear
+      │     ├── NpcNameLabel    (TMP_Text)
+      │     ├── DialogueText    (TMP_Text)
+      │     └── JudgementLabel  (TMP_Text, optional)
+      ├── ChoicesPanel               ← hidden during NPC text; shown when player must choose
+      │     └── ChoicesContainer  (Horizontal Layout Group)
+      ├── InteractButton  (Button + TMP_Text)  ← "[ click to skip ]" / "[ press E ]" hint
+      ├── OutcomeLabel  (TMP_Text)
+      └── ChoiceButtonPrefab  (Button + TMP_Text child named "Label")</code></pre>
+  </div>
+  <div class="callout note">
+    <p><strong>ChoicesContainer layout</strong> — add a <code>HorizontalLayoutGroup</code> component (not Vertical).
+    Set <em>Child Force Expand Width</em> → off, <em>Spacing</em> → 12. Add a <code>ContentSizeFitter</code>
+    with <em>Horizontal Fit: Preferred Size</em> so buttons don't stretch to fill the container.</p>
+  </div>
+
+  <h3 id="inspector-client">Configuring PNEClient in the Inspector</h3>
+  <table>
+    <thead><tr><th>Field</th><th>Example</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td>Api Base Url</td><td><code>http://localhost:8000</code></td><td>Change to server LAN IP for networked play</td></tr>
+      <tr><td>Npc Paths</td><td><code>npcs/troy.json</code></td><td>Relative to the <code>Models/</code> directory on the server</td></tr>
+      <tr><td>Scenario Path</td><td><code>scenarios/dgn.json</code></td><td>Same — relative to <code>Models/</code></td></tr>
+      <tr><td>Difficulty</td><td><code>STANDARD</code></td><td><code>SIMPLE</code>, <code>STANDARD</code>, or <code>STRICT</code></td></tr>
+      <tr><td>Use Ollama</td><td>✓</td><td>Uncheck for scripted responses (faster, deterministic)</td></tr>
+      <tr><td>Authority / Diplomacy / Empathy / Manipulation</td><td>0–10</td><td>Player skill values</td></tr>
+    </tbody>
+  </table>
+
+  <h3 id="inspector-ui">Configuring PNEDialogueUI in the Inspector</h3>
+  <p>Drag scene objects into the serialized fields:</p>
+  <table>
+    <thead><tr><th>Field</th><th>Assign</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Client</td><td><code>PNEManager</code> GameObject</td><td></td></tr>
+      <tr><td>Dialogue Panel</td><td>The <code>DialoguePanel</code> GameObject</td><td>Whole panel — shown/hidden as a unit</td></tr>
+      <tr><td>Dialogue Text</td><td><code>TMP_Text</code> inside <code>DialoguePanel</code></td><td>Typewriter animates this</td></tr>
+      <tr><td>Npc Name Label</td><td>Optional name display</td><td></td></tr>
+      <tr><td>Judgement Label</td><td>Optional <code>TMP_Text</code></td><td>Shows <code>"Judgement: 62/100"</code></td></tr>
+      <tr><td>Outcome Label</td><td><code>TMP_Text</code> shown on terminal</td><td></td></tr>
+      <tr><td>Choices Container</td><td>Parent <code>Transform</code> for buttons</td><td>Must use <code>HorizontalLayoutGroup</code></td></tr>
+      <tr><td>Choice Button Prefab</td><td>Button with <code>TMP_Text</code> child <code>"Label"</code></td><td></td></tr>
+      <tr><td>Interact Button</td><td>Optional on-screen hint button</td><td>Label auto-updates to skip / continue text</td></tr>
+      <tr><td>Chars Per Second</td><td><code>40</code></td><td>Typewriter speed</td></tr>
+      <tr><td>Skip Hint</td><td><code>[ click to skip ]</code></td><td>Button label while animating</td></tr>
+      <tr><td>Continue Hint</td><td><code>[ press E to continue ]</code></td><td>Button label when text is complete</td></tr>
+    </tbody>
+  </table>
+
+  <h4>Interaction flow</h4>
+  <table>
+    <thead><tr><th>Phase</th><th>E / Space / Interact button does</th></tr></thead>
+    <tbody>
+      <tr><td>Typing</td><td>Skip → reveal full text instantly</td></tr>
+      <tr><td>Text Complete</td><td>Advance → hide text box, show choices horizontally</td></tr>
+      <tr><td>Choices</td><td>Nothing — click a choice button to continue</td></tr>
+      <tr><td>Idle</td><td>Nothing — waiting for Ollama</td></tr>
+    </tbody>
+  </table>
+
+  <p>Press <strong>Play</strong> — the opening text typewriters in; press E or Space to advance.</p>
+
+  <!-- ── PNEClient Reference ────────────────────────────────────────────── -->
+  <h2 id="client-reference">PNEClient Reference</h2>
+
+  <h3 id="events">Events</h3>
+  <p>Subscribe in <code>Awake</code> or <code>Start</code> on any script:</p>
+  <div class="code-wrap">
+    <span class="code-lang">C#</span>
+    <pre><code class="language-csharp">var pne = GetComponent&lt;PNEClient&gt;();
+
+pne.OnSessionReady   += data        => Debug.Log(data.Scenario.Opening);
+pne.OnPlayerChoice   += msg         => AppendConvoLine("You", msg.Text);
+pne.OnToken          += (npc, tok)  => dialogueText.text += tok;
+pne.OnTurnResult     += msg         => Debug.Log(msg.Thought.SubjectiveBelief);
+pne.OnChoicesUpdated += msg         => RebuildChoiceButtons(msg.Choices);
+pne.OnTerminal       += msg         => ShowOutcome(msg.TerminalId, msg.Result);
+pne.OnError          += err         => Debug.LogError(err);</code></pre>
+  </div>
+
+  <h3 id="methods">Methods</h3>
+  <div class="code-wrap">
+    <span class="code-lang">C#</span>
+    <pre><code class="language-csharp">pne.StartSession();          // Creates session and opens WebSocket
+pne.SendChoice(int index);   // 1-based index from ChoiceItem.Index
+pne.EndSession();            // Closes WS and deletes session from server</code></pre>
+  </div>
+
+  <h3 id="properties">Properties</h3>
+  <div class="code-wrap">
+    <span class="code-lang">C#</span>
+    <pre><code class="language-csharp">pne.SessionId    // string — UUID of the active session
+pne.IsConnected  // bool   — WebSocket is open and ready
+pne.IsComplete   // bool   — terminal outcome has been reached</code></pre>
+  </div>
+
+  <!-- ── WebSocket Messages ──────────────────────────────────────────────── -->
+  <h2 id="ws-messages">WebSocket Message Reference</h2>
+  <p>
+    Every message from the server has a <code>"type"</code> field.
+    <code>PNEClient</code> deserialises these automatically and fires the matching event.
+  </p>
+
+  <h3 id="msg-player-choice"><code>"player_choice"</code> → <code>OnPlayerChoice(PlayerChoiceMessage)</code></h3>
+  <p>
+    Sent <em>immediately</em> when the player's choice is received — before any Ollama tokens arrive.
+    Use this to add the player's line to a conversation log so the display updates right away.
+  </p>
+  <div class="code-wrap">
+    <span class="code-lang">JSON</span>
+    <pre><code class="language-json">{
+  "type": "player_choice",
+  "choice_id": "open_empathy",
+  "text": "I've seen what this regime does to families.",
+  "language_art": "empathetic"
+}</code></pre>
+  </div>
+  <div class="callout">
+    <p><strong>UI pattern:</strong> append this as the player's line in a chat-style log before the
+    NPC starts typing. Disable choice buttons at this point — re-enable them in
+    <code>OnChoicesUpdated</code>.</p>
+  </div>
+
+  <h3 id="msg-token"><code>"token"</code> → <code>OnToken(npcName, token)</code></h3>
+  <p>One chunk of Ollama's streaming output.</p>
+  <div class="code-wrap">
+    <span class="code-lang">JSON</span>
+    <pre><code class="language-json">{ "type": "token", "npc": "Troy", "token": "I " }
+{ "type": "token", "npc": "Troy", "token": "don't " }
+{ "type": "token", "npc": "Troy", "token": "trust you." }</code></pre>
+  </div>
+  <div class="callout">
+    <p><strong>UI pattern (PNEDialogueUI):</strong> tokens are buffered silently in <code>_npcBuffer</code>.
+    When <code>OnTurnResult</code> fires, the complete response is typewriter-animated via
+    <code>maxVisibleCharacters</code>. This avoids partial-word flicker and lets the player skip or wait.</p>
+    <p><strong>Custom pattern (live streaming):</strong> if you prefer tokens displayed as they arrive:</p>
+    <pre><code class="language-csharp">pne.OnToken += (npc, token) => dialogueText.text += token;</code></pre>
+  </div>
+
+  <h3 id="msg-turn-result"><code>"turn_result"</code> → <code>OnTurnResult(TurnResultMessage)</code></h3>
+  <p>Sent after all Ollama tokens for a turn have been streamed. Contains the full BDI state plus dice roll data.</p>
+  <div class="code-wrap">
+    <span class="code-lang">JSON</span>
+    <pre><code class="language-json">{
+  "type": "turn_result",
+  "npc": "Troy",
+  "npc_id": "troy",
+  "thought": {
+    "subjective_belief": "This person is testing me.",
+    "emotional_valence": -0.45
+  },
+  "desire": { "desire_type": "information-seeking", "intensity": 0.72 },
+  "intention": { "intention_type": "Evaluate Sincerity", "confrontation_level": 0.6 },
+  "judgement": 42,
+  "npc_response": "I don't trust you.",
+  "dice": {
+    "player_die": 3,
+    "npc_die": 5,
+    "success": false,
+    "skill": "empathy",
+    "success_pct": 45,
+    "risk_multiplier": 1.11,
+    "judgement_delta": -6
+  },
+  "entered_recovery": true
+}</code></pre>
+  </div>
+  <div class="callout">
+    <p><strong>UI pattern:</strong> update a judgement bar with <code>judgement</code> (0–100),
+    or use <code>emotional_valence</code> to tint the dialogue panel
+    (see <a href="#ui-patterns">Common UI Patterns</a>).</p>
+  </div>
+  <div class="callout note">
+    <p><strong>Arcade / Disco Elysium mode — dice fields:</strong></p>
+    <ul>
+      <li><code>dice.player_die</code> / <code>dice.npc_die</code> — raw 1–6 rolls to display on screen.</li>
+      <li><code>dice.success</code> — whether the player's roll beat the NPC's.</li>
+      <li><code>dice.skill</code> — which player skill was tested (e.g. <code>"empathy"</code>).</li>
+      <li><code>dice.success_pct</code> — the pre-roll probability shown on the choice button.</li>
+      <li><code>dice.judgement_delta</code> — how many judgement points were gained or lost this turn (show as ±N).</li>
+      <li><code>dice.risk_multiplier</code> — scales delta when odds were against the player (value &gt; 1.0 = high-risk roll).</li>
+      <li><code>entered_recovery</code> — <code>true</code> when this failure triggers a recovery sub-turn. Show a recovery indicator on the next choices panel.</li>
+    </ul>
+    <p>When <code>use_ollama = false</code>, <code>dice</code> may be <code>null</code> for scripted nodes.</p>
+  </div>
+
+  <h3 id="msg-choices"><code>"choices"</code> → <code>OnChoicesUpdated(ChoicesMessage)</code></h3>
+  <p>The next set of available player choices. Rebuild your choice buttons when this fires.</p>
+  <div class="code-wrap">
+    <span class="code-lang">JSON</span>
+    <pre><code class="language-json">{
+  "type": "choices",
+  "node_id": "challenge",
+  "in_recovery": false,
+  "choices": [
+    { "index": 1, "choice_id": "press_harder", "text": "I have proof.",
+      "language_art": "challenge",  "success_pct": 58 },
+    { "index": 2, "choice_id": "back_off",     "text": "Fair enough.",
+      "language_art": "diplomatic", "success_pct": 71 }
+  ]
+}</code></pre>
+  </div>
+  <div class="callout note">
+    <p><strong><code>in_recovery</code></strong> — when <code>true</code>, the player is in a
+    recovery sub-turn after a failed dice check. Show a visual indicator (e.g. an amber border
+    around the choices panel) so the player understands they are recovering, not choosing freely.</p>
+  </div>
+
+  <h3 id="msg-terminal"><code>"terminal"</code> → <code>OnTerminal(TerminalMessage)</code></h3>
+  <p>Conversation over. Show the outcome, stream the final NPC line, and disable choices.</p>
+  <div class="code-wrap">
+    <span class="code-lang">JSON</span>
+    <pre><code class="language-json">{
+  "type": "terminal",
+  "npc": "Troy",
+  "terminal_id": "SUCCEED",
+  "result": "Troy steps aside and lets you through.",
+  "final_dialogue": "...don't make me regret this."
+}</code></pre>
+  </div>
+  <p><strong>Possible <code>terminal_id</code> values:</strong></p>
+  <p>
+    <span class="tag tag-succeed">SUCCEED</span>
+    <span class="tag tag-fail">FAIL</span>
+    <span class="tag tag-negotiate">NEGOTIATE</span>
+    <span class="tag tag-other">DELAY</span>
+    <span class="tag tag-other">ESCALATE</span>
+  </p>
+
+  <h3 id="msg-error"><code>"error"</code> → <code>OnError(message)</code></h3>
+  <p>
+    Something went wrong server-side. Log it and optionally show the player a retry option.
+    Errors do not close the WebSocket — the session can continue if the error was non-fatal.
+  </p>
+
+  <!-- ── REST Reference ────────────────────────────────────────────────── -->
+  <h2 id="rest-reference">REST Endpoint Reference</h2>
+  <p>Available for non-turn operations such as listing files or inspecting session state.</p>
+  <table>
+    <thead><tr><th>Method</th><th>URL</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td><code>GET</code></td><td><code>/npcs</code></td><td>List all <code>.json</code> files in <code>Models/npcs/</code></td></tr>
+      <tr><td><code>GET</code></td><td><code>/scenarios</code></td><td>List all <code>.json</code> files in <code>Models/scenarios/</code></td></tr>
+      <tr><td><code>POST</code></td><td><code>/sessions</code></td><td>Create session — body: <code>CreateSessionRequest</code></td></tr>
+      <tr><td><code>GET</code></td><td><code>/sessions/{id}</code></td><td>Snapshot of current session state</td></tr>
+      <tr><td><code>GET</code></td><td><code>/sessions/{id}/choices</code></td><td>Choices for the current turn (without playing)</td></tr>
+      <tr><td><code>GET</code></td><td><code>/sessions/{id}/history</code></td><td>Full conversation transcript (all history entries per NPC)</td></tr>
+      <tr><td><code>POST</code></td><td><code>/sessions/{id}/save</code></td><td>Persist NPC state to their source JSON files immediately (returns <code>{"saved":[…]}</code>)</td></tr>
+      <tr><td><code>DELETE</code></td><td><code>/sessions/{id}</code></td><td>Clean up session server-side</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Use <code>UnityWebRequest</code> coroutines for these calls — see
+    <code>PNEClient.cs</code> for the pattern.
+  </p>
+
+  <!-- ── Skills & Difficulty ───────────────────────────────────────────── -->
+  <h2 id="skills-difficulty">Player Skills &amp; Difficulty</h2>
+
+  <h3>Skills (0–10)</h3>
+  <table>
+    <thead><tr><th>Skill</th><th>Language art</th><th>Effect</th></tr></thead>
+    <tbody>
+      <tr><td>Authority</td><td><code>challenge</code></td><td>NPCs with high assertion resist more</td></tr>
+      <tr><td>Diplomacy</td><td><code>diplomatic</code></td><td>Broadest applicability across NPC types</td></tr>
+      <tr><td>Empathy</td><td><code>empathetic</code></td><td>More effective on NPCs with high empathy</td></tr>
+      <tr><td>Manipulation</td><td><code>manipulative</code></td><td>Risky — higher reward and penalty swings</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Difficulty</h3>
+  <table>
+    <thead><tr><th>Value</th><th>Effect on dice</th></tr></thead>
+    <tbody>
+      <tr><td><code>SIMPLE</code></td><td>Player die gets +0.15 bias — easier rolls</td></tr>
+      <tr><td><code>STANDARD</code></td><td>No adjustment</td></tr>
+      <tr><td><code>STRICT</code></td><td>Player die gets −0.15 bias — harder rolls</td></tr>
+    </tbody>
+  </table>
+
+  <h3><code>success_pct</code> on choices</h3>
+  <p>
+    Each <code>ChoiceItem</code> carries a <code>success_pct</code> (0–100) so you can show the
+    player their odds. This accounts for their relevant skill vs the NPC's resistance, plus the
+    current <code>player_relation</code> which drifts up as the NPC warms to the player.
+  </p>
+
+  <!-- ── Common UI Patterns ─────────────────────────────────────────────── -->
+  <h2 id="ui-patterns">Common UI Patterns</h2>
+
+  <h3>Typewriter with a scroll view</h3>
+  <p>
+    <code>PNEDialogueUI</code> uses <code>TMP_Text.maxVisibleCharacters</code> for the typewriter —
+    this respects all TMP rich text tags (<code>&lt;b&gt;</code>, <code>&lt;color&gt;</code>, <code>&lt;size&gt;</code>)
+    without string-slicing issues. To pair with a <strong>ScrollRect</strong>, force the canvas after each tick:
+  </p>
+  <div class="code-wrap">
+    <span class="code-lang">C#</span>
+    <pre><code class="language-csharp">// In a custom TypewriterRoutine override:
+dialogueText.maxVisibleCharacters = i;
+Canvas.ForceUpdateCanvases();
+scrollRect.verticalNormalizedPosition = 0f;
+yield return new WaitForSeconds(delay);</code></pre>
+  </div>
+  <p>Set <code>ScrollRect → Content</code> to the <code>DialogueText</code> panel with a
+  <code>Content Size Fitter</code> (Preferred Size, vertical).</p>
+
+  <h3>Emotion-based panel tinting</h3>
+  <p>Use <code>emotional_valence</code> from <code>TurnResultMessage</code> to tint the dialogue panel:</p>
+  <div class="code-wrap">
+    <span class="code-lang">C#</span>
+    <pre><code class="language-csharp">private void HandleTurnResult(TurnResultMessage msg)
+{
+    float v = msg.Thought?.EmotionalValence ?? 0f;
+    // +1.0 = warm/positive, -1.0 = cold/hostile
+    dialoguePanel.color = Color.Lerp(hostileColor, friendlyColor, (v + 1f) / 2f);
+}</code></pre>
+  </div>
+
+  <h3>Judgement bar</h3>
+  <p>Drive a <code>Slider</code> or <code>Image.fillAmount</code> from <code>judgement</code> (0–100), and show the per-turn delta:</p>
+  <div class="code-wrap">
+    <span class="code-lang">C#</span>
+    <pre><code class="language-csharp">private void HandleTurnResult(TurnResultMessage msg)
+{
+    judgementBar.value = msg.Judgement / 100f;
+
+    if (msg.Dice != null)
+    {
+        int delta = msg.Dice.JudgementDelta;
+        deltaLabel.text = delta >= 0 ? $"+{delta}" : delta.ToString();
+        deltaLabel.color = delta >= 0 ? Color.green : Color.red;
+    }
+}</code></pre>
+  </div>
+
+  <h3>Conversation log (player + NPC lines)</h3>
+  <p>
+    Build a chat-style history by appending to a scrollable log on both
+    <code>OnPlayerChoice</code> and <code>OnTurnResult</code>:
+  </p>
+  <div class="code-wrap">
+    <span class="code-lang">C#</span>
+    <pre><code class="language-csharp">void Start()
+{
+    pne.OnPlayerChoice += msg => AppendLog("You", msg.Text);
+    pne.OnTurnResult   += msg => AppendLog(msg.Npc, msg.NpcResponse);
+}
+
+void AppendLog(string speaker, string line)
+{
+    var entry = Instantiate(logEntryPrefab, logContainer);
+    entry.GetComponentInChildren&lt;TMP_Text&gt;().text = $"&lt;b&gt;{speaker}:&lt;/b&gt; {line}";
+    Canvas.ForceUpdateCanvases();
+    logScrollRect.verticalNormalizedPosition = 0f;
+}</code></pre>
+  </div>
+
+  <h3>Arcade mode — dice roll display</h3>
+  <p>
+    Show the raw dice values and outcome after each turn (similar to Disco Elysium).
+    The <code>dice</code> field in <code>TurnResultMessage</code> has everything you need:
+  </p>
+  <div class="code-wrap">
+    <span class="code-lang">C#</span>
+    <pre><code class="language-csharp">private void HandleTurnResult(TurnResultMessage msg)
+{
+    if (msg.Dice == null) return;
+
+    // Animate dice faces to the rolled values
+    playerDieDisplay.SetFace(msg.Dice.PlayerDie ?? 0);
+    npcDieDisplay.SetFace(msg.Dice.NpcDie ?? 0);
+
+    // Show success / failure label
+    rollResultLabel.text   = msg.Dice.Success ? "SUCCESS" : "FAILURE";
+    rollResultLabel.color  = msg.Dice.Success ? Color.green : Color.red;
+
+    // Show pre-roll odds and risk
+    oddsLabel.text = $"{msg.Dice.SuccessPct}% — {msg.Dice.Skill}";
+    if (msg.Dice.RiskMultiplier > 1f)
+        riskLabel.text = $"HIGH RISK ×{msg.Dice.RiskMultiplier:F2}";
+
+    // Show recovery indicator if the failed roll triggers a recovery sub-turn
+    recoveryIndicator.SetActive(msg.EnteredRecovery);
+}</code></pre>
+  </div>
+
+  <!-- ── Tips & Gotchas ─────────────────────────────────────────────────── -->
+  <h2 id="gotchas">Tips &amp; Gotchas</h2>
+
+  <h3>NativeWebSocket callbacks are already on the main thread</h3>
+  <p>
+    <code>NativeWebSocket</code> uses <code>DispatchMessageQueue()</code> in <code>Update()</code>
+    to marshal callbacks onto the main thread. You do <em>not</em> need
+    <code>MainThreadDispatcher</code> or <code>lock</code> statements around the events fired by
+    <code>PNEClient</code>.
+  </p>
+
+  <h3>Ollama takes 2–10 seconds per turn</h3>
+  <p>
+    Disable choice buttons as soon as <code>SendChoice()</code> is called — this is already done
+    in <code>PNEDialogueUI</code>. Re-enable them in <code>OnChoicesUpdated</code>.
+    Never call <code>SendChoice()</code> twice in the same turn.
+  </p>
+
+  <h3>Server must be reachable by IP</h3>
+  <p>
+    On mobile or other devices, use the host machine's LAN IP (<code>192.168.x.x</code>) instead
+    of <code>localhost</code> in the <code>Api Base Url</code> field.
+  </p>
+
+  <h3>Session cleanup</h3>
+  <p>
+    <code>PNEClient.OnDestroy()</code> calls <code>EndSession()</code> automatically, so sessions
+    are cleaned up when the scene changes. For explicit control, call <code>client.EndSession()</code>
+    before loading a new scene.
+  </p>
+
+  <h3>Multiple NPCs</h3>
+  <p>
+    When multiple NPCs are active, <code>OnToken</code> and <code>OnTurnResult</code> fire once per
+    NPC per turn. Use <code>msg.Npc</code> or <code>msg.NpcId</code> to route to the correct UI
+    element (e.g. a separate text box per NPC portrait).
+  </p>
+
+  <h3>Offline / no Ollama mode</h3>
+  <p>
+    Set <strong>Use Ollama = false</strong> in the Inspector. The engine falls back to the scenario's
+    scripted <code>min_response</code> / <code>max_response</code> text — fast and deterministic.
+    Useful for testing UI without running Ollama locally.
+  </p>
+
+  <!-- ── Troubleshooting ────────────────────────────────────────────────── -->
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <table>
+    <thead><tr><th>Symptom</th><th>Fix</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>Session creation failed (HTTP 0)</code></td>
+        <td>Server not running, or wrong <code>apiBaseUrl</code></td>
+      </tr>
+      <tr>
+        <td><code>Session creation failed (HTTP 400)</code></td>
+        <td>NPC / scenario path wrong — check they are relative to <code>Models/</code></td>
+      </tr>
+      <tr>
+        <td>WebSocket never connects</td>
+        <td>Firewall blocking port 8000; confirm server was started with <code>--host 0.0.0.0</code></td>
+      </tr>
+      <tr>
+        <td>No tokens arrive, but <code>turn_result</code> fires</td>
+        <td><code>use_ollama = false</code> set, or Ollama not running at <code>localhost:11434</code></td>
+      </tr>
+      <tr>
+        <td><code>NativeWebSocket</code> namespace not found</td>
+        <td>Package not installed — re-add the git URL in Package Manager</td>
+      </tr>
+      <tr>
+        <td><code>Newtonsoft.Json</code> not found</td>
+        <td>Add <code>com.unity.nuget.newtonsoft-json</code> in Package Manager</td>
+      </tr>
+      <tr>
+        <td><code>InvalidOperationException: You are trying to read Input using the UnityEngine.Input class</code></td>
+        <td>Go to <strong>Edit → Project Settings → Player → Active Input Handling</strong> and set it to <em>Input System Package (New)</em> or <em>Both</em>. Install the Input System package if missing.</td>
+      </tr>
+      <tr>
+        <td>Choices appear during NPC text / text box and choices both visible at once</td>
+        <td>Assign the <code>dialoguePanel</code> field to the whole panel <strong>GameObject</strong>, not just the <code>TMP_Text</code> child</td>
+      </tr>
+      <tr>
+        <td>Choices panel blank after a turn</td>
+        <td>Check <code>choicesContainer</code> and <code>choiceButtonPrefab</code> are assigned in the Inspector</td>
+      </tr>
+      <tr>
+        <td>Text stops streaming mid-sentence</td>
+        <td>Ollama model may have timed out (60 s); check the server console for errors</td>
+      </tr>
+    </tbody>
+  </table>
+
+</main>
+
+<script>
+  // Highlight all code blocks
+  document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll("pre code").forEach(el => {
+      // Don't re-highlight plain/unlabelled blocks
+      if (el.classList.length > 0) hljs.highlightElement(el);
+    });
+
+    // Active sidebar link on scroll
+    const headings = document.querySelectorAll("main h2[id], main h3[id]");
+    const links    = document.querySelectorAll("nav a[href^='#']");
+
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          links.forEach(a => a.style.fontWeight = "");
+          const active = document.querySelector(`nav a[href="#${entry.target.id}"]`);
+          if (active) active.style.fontWeight = "700";
+        }
+      });
+    }, { rootMargin: "0px 0px -70% 0px" });
+
+    headings.forEach(h => observer.observe(h));
+  });
+</script>
+
+</body>
+</html>
