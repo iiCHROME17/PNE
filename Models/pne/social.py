@@ -29,13 +29,35 @@ from .intention_registry import INTENTION_REGISTRY, IntentionTemplate, INTENTION
 
 @dataclass
 class BehaviouralIntention:
-    """NPC's intended response behavior (not yet dialogue)"""
-    intention_type: str        # Canonical name from INTENTION_REGISTRY
-    confrontation_level: float # 0–1
-    emotional_expression: str  # "suppressed", "direct", "explosive", …
+    """The NPC's chosen behavioural stance for this turn — output of the Socialisation layer.
+
+    This is the final BDI output before language generation.  It tells the Ollama
+    prompt *how* the NPC will speak (tone, stance, intensity), not *what* they will say.
+
+    Attributes:
+        intention_type: Canonical name from ``INTENTION_REGISTRY``, e.g.
+            ``"Challenge to Reveal Truth"`` or ``"Seek Connection"``.  This
+            exact string is used by ``TransitionResolver`` for ``intention_match``
+            routing and appears in the Ollama prompt's INTENTION field.
+        confrontation_level: How aggressively the NPC is approaching this
+            exchange, on a 0.0 (deferential) to 1.0 (hostile/domineering) scale.
+            Derived from the NPC's social attributes, clamped to the selected
+            template's valid range, and nudged upward by desire intensity.
+        emotional_expression: Acting direction for the Ollama prompt, e.g.
+            ``"direct"``, ``"explosive"``, ``"suppressed"``, ``"guarded"``.
+            Sourced directly from the winning ``IntentionTemplate``.
+        wildcard_triggered: ``True`` when the selected template's
+            ``wildcard_required`` matches the NPC's ``social.wildcard`` trait.
+            Signals the Ollama prompt to let the wildcard colour the response.
+    """
+
+    intention_type: str
+    confrontation_level: float
+    emotional_expression: str
     wildcard_triggered: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialise to a plain dict (used in per-turn response context)."""
         return {
             "intention_type": self.intention_type,
             "confrontation_level": self.confrontation_level,

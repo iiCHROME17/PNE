@@ -218,18 +218,39 @@ INTENTION_REGISTRY: List[IntentionTemplate] = [
     ),
 ]
 
-# Fast lookup by name
+# Fast lookup by name — O(1) access used by SocialisationFilter and engine wildcard checks.
 INTENTION_BY_NAME: Dict[str, IntentionTemplate] = {
     t.name: t for t in INTENTION_REGISTRY
 }
 
-# All canonical intention names — used by scenario authors for transitions
+# Flat list of every canonical intention name.  Scenario authors use these
+# strings in transition "intention_match" fields to route dialogue flow.
 INTENTION_NAMES = [t.name for t in INTENTION_REGISTRY]
 
 
 def get_intention(name: str) -> Optional[IntentionTemplate]:
+    """Look up a single ``IntentionTemplate`` by its canonical name.
+
+    Args:
+        name: Exact canonical intention name (e.g. ``"Challenge to Reveal Truth"``).
+
+    Returns:
+        The matching ``IntentionTemplate``, or ``None`` if the name is not registered.
+    """
     return INTENTION_BY_NAME.get(name)
 
 
 def list_by_desire_type(desire_type: str) -> List[IntentionTemplate]:
+    """Return all intention templates that serve a given desire type.
+
+    Useful for tooling and scenario authoring — lets designers see which
+    intentions are available for a given BDI desire category.
+
+    Args:
+        desire_type: One of ``"information-seeking"``, ``"affiliation"``,
+            ``"protection"``, ``"dominance"``, or ``""`` (fallback).
+
+    Returns:
+        List of matching ``IntentionTemplate`` objects (may be empty).
+    """
     return [t for t in INTENTION_REGISTRY if t.desire_type == desire_type]

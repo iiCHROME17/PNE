@@ -1,10 +1,26 @@
 """
 Dialogue-Aware Choice Filtering
+Name: dialogue_coherence.py
 
 Ensures player choices actually respond to what the NPC just said,
-creating conversational coherence instead of "talking past each other."
+creating conversational coherence instead of having the player "talk past"
+the NPC.
 
-Author: AI Assistant
+Two classes collaborate here:
+
+``DialogueMomentumFilter``
+    The primary filter, called each turn from ``NarrativeEngine.get_available_choices``.
+    Scores every hard-gated choice from ``ChoiceFilter`` against four coherence
+    dimensions (momentum alignment, stage appropriateness, anti-repetition, and
+    relation plausibility) and drops any choice that falls below a 0.3 threshold.
+    If filtering would eliminate all choices, the original list is returned unchanged
+    as a safety net.
+
+``ConversationFlowEnforcer``
+    A higher-level enforcer for narrative shape.  Not called automatically — available
+    for explicit use in specialised scenarios.  Provides turn-limit enforcement
+    (funnels the player toward resolution choices near the end) and emergency exit
+    injection (adds graceful-exit options when the conversation is going badly).
 """
 
 from typing import List, Dict, Any, Optional
@@ -14,9 +30,40 @@ import re
 
 @dataclass
 class DialogueContext:
-    """Extended context including what NPC just said"""
-    
-    # Standard context
+    """Extended context snapshot passed to the coherence filter each turn.
+
+    Built by ``NarrativeEngine._build_dialogue_context`` from live session state
+    and forwarded to ``DialogueMomentumFilter.filter_for_coherence``.  It extends
+    the base ``FilterContext`` with dialogue-specific fields that allow the filter
+    to reason about what the NPC just said and how the conversation is unfolding.
+
+    Attributes:
+        player_skills: Dict mapping skill names to integer values (0–10).
+        player_relation: Current NPC opinion of the player (0.0–1.0).
+        npc_self_esteem: NPC's cognitive self-esteem attribute (0.0–1.0);
+            affects vulnerability threshold checks.
+        npc_emotional_valence: The NPC's last recorded emotional valence
+            (−1.0 to 1.0), sourced from the most recent ``thought_reaction``.
+        npc_current_intention: The BDI ``intention_type`` string from the NPC's
+            last turn — used for momentum tagging.
+        npc_current_desire_type: The desire category from the NPC's last turn
+            (e.g. ``"protection"``, ``"affiliation"``).
+        choices_made: Ordered list of ``choice_id`` strings the player has
+            selected so far this session — used for anti-repetition scoring.
+        turn_count: Number of completed turns in this session.
+        last_npc_response: The NPC's most recent dialogue text, or ``None`` on
+            the first turn.  Not currently used in scoring but available for
+            future keyword analysis.
+        conversation_stage: Detected stage of the conversation — one of
+            ``"opening"``, ``"development"``, ``"crisis"``, or ``"resolution"``.
+            Determined by ``ConversationStageDetector.detect_stage``.
+        npc_momentum_tags: List of momentum labels inferred from the last
+            ``interaction_outcome.intention_shift`` string, e.g.
+            ``["challenge_posed"]``, ``["acceptance_signaled"]``.  An empty list
+            means no specific momentum was detected this turn.
+    """
+
+    # ── Standard filter context ─────────────────────────────────────────
     player_skills: Dict[str, int]
     player_relation: float
     npc_self_esteem: float
@@ -25,12 +72,12 @@ class DialogueContext:
     npc_current_desire_type: str
     choices_made: List[str]
     turn_count: int
-    
-    # NEW: Dialogue-specific context
+
+    # ── Dialogue-specific context ────────────────────────────────────────
     last_npc_response: Optional[str] = None
     conversation_stage: str = "opening"
-    npc_momentum_tags: List[str] = None  # What move did NPC just make?
-    
+    npc_momentum_tags: List[str] = None  # Inferred from last intention_shift
+
     def __post_init__(self):
         if self.npc_momentum_tags is None:
             self.npc_momentum_tags = []
@@ -328,18 +375,34 @@ class DialogueMomentumFilter:
 
 
 class ConversationFlowEnforcer:
+    """High-level enforcer that gives conversations deliberate narrative shape.
+
+    Unlike ``DialogueMomentumFilter`` (which is called automatically every turn),
+    these methods are optional tools for scenario designers who want explicit
+    control over pacing and player options near the conversation's end.
     """
-    High-level enforcer that ensures conversations have narrative shape.
-    """
-    
+
     @staticmethod
     def enforce_turn_limit(
         choices: List[Dict[str, Any]],
         turn_count: int,
-        max_turns: int = 10
+        max_turns: int = 10,
     ) -> List[Dict[str, Any]]:
-        """
-        As conversation approaches max turns, filter to resolution-focused choices.
+        """Narrow choices toward resolution as the turn limit approaches.
+
+        When ``turn_count >= max_turns - 2``, filters the choice list down to
+        resolution-focused options (``accept_terms``, ``push_back_terms``, etc.)
+        to ensure the conversation reaches a conclusion.  Falls back to the full
+        list if no resolution choices are present.
+
+        Args:
+            choices: Current list of available choices (already hard-gated by
+                ``ChoiceFilter``).
+            turn_count: Number of turns completed so far.
+            max_turns: Maximum allowed turns before enforcement kicks in.
+
+        Returns:
+            The filtered (or original) choice list.
         """
         if turn_count < max_turns - 2:
             return choices  # No enforcement yet
@@ -362,10 +425,22 @@ class ConversationFlowEnforcer:
     @staticmethod
     def inject_emergency_exits(
         choices: List[Dict[str, Any]],
-        context: DialogueContext
+        context: DialogueContext,
     ) -> List[Dict[str, Any]]:
-        """
-        If conversation is going badly, inject escape options.
+        """Prepend graceful-exit options when the conversation is failing badly.
+
+        Triggered when ``player_relation < 0.2`` and ``turn_count >= 5``.
+        Adds two synthetic choices — a diplomatic withdrawal and a hard walk-away
+        — at the front of the list so the player always has an out before a
+        relationship completely collapses.
+
+        Args:
+            choices: Current list of available choices.
+            context: The ``DialogueContext`` providing relation and turn data.
+
+        Returns:
+            The original list prepended with emergency exit choices, or the
+            original list unchanged if the trigger conditions are not met.
         """
         # If relation is very low and we're deep in conversation, add exits
         if context.player_relation < 0.2 and context.turn_count >= 5:

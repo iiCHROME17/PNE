@@ -1,15 +1,33 @@
 """
-Narrative Engine Module  (patched: coherent choice filtering)
+Narrative Engine
+Name: engine.py
 
-KEY CHANGES vs original
------------------------
-* get_available_choices() now runs choices through ChoiceFilter + optional
-  DialogueMomentumFilter before returning them to the CLI / caller.
-* apply_choice() builds a full FilterContext and DialogueContext from live
-  NPC state so filters have real data to work with.
-* _build_filter_context() and _build_dialogue_context() are new helpers.
+Top-level orchestrator for Fallout-style branching conversations.  Manages the
+full lifecycle of one or more NPC sessions: loading assets, initialising
+per-NPC ``DialogueProcessor`` instances, running the player-turn loop, and
+producing structured results consumed by the CLI and REST API.
 
-Everything else is identical to the original.
+Choice filtering pipeline (two stages per turn)
+-----------------------------------------------
+1. ``ChoiceFilter.smart_fallback`` — hard gates based on skill levels, player
+   relation, NPC state flags, prerequisites, and choices already made.
+2. ``DialogueMomentumFilter.filter_for_coherence`` — coherence scoring that
+   ensures the remaining choices respond sensibly to what the NPC just said.
+   Skipped if ``conversation_config.enable_coherence_filtering`` is ``False``.
+
+Recovery mode
+-------------
+When a player fails a skill check on a choice that defines ``recovery_choices``,
+the engine enters *recovery mode* for that NPC.  On the next turn it serves the
+recovery choices instead of the node's normal ones, allowing the player a second
+attempt before the choice is exhausted.
+
+Terminal detection
+------------------
+Before calling Ollama for a mid-turn response the engine does an early
+``TransitionResolver.resolve`` pass to detect terminal nodes.  When the
+conversation is already resolving to a terminal the mid-turn Ollama call is
+skipped, and the terminal response is generated instead.
 """
 
 from typing import Callable, Dict, List, Optional, Any
@@ -25,8 +43,29 @@ from .dialogue_coherence import DialogueMomentumFilter, DialogueContext
 
 
 class NarrativeEngine:
-    """
-    High-level orchestrator for Fallout-style conversations using pne's BDI engine.
+    """High-level orchestrator for Fallout-style conversations using the PNE BDI engine.
+
+    Holds the loaded NPC models, scenario trees, and active sessions.  The CLI and
+    REST API both talk exclusively to this class — they never access ``DialogueProcessor``
+    or the BDI layers directly.
+
+    Typical usage::
+
+        engine = NarrativeEngine(difficulty=Difficulty.STANDARD)
+        engine.load_npc("npcs/elara.json")
+        engine.load_scenario("scenarios/recruitment.json")
+        session = engine.start_session(["elara"], "recruitment")
+        choices = engine.get_available_choices(session, "start")
+        result  = engine.apply_choice(session, "start", 2)
+
+    Attributes:
+        use_ollama: Whether Ollama LLM generation is active for all sessions.
+        ollama_url: Base URL of the Ollama API (e.g. ``"http://localhost:11434"``).
+        ollama_model: Default model tag passed to every ``DialogueProcessor``.
+        difficulty: Global difficulty preset applied to all dice-check bias adjustments.
+        scenarios: Registry of loaded scenario dicts, keyed by scenario ID.
+        npcs: Registry of loaded ``NPCModel`` instances, keyed by NPC ID.
+        sessions: Active ``ConversationSession`` objects, keyed by session ID.
     """
 
     def __init__(
@@ -50,6 +89,7 @@ class NarrativeEngine:
 
     @staticmethod
     def _format_with_npc(text: str, npc_name: str) -> str:
+        """Replace the ``{{NPC_NAME}}`` template placeholder with the NPC's actual name."""
         return text.replace("{{NPC_NAME}}", npc_name)
 
     # ------------------------------------------------------------------ #
@@ -57,7 +97,17 @@ class NarrativeEngine:
     # ------------------------------------------------------------------ #
 
     def load_npc(self, filepath: str, npc_id: Optional[str] = None) -> str:
-        """Load an NPC from JSON file."""
+        """Load an NPC model from a JSON file and register it with this engine.
+
+        Args:
+            filepath: Path to the NPC JSON definition file.
+            npc_id: Optional override for the NPC's registry key.  Defaults to
+                the NPC's ``name`` field, lowercased with spaces replaced by
+                underscores (e.g. ``"Sister Elara"`` → ``"sister_elara"``).
+
+        Returns:
+            The NPC ID string used to reference this NPC in ``start_session``.
+        """
         npc = NPCModel.from_json(filepath)
         npc_id = npc_id or npc.name.lower().replace(" ", "_")
         self.npcs[npc_id] = npc
@@ -65,6 +115,17 @@ class NarrativeEngine:
         return npc_id
 
     def load_scenario(self, filepath: str, scenario_id: Optional[str] = None) -> str:
+        """Load a scenario from a JSON file and register it with this engine.
+
+        Args:
+            filepath: Path to the scenario JSON file.
+            scenario_id: Optional override for the scenario's registry key.
+                Defaults to the scenario's ``id`` field, or ``"default_scenario"``
+                if the field is absent.
+
+        Returns:
+            The scenario ID string used to reference this scenario in ``start_session``.
+        """
         scenario = ScenarioLoader.load_scenario(filepath)
         scenario_id = scenario_id or scenario.get("id", "default_scenario")
         self.scenarios[scenario_id] = scenario
@@ -81,6 +142,24 @@ class NarrativeEngine:
         scenario_id: str,
         player_skills: Optional[PlayerSkillSet] = None,
     ) -> ConversationSession:
+        """Initialise and return a new ``ConversationSession``.
+
+        Creates one ``NPCConversationState`` (and its ``DialogueProcessor``) per
+        NPC, parses the scenario's intent and role metadata, displays the opening
+        text, and registers the session in ``self.sessions``.
+
+        Args:
+            npc_ids: List of NPC IDs that must already be in ``self.npcs``.
+            scenario_id: Scenario ID that must already be in ``self.scenarios``.
+            player_skills: Starting skill levels.  Defaults to 5 across all four
+                skills if not provided.
+
+        Returns:
+            The newly created and registered ``ConversationSession``.
+
+        Raises:
+            ValueError: If ``scenario_id`` or any ``npc_id`` is not loaded.
+        """
         if scenario_id not in self.scenarios:
             raise ValueError(f"Scenario '{scenario_id}' not loaded")
         for npc_id in npc_ids:
@@ -133,9 +212,11 @@ class NarrativeEngine:
 
     @staticmethod
     def _make_session_id(npc_ids: List[str], scenario_id: str) -> str:
+        """Build a deterministic session key from scenario + sorted NPC IDs."""
         return f"{scenario_id}|{','.join(sorted(npc_ids))}"
 
     def _display_opening(self, session: ConversationSession) -> None:
+        """Print the scenario's opening text and seed each NPC's history with it."""
         scenario = session.scenario
         opening = scenario.get("opening", "Conversation begins...")
         npc_role = scenario.get("_npc_role_meta", {})
@@ -158,6 +239,15 @@ class NarrativeEngine:
     # ------------------------------------------------------------------ #
 
     def get_node(self, session: ConversationSession, node_id: str) -> Optional[Dict[str, Any]]:
+        """Look up a scenario dialogue node by ID.
+
+        Args:
+            session: The active ``ConversationSession`` holding the scenario tree.
+            node_id: The node identifier string (e.g. ``"start"``, ``"trust_check"``).
+
+        Returns:
+            The node dict from the scenario JSON, or ``None`` if not found.
+        """
         return ScenarioLoader.get_node(session.scenario, node_id)
 
     def get_available_choices(
@@ -282,8 +372,42 @@ class NarrativeEngine:
         choice_index: int,
         on_token: Optional[Callable[[str, str], None]] = None,
     ) -> Dict[str, Any]:
-        """
-        Apply a single player choice (1-based index) to all active NPCs.
+        """Apply a player choice to all active NPCs and advance the session.
+
+        This is the core turn-processing method.  For each active NPC it:
+          1. Resolves the chosen option from the filtered choice list.
+          2. Runs a dice check (player d6 vs NPC d6) for non-neutral choices.
+          3. Applies risk-proportional judgement delta to the NPC.
+          4. Runs the full BDI pipeline via ``DialogueProcessor.process_dialogue``.
+          5. Generates an Ollama mid-turn response (unless going to a terminal).
+          6. Enters recovery mode if the check failed and recovery choices exist.
+          7. Resolves the next node via ``TransitionResolver`` (or enters terminal flow).
+
+        Args:
+            session: The active ``ConversationSession`` to mutate.
+            node_id: The current dialogue node ID.  Must match what was used to
+                call ``get_available_choices`` so choice indices stay consistent.
+            choice_index: 1-based index of the player's selected choice, as
+                displayed by the CLI or returned by ``get_available_choices``.
+            on_token: Optional streaming callback ``(npc_name: str, token: str) → None``
+                invoked for each token as Ollama streams its response.  When
+                provided and the Ollama endpoint supports streaming, the method
+                uses the streaming API instead of blocking generation.
+
+        Returns:
+            A dict keyed by NPC ID.  Each value is a turn-result dict containing:
+
+            - ``context`` (dict): Full BDI pipeline output from ``process_dialogue``.
+            - ``resolved_node`` (str): The node the NPC is now on after routing.
+            - ``dice`` (dict): Dice roll details — ``player_die``, ``npc_die``,
+              ``success``, ``skill``, ``success_pct``, ``risk_multiplier``,
+              ``judgement_delta``.
+            - ``player_choice`` (dict): ``choice_id``, ``text``, ``language_art``.
+            - ``entered_recovery`` (bool): ``True`` if recovery mode was triggered.
+
+        Raises:
+            ValueError: If ``node_id`` is not found in the scenario, or if
+                ``choice_index`` is out of range for the available choices.
         """
         node = self.get_node(session, node_id)
         if not node:
@@ -604,9 +728,28 @@ class NarrativeEngine:
     # ------------------------------------------------------------------ #
 
     def is_session_complete(self, session: ConversationSession) -> bool:
+        """Return ``True`` when all NPCs in the session have reached a terminal node.
+
+        Args:
+            session: The ``ConversationSession`` to check.
+
+        Returns:
+            ``True`` if no active (non-complete) NPCs remain; ``False`` otherwise.
+        """
         return len(session.active_npcs()) == 0
 
     def export_session_log(self, session: ConversationSession, filepath: str) -> None:
+        """Serialise the full session — choices, history, BDI state — to a JSON file.
+
+        Writes a structured log including:
+        - The scenario ID and the player's choice log across all turns.
+        - Per-NPC conversation history with BDI metadata per exchange.
+        - Each NPC's terminal outcome (if reached) and final model state.
+
+        Args:
+            session: The ``ConversationSession`` to export.
+            filepath: Destination path for the JSON file (created or overwritten).
+        """
         import json
 
         data: Dict[str, Any] = {

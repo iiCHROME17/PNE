@@ -43,10 +43,32 @@ from pathlib import Path
 
 
 class CognitiveThoughtMatcher:
+    """Template-based replacement for the LLM ``CognitiveInterpreter``.
+
+    Instead of calling an Ollama model for every turn, this class scores each
+    template in ``cognitive_thoughts.json`` against the current player input
+    and NPC state, then picks the highest-scoring winner above ``THRESHOLD``.
+
+    The result is deterministic (given the same seed) and much faster than an
+    LLM call — useful for testing, low-resource deployments, or as a fallback
+    when Ollama is unavailable.
+
+    Class Attributes:
+        THRESHOLD: Minimum normalised score (0.0–1.0) a template must reach to
+            be selected.  Templates scoring below this fall back to
+            ``FALLBACK_BIAS``.
+        FALLBACK_BIAS: The ``bias_type`` string used to locate the default
+            template when nothing clears ``THRESHOLD``.
+
+    Instance Attributes:
+        templates: List of template dicts loaded from ``cognitive_thoughts.json``.
+    """
+
     THRESHOLD = 0.35
     FALLBACK_BIAS = "cynical_realism"
 
-    # Maps parameter names → lambda that extracts the value from (player_input, npc)
+    # Maps parameter names used in template ``match_weights`` to lambdas that
+    # extract the corresponding float value from (player_input, npc).
     _PARAM_GETTERS = {
         "npc_self_esteem":      lambda pi, npc: npc.cognitive.self_esteem,
         "npc_locus_of_control": lambda pi, npc: npc.cognitive.locus_of_control,
@@ -59,17 +81,42 @@ class CognitiveThoughtMatcher:
     }
 
     def __init__(self, templates_path: str = None):
+        """Load cognitive thought templates from JSON.
+
+        Args:
+            templates_path: Absolute path to a ``cognitive_thoughts.json`` file.
+                Defaults to ``<package_dir>/cognitive_thoughts.json``.
+
+        Raises:
+            FileNotFoundError: If the templates file does not exist at the
+                resolved path.
+        """
         if templates_path is None:
             templates_path = str(Path(__file__).parent / "cognitive_thoughts.json")
         with open(templates_path, encoding="utf-8") as f:
             self.templates = json.load(f)
 
     def match(self, player_input, npc) -> tuple:
-        """
-        Find the best-matching cognitive template for this player input + NPC.
+        """Find the best-matching cognitive template for this player input + NPC.
+
+        Scores every template in ``self.templates`` and picks the highest-
+        normalised winner above ``THRESHOLD``.  If none qualify, falls back to
+        the ``FALLBACK_BIAS`` template (or the first template in the list).
+
+        A random variant is then drawn from the winner's ``thought_variants``
+        and ``belief_variants`` lists, giving natural variation across repeated
+        uses of the same template.
+
+        Args:
+            player_input: A ``PlayerDialogueInput`` providing tone scores and
+                ``language_art``.
+            npc: An ``NPCModel`` providing ``cognitive`` and ``world`` attributes.
 
         Returns:
-            (bias_type: str, internal_thought: str, subjective_belief: str)
+            A 3-tuple ``(bias_type, internal_thought, subjective_belief)`` where:
+              - ``bias_type`` is the cognitive bias label (e.g. ``"hostile_attribution"``).
+              - ``internal_thought`` is the NPC's private reaction text.
+              - ``subjective_belief`` is the NPC's conscious interpretation of the player.
         """
         la = player_input.language_art.value if hasattr(player_input.language_art, "value") else str(player_input.language_art)
 
@@ -93,11 +140,26 @@ class CognitiveThoughtMatcher:
         )
 
     def _score(self, template: dict, la: str, player_input, npc) -> tuple:
-        """
-        Score a single template against the current context.
+        """Score a single template against the current player input and NPC state.
+
+        Accumulates a weighted score by evaluating each entry in the template's
+        ``match_weights`` dict:
+
+        - ``language_art`` — discrete lookup: the player's current language art
+          is looked up in the weight table; the table's max value counts toward
+          ``total`` so other language arts are relatively penalised.
+        - Numeric parameters — each uses a gate (``min``, ``max``, or both) to
+          award ``weight`` points if the extracted value falls in range.
+
+        Args:
+            template: A single template dict from ``cognitive_thoughts.json``.
+            la: The player's current language art as a lowercase string.
+            player_input: The ``PlayerDialogueInput`` for this turn.
+            npc: The ``NPCModel`` being addressed.
 
         Returns:
-            (score: float, total_possible: float)
+            A 2-tuple ``(score, total_possible)`` where ``score / total_possible``
+            gives the normalised fit in [0.0, 1.0].
         """
         weights = template.get("match_weights", {})
         score, total = 0.0, 0.0

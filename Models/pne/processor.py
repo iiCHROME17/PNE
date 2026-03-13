@@ -20,35 +20,84 @@ from .ollama_integration import OllamaResponseGenerator
 
 
 class DialogueProcessor:
+    """Per-NPC BDI pipeline executor for a single conversation.
+
+    Orchestrates the full **Purpose → Input → Belief → Want → Intention → Output**
+    cycle on every player turn.  One ``DialogueProcessor`` is created per NPC per
+    session and lives inside an ``NPCConversationState``.
+
+    Pipeline stages (executed by ``process_dialogue``)
+    --------------------------------------------------
+    I.   **Purpose** — set at construction via ``npc_intent``; the NPC's goals
+         remain constant across turns (though ``intention_shift`` can update them).
+    II.  **Input / Rhetoric Parsing** — the ``PlayerDialogueInput`` arrives
+         pre-built from the scenario JSON; no parsing happens here.
+    III. **Cognitive Interpretation → Belief** — ``CognitiveInterpreter.interpret``
+         produces a ``ThoughtReaction`` describing the NPC's internal reading of
+         the player's words.  Falls back to a neutral default if Ollama is off.
+    IV.  **Desire Formation → Want** — ``DesireFormation.form_desire`` converts
+         the belief into a goal-oriented ``DesireState``.
+    V.   **Socialisation Filter → Intention** — ``SocialisationFilter.filter``
+         selects the best-matching ``BehaviouralIntention`` from ``INTENTION_REGISTRY``.
+    VI.  **Interaction Outcome** — ``OutcomeIndex.get_interaction_outcome`` maps the
+         intention to a scenario-defined outcome; applies stance and relation deltas.
+    VII. **Terminal Check** — ``OutcomeIndex.check_terminal_outcomes`` tests whether
+         the conversation has reached an ending condition.
+
+    Attributes:
+        npc: The ``NPCModel`` being processed; mutated in-place by outcome effects
+            (temporary mods, relation updates).
+        player_skills: Immutable skill set for the player; used in skill checks.
+        npc_intent: Tracks the NPC's current goal; may shift via
+            ``interaction_outcome.intention_shift``.
+        outcome_index: Maps BDI intentions to interaction / terminal outcomes for
+            the current choice.  Replaced each turn by the engine.
+        conversation: Tracks conversation stage, turn count, and history.
+        use_ollama: Whether LLM generation is enabled for this session.
+        ollama: ``OllamaResponseGenerator`` instance, or ``None`` if disabled.
+        cognitive_interpreter: ``CognitiveInterpreter`` instance, or ``None``
+            if disabled.
     """
-    Main processor implementing Purpose-Output Model with BDI architecture:
-    Purpose → Input → COGNITIVE (Belief) → DESIRE (Want) → SOCIAL (Intention) → Output
-    """
-    
+
     def __init__(
-        self, 
-        npc, 
+        self,
+        npc,
         player_skills: PlayerSkillSet,
         npc_intent: NPCIntent,
         outcome_index: OutcomeIndex,
         conversation_id: str,
         use_ollama: bool = True,
         ollama_url: str = "http://localhost:11434",
-        ollama_model: str = "llama3.2:1b"
+        ollama_model: str = "llama3.2:1b",
     ):
+        """Initialise the processor and wire up its sub-components.
+
+        Args:
+            npc: The ``NPCModel`` for the NPC this processor manages.
+            player_skills: The player's starting skill levels (0–10 each).
+            npc_intent: The NPC's initial goal state.
+            outcome_index: Starting ``OutcomeIndex`` for the first turn (replaced
+                each turn by the engine before calling ``process_dialogue``).
+            conversation_id: Unique identifier string for this conversation,
+                used by ``ConversationModel`` for logging.
+            use_ollama: Enable LLM-backed cognitive interpretation and response
+                generation.  Set ``False`` for deterministic / offline operation.
+            ollama_url: Base URL of the Ollama API server.
+            ollama_model: Ollama model tag (e.g. ``"llama3.2:1b"``).
+        """
         self.npc = npc
         self.player_skills = player_skills
         self.npc_intent = npc_intent
         self.outcome_index = outcome_index
-        
-        # Conversation containment
+
+        # Conversation containment — tracks stage, turn count, and history.
         self.conversation = ConversationModel(
             conversation_id=conversation_id,
             stage="opening",
-            topic=npc_intent.immediate_intention
+            topic=npc_intent.immediate_intention,
         )
-        
-        # Ollama integration
+
+        # Ollama integration — both generators share the same connection config.
         self.use_ollama = use_ollama
         if use_ollama:
             self.ollama = OllamaResponseGenerator(ollama_url, ollama_model)
@@ -58,13 +107,45 @@ class DialogueProcessor:
             self.cognitive_interpreter = None
     
     def process_dialogue(
-        self, 
+        self,
         player_input: PlayerDialogueInput,
-        generate_with_ollama: bool = True
+        generate_with_ollama: bool = True,
     ) -> Dict[str, Any]:
-        """
-        Complete BDI pipeline:
-        Purpose → Input → COGNITIVE (Belief) → DESIRE (Want) → SOCIAL (Intention) → Interaction → Terminal
+        """Run the full BDI pipeline for one player turn and return a rich context dict.
+
+        This is the core method called by ``NarrativeEngine.apply_choice`` each turn.
+        It executes all seven pipeline stages in sequence, applies outcome effects to
+        the NPC, optionally generates an NPC text response, and bundles everything
+        into a structured context dict for the engine layer.
+
+        Note: The engine typically calls this with ``generate_with_ollama=False`` and
+        then invokes ``ollama.generate_response_with_direction`` separately so it can
+        inject the scene direction from the scenario node and the dice result.
+
+        Args:
+            player_input: The parsed player choice for this turn.
+            generate_with_ollama: If ``True`` *and* Ollama is enabled, generate the
+                NPC's text response inside this method.  If ``False``, the engine
+                handles generation externally; ``npc_response`` in the returned dict
+                will contain the interaction outcome's fallback text.
+
+        Returns:
+            A dict with the following keys:
+
+            - ``conversation_id`` (str): Identifier of the ongoing conversation.
+            - ``turn`` (int): Current turn count after this exchange.
+            - ``npc_intent`` (dict): Serialised ``NPCIntent`` state.
+            - ``skill_check`` (dict | None): Result of the legacy threshold check,
+              or ``None`` for neutral choices.
+            - ``thought_reaction`` (dict): NPC's internal belief from Stage III.
+            - ``desire_state`` (dict): Goal-oriented desire from Stage IV.
+            - ``behavioural_intention`` (dict): Chosen intention from Stage V.
+            - ``interaction_outcome`` (dict | None): Matched outcome from Stage VI,
+              or ``None`` if no outcome was found.
+            - ``npc_response`` (str): Generated or fallback NPC dialogue text.
+            - ``terminal_outcome`` (dict | None): Terminal result if the conversation
+              has ended (Stage VII), otherwise ``None``.
+            - ``conversation_complete`` (bool): ``True`` when a terminal outcome fired.
         """
         
         # ═══════════════════════════════════════════════════════════
@@ -179,7 +260,13 @@ class DialogueProcessor:
         
         return response_context
     
-    def end_conversation(self):
-        """Reset temporary modifiers after conversation ends"""
+    def end_conversation(self) -> None:
+        """Clean up NPC state after the conversation ends.
+
+        Called by ``NarrativeEngine.apply_choice`` when a terminal node is
+        reached.  Reverses any temporary attribute modifiers applied during
+        the session (via ``apply_temp_mod``) and clears the conversation
+        history to free memory.
+        """
         self.npc.reset_temp_mods()
         self.conversation.history.clear()

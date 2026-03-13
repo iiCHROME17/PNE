@@ -23,12 +23,34 @@ from .player_input import PlayerDialogueInput
 
 @dataclass
 class DesireState:
-    """NPC's desire in response to player input"""
-    immediate_desire: str   # "Test their sincerity", "Find common ground", etc.
-    desire_type: str        # "information-seeking" | "affiliation" | "protection" | "dominance"
-    intensity: float        # 0.0–1.0
+    """The NPC's goal-oriented desire produced by the Desire Formation layer.
+
+    Sits between cognitive belief (what the NPC *thinks* is happening) and
+    behavioural intention (what the NPC *does* about it).
+
+    Attributes:
+        immediate_desire: A natural-language description of what the NPC wants
+            right now in response to the player's words, e.g.
+            ``"Test their commitment and sincerity"`` or
+            ``"Find common ground and build trust"``.
+        desire_type: Broad motivational category that drives template selection
+            in ``SocialisationFilter``.  One of:
+
+            - ``"information-seeking"`` — NPC wants to probe, evaluate, or test.
+            - ``"affiliation"``         — NPC wants connection, trust, or cooperation.
+            - ``"protection"``          — NPC wants to guard, withdraw, or resist.
+            - ``"dominance"``           — NPC wants to assert, challenge, or control.
+        intensity: Strength of the desire on a 0.0–1.0 scale.  Higher values
+            push the selected intention's confrontation level toward the upper
+            end of its valid range (see ``SocialisationFilter._clamp_confrontation``).
+    """
+
+    immediate_desire: str
+    desire_type: str
+    intensity: float
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialise to a plain dict (used in per-turn response context)."""
         return {
             "immediate_desire": self.immediate_desire,
             "desire_type": self.desire_type,
@@ -37,9 +59,27 @@ class DesireState:
 
 
 # ── Bias → desire modifier ─────────────────────────────────────────────────
-# Applied after the 6 belief-keyword patterns.
-# desire_type=None means "keep whatever the pattern selected".
-# intensity_boost is additive (capped at 1.0).
+# Applied *after* the 6 belief-keyword patterns resolve a base desire.
+# A modifier may override ``desire_type`` and/or add to ``intensity`` (capped at 1.0).
+# ``desire_type=None`` means "keep whatever the pattern already selected."
+#
+# Each entry corresponds to a ``bias_type`` returned by ``CognitiveThoughtMatcher``
+# (or the legacy ``CognitiveInterpreter``).  The effect is that two NPCs with
+# different cognitive biases can respond to the same player choice with
+# fundamentally different desires.
+#
+# Modifier semantics:
+#   hostile_attribution  → always reads intent as threatening → pushes toward protection
+#   optimism_bias        → sees opportunity in almost anything → pushes toward affiliation
+#   confirmation_bias    → wants validation of existing beliefs → mild info-seeking boost
+#   empathy_resonance    → unusually receptive to emotional signals → strong affiliation push
+#   cynical_realism      → no illusions; accepts the base desire as-is
+#   ideological_filter   → frames everything through ideology → moderate intensity boost only
+#   self_referential     → makes it personal → pushes toward dominance (self-assertion)
+#   projection           → assumes the player wants what the NPC fears → protection push
+#   in_group_bias        → "are they one of us?" → intensity boost without type change
+#   black_white_thinking → no middle ground; either all-in or hostile → strong dominance push
+#   scarcity_mindset     → fears loss above all → strong protection push
 BIAS_TO_DESIRE_MODIFIER: Dict[str, Dict] = {
     "hostile_attribution": {"desire_type": "protection",          "intensity_boost": 0.2},
     "optimism_bias":       {"desire_type": "affiliation",         "intensity_boost": 0.15},
@@ -75,11 +115,39 @@ class DesireFormation:
         npc,
         npc_intent,
     ) -> DesireState:
-        """
-        Given NPC's belief about the player's words, what does the NPC WANT?
+        """Translate the NPC's subjective belief into a goal-oriented desire.
 
-        Runs 6 belief-keyword patterns to determine a base desire, then
-        applies the cognitive bias modifier from thought_reaction.bias_type.
+        Runs 6 belief-keyword patterns in priority order to determine a base
+        ``DesireState``, then applies the ``BIAS_TO_DESIRE_MODIFIER`` for the
+        NPC's cognitive bias type, potentially overriding ``desire_type`` and
+        boosting ``intensity``.
+
+        Pattern priority:
+          1. **Uncertainty keywords** — NPC questions player sincerity → info-seeking
+             or protection (branching on self-esteem).
+          2. **Sincerity keywords** — NPC perceives authenticity → affiliation
+             or guarded info-seeking (branching on empathy).
+          3. **Threat keywords** — NPC feels attacked/manipulated → protection
+             or dominance (branching on wildcard and assertion).
+          4. **Opportunism keywords** — NPC suspects being used → info-seeking.
+          5. **Ideology alignment** — player appeals to shared values → affiliation
+             or info-seeking (branching on alignment strength).
+          6. **Emotional valence defaults** — negative/positive valence fallbacks.
+          7. **Long-term intent fallback** — driven by ``npc_intent.long_term_desire``.
+
+        Args:
+            thought_reaction: Output of the cognitive layer — provides
+                ``subjective_belief``, ``emotional_valence``, and ``bias_type``.
+            player_input: The player's choice — provides tone scores and
+                ``ideology_alignment`` for Pattern 5.
+            npc: The ``NPCModel`` — provides ``cognitive``, ``social``, and
+                ``world`` attributes used in pattern branching.
+            npc_intent: The ``NPCIntent`` — provides ``long_term_desire`` for
+                the final fallback pattern.
+
+        Returns:
+            A ``DesireState`` with ``immediate_desire``, ``desire_type``, and
+            ``intensity`` fully resolved after bias modification.
         """
         belief = thought_reaction.subjective_belief.lower()
         valence = thought_reaction.emotional_valence

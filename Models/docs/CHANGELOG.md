@@ -4,6 +4,33 @@ Project history for the Psychological Narrative Engine, from first prototype to 
 
 ---
 
+## 12 March 2026 — Codebase documentation pass (uncommitted)
+
+**What changed**
+
+- **Comprehensive docstrings added** — every public class and method across the core modules (`engine.py`, `dialogue_coherence.py`, `skill_check.py`, `processor.py`, `desire.py`, `player_input.py`, `intention_registry.py`, `social.py`, `schema.py`) now has full docstrings: module-level summaries, attribute tables, argument/return descriptions, and cross-references to related classes.
+- **Module headers rewritten** — the top-of-file blurbs for `engine.py`, `dialogue_coherence.py`, and `skill_check.py` were replaced with structured overviews explaining each module's role in the pipeline, what classes it exports, and how they interact.
+- **`schema.py` contracts documented** — every Pydantic model (`CreateSessionRequest`, `ChoiceItem`, `ChoicesResponse`, `SaveResponse`) now documents each field's purpose, valid values, and which API endpoint uses it.
+- **`SkillCheckSystem` constants documented** — `DIFFICULTY_ADJ`, `LANGUAGE_ART_TO_SKILL`, and `SKILL_MODIFIERS` class-level tables have explanatory comments; `DiceCheckResult` and `SkillCheckResult` field comments standardised to en-dash ranges.
+- **Pipeline Design PDF updated** — the architecture diagram was revised to reflect the current REST API layer and BDI pipeline structure.
+
+---
+
+## 9 March 2026 — Midterm Demo Version
+
+**What changed**
+
+- **Full REST API layer** — a new `Models/api/` package introduces a FastAPI server (`main.py`) with HTTP and WebSocket endpoints, a session store (`session_store.py`), Pydantic schemas (`schema.py`), WebSocket handler (`ws_handler.py`), and an NPC state updater (`npc_updater.py`). The engine is now accessible over a network, not just from the CLI.
+- **Cognitive thought matcher** — `pne/cognitive_thought_matcher.py` and an accompanying `cognitive_thoughts.json` library (810 thought templates) were added. The cognitive interpreter now scores player input against a rich library of named thought patterns rather than generating free-form reactions, making NPC cognition more predictable and author-controllable.
+- **`cognitive.py` and `desire.py` major rewrites** — both modules were substantially revised to integrate the thought matcher and support the extended data flowing through the API layer.
+- **Ollama integration expanded** — `pne/ollama_integration.py` grew significantly to handle the richer prompt structures and session context introduced by the API.
+- **Unity client library** — three C# files (`PNEClient.cs`, `PNEDialogueUI.cs`, `PNETypes.cs`) and a full Unity user guide (HTML + Markdown) were added under `docs/unity/`, giving Unity developers a drop-in integration layer.
+- **Godot client script** — `docs/api_client_godot.gd` provides the equivalent integration for Godot 4 projects.
+- **Install scripts** — `install.bat` and `install.sh` added at the repo root, along with a top-level `requirements.txt`, so the engine can be set up in one command on Windows or Unix.
+- **Troy NPC overhaul** — `npcs/troy.json` was significantly revised with updated BDI attributes and scenario hooks.
+
+---
+
 ## 4 March 2026 — Difficulty system, failed-choice pruning, architecture graphs
 
 **What changed**
