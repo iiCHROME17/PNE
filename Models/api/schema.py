@@ -6,6 +6,7 @@ and any HTTP or WebSocket client (e.g. a game front-end or the PNE CLI).
 
 from pydantic import BaseModel, Field
 from typing import Dict, List, Optional, Any
+from config import OLLAMA_MODEL
 
 
 class CreateSessionRequest(BaseModel):
@@ -38,7 +39,7 @@ class CreateSessionRequest(BaseModel):
         }
     )
     use_ollama: bool = True
-    ollama_model: str = "llama3.2:1b"
+    ollama_model: str = OLLAMA_MODEL
 
 
 class ChoiceItem(BaseModel):

@@ -4,6 +4,19 @@ Project history for the Psychological Narrative Engine, from first prototype to 
 
 ---
 
+## 10 April 2026 — Dissertation graph tables added
+
+**What changed**
+
+- **`run_engine.sh` fixed** — the launch script was pointing to the non-existent `narrative_engine.py`; corrected to `NE.py`.
+- **`config.py` centralised model setting** — confirmed `OLLAMA_MODEL` is set to `qwen2.5:3b` and sourced by `ollama_integration.py` across the entire system.
+- **Dissertation graph tables created** — three new reference tables added to `Dissertation/Literature Material/Drafts/Graphs/`:
+  - `5.1.1.md` — pipeline stage overview table (7 stages, purpose and output for each).
+  - `5.1.4 Table.md` — NPC data structure table using Amourie Othella as the worked example, covering metadata, cognitive attributes, social attributes, ideology, wildcard, faction, social position, world context, known events, and known figures.
+  - `5.2.2.md` — scenario routing log table for the `door_guard_night` test, tracing turn-by-turn node traversal, player choices, NPC intent, and outcome deltas.
+
+---
+
 ## 12 March 2026 — Codebase documentation pass (uncommitted)
 
 **What changed**

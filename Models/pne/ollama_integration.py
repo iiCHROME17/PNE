@@ -16,6 +16,7 @@ Prompt structure
 from typing import List
 import requests
 from .cognitive import ThoughtReaction
+from config import OLLAMA_MODEL, OLLAMA_URL
 from .social import BehaviouralIntention
 from .outcomes import InteractionOutcome
 
@@ -80,7 +81,7 @@ def _valence_note(v: float) -> str:
 class OllamaResponseGenerator:
     """Generates NPC dialogue responses using Ollama"""
 
-    def __init__(self, base_url: str = "http://localhost:11434", model: str = "llama3.2:1b"):
+    def __init__(self, base_url: str = OLLAMA_URL, model: str = OLLAMA_MODEL):
         self.base_url = base_url
         self.model = model
         self.api_url = f"{base_url}/api/generate"
@@ -336,6 +337,7 @@ class OllamaResponseGenerator:
         scene_direction: str = "",
         check_success: bool = None,
         dice_description: str = "",
+        is_recovery: bool = False,
     ) -> str:
         """Build the Ollama prompt for a mid-turn NPC response."""
         def _get(obj, *attrs, default=""):
@@ -374,7 +376,10 @@ class OllamaResponseGenerator:
         confrontation = float(intention.get("confrontation_level", 0.5) if isinstance(intention, dict) else 0.5)
         emotional_valence = float(thought.get("emotional_valence", 0.0) if isinstance(thought, dict) else 0.0)
         parts.append("## CURRENT INTERNAL STATE")
-        parts.append(f'BELIEF:    "{belief}"')
+        if check_success is not None and dice_description:
+            parts.append(f'PRE-ROLL BELIEF (context only — dice result overrides this): "{belief}"')
+        else:
+            parts.append(f'BELIEF:    "{belief}"')
         parts.append(f"INTENTION: {intention_type}")
         parts.append(f"Stance:    {_confrontation_note(confrontation)}")
         parts.append(f"Emotional reaction this turn: {emotional_valence:+.2f}  ({_valence_note(emotional_valence)})")
@@ -386,19 +391,35 @@ class OllamaResponseGenerator:
             parts.append("")
 
         if check_success is not None and dice_description:
-            parts.append("## DICE CONTEXT — OVERRIDES SCENE DIRECTION ABOVE")
+            parts.append("## DICE CONTEXT — AUTHORITATIVE RESULT (OVERRIDES BELIEF AND SCENE DIRECTION ABOVE)")
             if check_success:
-                parts.append(
-                    f"The player's skill check SUCCEEDED {dice_description}. "
-                    "Their approach got through to you. Let this show in your response — "
-                    "even a guarded character can feel a genuine touch land."
-                )
+                if is_recovery:
+                    parts.append(
+                        f"The player's skill check SUCCEEDED {dice_description}. "
+                        "This was a recovery attempt — they came back with something concrete after "
+                        "you weren't convinced. It landed. Acknowledge what they brought, even grudgingly. "
+                        "Do NOT repeat the skepticism from your last response."
+                    )
+                else:
+                    parts.append(
+                        f"The player's skill check SUCCEEDED {dice_description}. "
+                        "Their approach got through to you. The pre-roll belief above was your "
+                        "internal doubt BEFORE this moment — it has now been answered. "
+                        "Let this shift show. Even a guarded character registers when something real lands."
+                    )
             else:
-                parts.append(
-                    f"The player's skill check FAILED {dice_description}. "
-                    "Their approach didn't land. You weren't moved — "
-                    "respond dismissively, sceptically, or simply unmoved."
-                )
+                if is_recovery:
+                    parts.append(
+                        f"The player's skill check FAILED {dice_description}. "
+                        "This was their second attempt and it still did not land. "
+                        "You are not persuaded. Respond with finality — this avenue is closed."
+                    )
+                else:
+                    parts.append(
+                        f"The player's skill check FAILED {dice_description}. "
+                        "Their approach did not land. You are not moved. "
+                        "Respond dismissively, sceptically, or simply unmoved."
+                    )
             parts.append("")
 
         min_r = max_r = ""
@@ -418,6 +439,16 @@ class OllamaResponseGenerator:
             parts.append("")
 
         recent = history[-6:] if len(history) > 6 else history
+        # On a successful recovery, the last NPC entry is the original failed-turn
+        # response — remove it so it doesn't pull this response back toward skepticism.
+        if is_recovery and check_success and recent:
+            npc_name = getattr(npc, "name", None)
+            trimmed = list(recent)
+            for i in range(len(trimmed) - 1, -1, -1):
+                if trimmed[i].get("speaker") == npc_name:
+                    trimmed.pop(i)
+                    break
+            recent = trimmed
         if recent:
             parts.append("## RECENT CONVERSATION")
             for entry in recent:
@@ -442,6 +473,7 @@ class OllamaResponseGenerator:
         scene_direction: str = "",
         check_success: bool = None,
         dice_description: str = "",
+        is_recovery: bool = False,
     ) -> str:
         """
         Generate NPC dialogue using BDI context dicts + the scenario node's
@@ -452,7 +484,7 @@ class OllamaResponseGenerator:
         """
         prompt = self._build_prompt_with_direction(
             npc, thought, intention, interaction_outcome, history,
-            scene_direction, check_success, dice_description,
+            scene_direction, check_success, dice_description, is_recovery,
         )
         options = self._build_ollama_options(npc)
 
@@ -496,6 +528,7 @@ class OllamaResponseGenerator:
         scene_direction: str = "",
         check_success: bool = None,
         dice_description: str = "",
+        is_recovery: bool = False,
     ):
         """
         Streaming version of generate_response_with_direction.
@@ -505,7 +538,7 @@ class OllamaResponseGenerator:
         from typing import Generator
         prompt = self._build_prompt_with_direction(
             npc, thought, intention, interaction_outcome, history,
-            scene_direction, check_success, dice_description,
+            scene_direction, check_success, dice_description, is_recovery,
         )
         options = self._build_ollama_options(npc)
 

@@ -62,6 +62,9 @@ public class PNEDialogueUI : MonoBehaviour
     private string           _pendingNpcText;           // buffered if NPC arrives during PlayerTyping
     private List<ChoiceItem> _pendingChoices;           // stored until player advances past NPC text
     private readonly List<Button> _choiceButtons = new();
+    private bool             _isTerminal       = false;
+    private string           _terminalId       = "";
+    private string           _terminalResult   = "";
 
     // ── Unity lifecycle ───────────────────────────────────────────────────────
 
@@ -154,15 +157,14 @@ public class PNEDialogueUI : MonoBehaviour
 
     private void HandleTerminal(TerminalMessage msg)
     {
+        _isTerminal     = true;
+        _terminalId     = msg.TerminalId;
+        _terminalResult = msg.Result;
         _pendingChoices = null;
         ClearChoices();
         SetChoicesVisible(false);
 
-        BeginTyping($"<b>{msg.Npc}:</b> {msg.FinalDialogue}", onComplete: () =>
-        {
-            if (outcomeLabel != null)
-                outcomeLabel.text = $"[{msg.TerminalId.ToUpper()}] {msg.Result}";
-        });
+        BeginTyping($"<b>{msg.Npc}:</b> {msg.FinalDialogue}");
 
         Debug.Log($"[PNE] Terminal: {msg.TerminalId} — {msg.Result}");
     }
@@ -235,7 +237,18 @@ public class PNEDialogueUI : MonoBehaviour
         _typingCoroutine = null;
         _phase = Phase.TextComplete;
         onComplete?.Invoke();
+        if (_isTerminal) { ShowJudgementOnly(); return; }
         SetInteractHint(true, continueHint);
+    }
+
+    private void ShowJudgementOnly()
+    {
+        SetDialoguePanelVisible(false);
+        SetInteractHint(false);
+        SetChoicesVisible(false);
+        if (outcomeLabel != null)
+            outcomeLabel.text = $"[{_terminalId.ToUpper()}] {_terminalResult}";
+        _phase = Phase.Idle;
     }
 
     // ── Typewriter — player line (non-skippable, fills Ollama wait) ───────────

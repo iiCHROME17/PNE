@@ -90,9 +90,9 @@ def main() -> None:
         scenario_id = engine.load_scenario(scenario_file)
 
         player_skills = PlayerSkillSet(
-            authority=5,
-            diplomacy=5,
-            empathy=5,
+            authority=9,
+            diplomacy=2,
+            empathy=2,
             manipulation=5,
         )
 

@@ -17,6 +17,7 @@ from .desire import DesireFormation, DesireState
 from .social import SocialisationFilter
 from .outcomes import OutcomeIndex
 from .ollama_integration import OllamaResponseGenerator
+from config import OLLAMA_MODEL, OLLAMA_URL
 
 
 class DialogueProcessor:
@@ -67,8 +68,8 @@ class DialogueProcessor:
         outcome_index: OutcomeIndex,
         conversation_id: str,
         use_ollama: bool = True,
-        ollama_url: str = "http://localhost:11434",
-        ollama_model: str = "llama3.2:1b",
+        ollama_url: str = OLLAMA_URL,
+        ollama_model: str = OLLAMA_MODEL,
     ):
         """Initialise the processor and wire up its sub-components.
 

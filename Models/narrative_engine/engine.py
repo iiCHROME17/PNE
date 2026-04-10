@@ -34,6 +34,7 @@ from typing import Callable, Dict, List, Optional, Any
 
 from pne import DialogueProcessor, PlayerSkillSet, OutcomeIndex, SkillCheckSystem, LanguageArt, Difficulty
 from PNE_Models import NPCModel
+from config import OLLAMA_MODEL, OLLAMA_URL
 
 from .session import ConversationSession, NPCConversationState
 from .scenario_loader import ScenarioLoader
@@ -71,8 +72,8 @@ class NarrativeEngine:
     def __init__(
         self,
         use_ollama: bool = True,
-        ollama_url: str = "http://localhost:11434",
-        ollama_model: str = "llama3.2:1b",
+        ollama_url: str = OLLAMA_URL,
+        ollama_model: str = OLLAMA_MODEL,
         difficulty: Difficulty = Difficulty.STANDARD,
     ):
         self.use_ollama = use_ollama
@@ -563,6 +564,7 @@ class NarrativeEngine:
                         scene_direction=node_direction,
                         check_success=check_success if dice is not None else None,
                         dice_description=dice_description,
+                        is_recovery=is_recovery,
                     )
                     if on_token and hasattr(ollama_gen, "generate_response_with_direction_streaming"):
                         raw_response = ""

@@ -36,6 +36,10 @@ public class PNEClient : MonoBehaviour
     public string difficulty = "STANDARD";
     public bool useOllama = true;
 
+    [Header("Debug")]
+    [Tooltip("Save NPC JSON state to disk when the session ends. Uncheck to keep JSON files unchanged during testing.")]
+    public bool updateJsons = true;
+
     [Header("Player Skills (0–10)")]
     public int authority    = 5;
     public int diplomacy    = 5;
@@ -112,8 +116,11 @@ public class PNEClient : MonoBehaviour
     public void EndSession()
     {
         if (!string.IsNullOrEmpty(SessionId))
+        {
+            if (updateJsons)
+                StartCoroutine(SaveSessionCoroutine());
             StartCoroutine(DeleteSessionCoroutine());
-
+        }
         _ws?.Close();
         _ws = null;
         SessionId = null;
@@ -253,7 +260,15 @@ public class PNEClient : MonoBehaviour
         }
     }
 
-    // ── Session cleanup (HTTP DELETE) ─────────────────────────────────────────
+    // ── Session cleanup (HTTP) ────────────────────────────────────────────────
+
+    private IEnumerator SaveSessionCoroutine()
+    {
+        using var uwr = new UnityWebRequest($"{apiBaseUrl}/sessions/{SessionId}/save", "POST");
+        uwr.downloadHandler = new DownloadHandlerBuffer();
+        yield return uwr.SendWebRequest();
+        // Fire and forget — ignore result
+    }
 
     private IEnumerator DeleteSessionCoroutine()
     {
