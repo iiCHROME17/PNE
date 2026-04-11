@@ -1,0 +1,125 @@
+{
+  "scenario_id": "door_guard_night",
+  "player_choice_log": [
+    {
+      "node_id": "start",
+      "choice_id": "open_empathy",
+      "text": "I've seen what this regime does to people. The suffering is real. I'm here because I want to help end it."
+    },
+    {
+      "node_id": "challenge",
+      "choice_id": "concrete_value",
+      "text": "I can bring you things you can't get here \u2014 food, medicine, weapons. That's not words, that's logistics. What do you need?"
+    }
+  ],
+  "npcs": {
+    "troy": {
+      "name": "Troy",
+      "conversation": {
+        "conversation_id": "door_guard_night:troy",
+        "stage": "opening",
+        "topic": "Assess and either admit or turn away this stranger",
+        "turn_count": 2,
+        "history": []
+      },
+      "choices_made": [
+        "open_empathy",
+        "concrete_value"
+      ],
+      "history": [
+        {
+          "turn": 0,
+          "speaker": "Narrator",
+          "text": "Don't move. State your business."
+        },
+        {
+          "turn": 0,
+          "speaker": "Player",
+          "text": "I've seen what this regime does to people. The suffering is real. I'm here because I want to help end it."
+        },
+        {
+          "turn": 1,
+          "speaker": "Troy",
+          "text": "At least you see it. That's more than most who knock.",
+          "metadata": {
+            "thought": {
+              "internal_thought": "Finally \u2014 someone who understands what we're actually up against.",
+              "subjective_belief": "Their understanding of the situation aligns with mine.",
+              "cognitive_state": {
+                "self_esteem": 0.2,
+                "locus_of_control": 0.85,
+                "cog_flexibility": 0.1
+              },
+              "emotional_valence": 0.45,
+              "bias_type": "ideological_filter"
+            },
+            "desire": {
+              "immediate_desire": "Evaluate if they align with our mission",
+              "desire_type": "information-seeking",
+              "intensity": 0.65
+            },
+            "intention": {
+              "intention_type": "Neutral Evaluation",
+              "confrontation_level": 0.5,
+              "emotional_expression": "analytical",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "seek_common_cause",
+              "stance_delta": {
+                "social.empathy": 0.05
+              },
+              "relation_delta": 0.15,
+              "intention_shift": "Seek Common Cause",
+              "min_response": "Easy words. Everyone claims to care until there's a cost.",
+              "max_response": "At least you see it. That's more than most who knock.",
+              "scripted": false
+            }
+          }
+        },
+        {
+          "turn": 1,
+          "speaker": "Player",
+          "text": "I can bring you things you can't get here \u2014 food, medicine, weapons. That's not words, that's logistics. What do you need?"
+        }
+      ],
+      "terminal_outcome": {
+        "terminal_id": "succeed",
+        "result": "Guard grants entry to the Insurgency hideout. Trust established.",
+        "final_dialogue": "I'll consider your offer for help when the time is right."
+      },
+      "final_npc_state": {
+        "name": "Troy",
+        "age": 25,
+        "cognitive": {
+          "self_esteem": 0.2,
+          "locus_of_control": 0.85,
+          "cog_flexibility": 0.1
+        },
+        "social": {
+          "assertion": 0.8,
+          "conf_indep": 0.1,
+          "empathy": 0.5,
+          "ideology": {},
+          "wildcard": null,
+          "faction": "Insurgency",
+          "social_position": "Vice"
+        },
+        "world": {
+          "personal_history": "Troy is one of the earliest members of the Insurgency. He is not a founder of the insurgency, nor was he a higher-up when he first joined but he witnessed countless insurgent deaths in the more chaotic early RI conflicts. He is devout loyal to Moses. He might question his logic, but he doesn't question his heart.",
+          "player_history": "[2026-03-24] SUCCEED: Guard grants entry to the Insurgency hideout. Trust established.\n[2026-03-24] SUCCEED: Guard grants entry to the Insurgency hideout. Trust established.\n[2026-03-24] SUCCEED: Guard grants entry to the Insurgency hideout. Trust established.",
+          "player_relation": 1.0,
+          "world_history_ref": "data/world.json",
+          "faction_ref": "",
+          "known_events": [
+            "moses_defection"
+          ],
+          "known_figures": [
+            "morisson_moses"
+          ],
+          "world_history": ""
+        }
+      }
+    }
+  }
+}

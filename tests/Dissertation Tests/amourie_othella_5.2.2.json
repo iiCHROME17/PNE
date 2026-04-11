@@ -1,0 +1,140 @@
+{
+  "scenario_id": "door_guard_night",
+  "player_choice_log": [
+    {
+      "node_id": "start",
+      "choice_id": "open_diplomacy",
+      "text": "I understand your caution \u2014 you'd be a fool not to have it. Let me explain how what I bring serves what you're trying to protect."
+    },
+    {
+      "node_id": "challenge",
+      "choice_id": "concrete_value",
+      "text": "I can bring you things you can't get here \u2014 food, medicine, weapons. That's not words, that's logistics. What do you need?"
+    }
+  ],
+  "npcs": {
+    "amourie_othella": {
+      "name": "Amourie Othella",
+      "conversation": {
+        "conversation_id": "door_guard_night:amourie_othella",
+        "stage": "opening",
+        "topic": "Assess and either admit or turn away this stranger",
+        "turn_count": 2,
+        "history": []
+      },
+      "choices_made": [
+        "open_diplomacy",
+        "concrete_value"
+      ],
+      "history": [
+        {
+          "turn": 0,
+          "speaker": "Narrator",
+          "text": "Don't move. State your business."
+        },
+        {
+          "turn": 0,
+          "speaker": "Player",
+          "text": "I understand your caution \u2014 you'd be a fool not to have it. Let me explain how what I bring serves what you're trying to protect."
+        },
+        {
+          "turn": 1,
+          "speaker": "Amourie Othella",
+          "text": "You seem wary, but your perspective is valid. Let's hear how you see the Commonman fitting into this work.",
+          "metadata": {
+            "thought": {
+              "internal_thought": "They're choosing words that won't push me away. That's thoughtful.",
+              "subjective_belief": "The diplomatic tone shows they actually care how I receive this.",
+              "cognitive_state": {
+                "self_esteem": 0.9,
+                "locus_of_control": 0.2,
+                "cog_flexibility": 0.9743176551335502
+              },
+              "emotional_valence": 0.45,
+              "bias_type": "optimism_bias"
+            },
+            "desire": {
+              "immediate_desire": "Explore potential connection",
+              "desire_type": "affiliation",
+              "intensity": 0.65
+            },
+            "intention": {
+              "intention_type": "Acknowledge with Reservation",
+              "confrontation_level": 0.569,
+              "emotional_expression": "cautious",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "propose_alliance",
+              "stance_delta": {
+                "cognitive.cog_flexibility": 0.05
+              },
+              "relation_delta": 0.1,
+              "intention_shift": "Propose Alliance",
+              "min_response": "Everyone has a pitch. What makes yours worth hearing?",
+              "max_response": "You're thinking. Good. Keep going.",
+              "scripted": false
+            }
+          }
+        },
+        {
+          "turn": 1,
+          "speaker": "Player",
+          "text": "I can bring you things you can't get here \u2014 food, medicine, weapons. That's not words, that's logistics. What do you need?"
+        }
+      ],
+      "terminal_outcome": {
+        "terminal_id": "succeed",
+        "result": "Guard grants entry to the Insurgency hideout. Trust established.",
+        "final_dialogue": "Thank you for your insight; I'll consider how we might collaborate further."
+      },
+      "final_npc_state": {
+        "name": "Amourie Othella",
+        "age": 33,
+        "cognitive": {
+          "self_esteem": 0.9,
+          "locus_of_control": 0.2,
+          "cog_flexibility": 0.8
+        },
+        "social": {
+          "assertion": 0.5,
+          "conf_indep": 0.6,
+          "empathy": 0.75,
+          "ideology": {
+            "Communitarianism": 0.7,
+            "Pragmatism": 0.3
+          },
+          "wildcard": "Napoleon",
+          "faction": "Commonman",
+          "social_position": "Boss"
+        },
+        "world": {
+          "personal_history": "Amourie Othella was born into inheritance, not comfort. As a descendant of Jessa Reid-Othella and the ideological lineage of Jean Pope Chautlier, she grew up surrounded by stories of resistance, art as responsibility, and culture as civic duty. Her childhood was not defined by rebellion but by observation. She learned early that Romance City\u2019s decline was not loud \u2014 it was quiet. She watched districts grow emotionally dim before they decayed physically. Where others saw politics, she sensed imbalance.\n\nBy adolescence, she had already internalized a core belief: infrastructure fails when empathy fails. Unlike earlier artist leaders who reacted to oppression, Amourie developed during a period of slow deterioration. Dysphoria was spreading, but subtly. Human governance was stable on paper, but spiritually hollow. She concluded that collapse would not come from sudden violence, but from apathy.\n\nAt seventeen, she formalized what older generations had kept informal. She unified scattered artist circles into the Commonman, not as protestors but as stewards. Her leadership was calm, structured, and emotionally literate. She framed art not as rebellion, but as preventative maintenance for society. Under her direction, murals became markers of psychological health, performances became civic rituals, and cultural districts became living diagnostics of the city\u2019s condition.\n\nAmourie does not believe she is a hero. She believes she is maintenance.",
+          "player_history": "",
+          "player_relation": 0.75,
+          "world_history_ref": "data/world.json",
+          "faction_ref": "Commonman",
+          "known_events": [
+            "azraelean_war",
+            "great_separation",
+            "hop_creation",
+            "romance_city_founded",
+            "romancian_takeover",
+            "dysphoria_onset",
+            "commonman_formed",
+            "hop_removal",
+            "dysphoria_expansion"
+          ],
+          "known_figures": [
+            "the_envisioned",
+            "clark_tolie",
+            "jessa_reid_othella",
+            "jean_pope_chautlier",
+            "morisson_moses"
+          ],
+          "world_history": ""
+        }
+      }
+    }
+  }
+}

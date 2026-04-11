@@ -1,0 +1,172 @@
+{
+  "scenario_id": "door_guard_night",
+  "player_choice_log": [
+    {
+      "node_id": "start",
+      "choice_id": "open_authority",
+      "text": "I don't need to justify myself to a door guard. We're fighting the same war. Open the door."
+    },
+    {
+      "node_id": "start",
+      "choice_id": "authority_soften",
+      "text": "I pushed too hard. Look \u2014 I need in. What do you actually need from me?"
+    },
+    {
+      "node_id": "challenge",
+      "choice_id": "mutual_challenge",
+      "text": "You've been testing me since I walked up. Fine. But you and I are fighting the same war. Either let me prove that, or we both lose."
+    }
+  ],
+  "npcs": {
+    "troy": {
+      "name": "Troy",
+      "conversation": {
+        "conversation_id": "door_guard_night:troy",
+        "stage": "opening",
+        "topic": "Assess and either admit or turn away this stranger",
+        "turn_count": 3,
+        "history": []
+      },
+      "choices_made": [
+        "open_authority",
+        "authority_soften",
+        "mutual_challenge"
+      ],
+      "history": [
+        {
+          "turn": 0,
+          "speaker": "Narrator",
+          "text": "Don't move. State your business."
+        },
+        {
+          "turn": 0,
+          "speaker": "Player",
+          "text": "I don't need to justify myself to a door guard. We're fighting the same war. Open the door."
+        },
+        {
+          "turn": 1,
+          "speaker": "Troy",
+          "text": "You've got some nerve, stranger. This isn't about your credentials here.",
+          "metadata": {
+            "thought": {
+              "internal_thought": "I stopped pretending there's a third option a long time ago.",
+              "subjective_belief": "The situation doesn't have room for ambiguity right now.",
+              "cognitive_state": {
+                "self_esteem": 0.2,
+                "locus_of_control": 0.85,
+                "cog_flexibility": 0.1
+              },
+              "emotional_valence": -0.45,
+              "bias_type": "black_white_thinking"
+            },
+            "desire": {
+              "immediate_desire": "Maintain distance and protect boundaries",
+              "desire_type": "dominance",
+              "intensity": 0.8999999999999999
+            },
+            "intention": {
+              "intention_type": "Neutral Response",
+              "confrontation_level": 0.5157,
+              "emotional_expression": "direct",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "reject_authority",
+              "stance_delta": {},
+              "relation_delta": -0.15,
+              "intention_shift": "Reject Authority",
+              "min_response": "Wrong place, wrong attitude. Move.",
+              "max_response": "You picked the wrong door to be rude at.",
+              "scripted": false
+            }
+          }
+        },
+        {
+          "turn": 1,
+          "speaker": "Player",
+          "text": "I pushed too hard. Look \u2014 I need in. What do you actually need from me?"
+        },
+        {
+          "turn": 2,
+          "speaker": "Troy",
+          "text": "I don't doubt your bravery, but we're still on different sides. Let's proceed with caution.",
+          "metadata": {
+            "thought": {
+              "internal_thought": "The framing gives them away \u2014 they see the world like I do.",
+              "subjective_belief": "Their worldview aligns with mine \u2014 the approach confirms it.",
+              "cognitive_state": {
+                "self_esteem": 0.2,
+                "locus_of_control": 0.85,
+                "cog_flexibility": 0.1
+              },
+              "emotional_valence": -0.45,
+              "bias_type": "confirmation_bias"
+            },
+            "desire": {
+              "immediate_desire": "Maintain distance and protect boundaries",
+              "desire_type": "information-seeking",
+              "intensity": 0.7
+            },
+            "intention": {
+              "intention_type": "Neutral Response",
+              "confrontation_level": 0.5157,
+              "emotional_expression": "direct",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "backpedal_rejected",
+              "stance_delta": {},
+              "relation_delta": -0.05,
+              "intention_shift": "Dismiss Backpedal",
+              "min_response": "Too late. Should've led with that.",
+              "max_response": "Asking nicely doesn't undo arrogance.",
+              "scripted": false
+            }
+          }
+        },
+        {
+          "turn": 2,
+          "speaker": "Player",
+          "text": "You've been testing me since I walked up. Fine. But you and I are fighting the same war. Either let me prove that, or we both lose."
+        }
+      ],
+      "terminal_outcome": {
+        "terminal_id": "fail",
+        "result": "Guard refuses entry. Player is turned away.",
+        "final_dialogue": "We have a deal on terms. Otherwise, this conversation ends here."
+      },
+      "final_npc_state": {
+        "name": "Troy",
+        "age": 25,
+        "cognitive": {
+          "self_esteem": 0.2,
+          "locus_of_control": 0.85,
+          "cog_flexibility": 0.1
+        },
+        "social": {
+          "assertion": 0.8,
+          "conf_indep": 0.1,
+          "empathy": 0.5,
+          "ideology": {},
+          "wildcard": null,
+          "faction": "Insurgency",
+          "social_position": "Vice"
+        },
+        "world": {
+          "personal_history": "Troy is one of the earliest members of the Insurgency. He is not a founder of the insurgency, nor was he a higher-up when he first joined but he witnessed countless insurgent deaths in the more chaotic early RI conflicts. He is devout loyal to Moses. He might question his logic, but he doesn't question his heart.",
+          "player_history": "[2026-03-24] SUCCEED: Guard grants entry to the Insurgency hideout. Trust established.\n[2026-03-24] SUCCEED: Guard grants entry to the Insurgency hideout. Trust established.\n[2026-03-24] SUCCEED: Guard grants entry to the Insurgency hideout. Trust established.",
+          "player_relation": 0.7499999999999999,
+          "world_history_ref": "data/world.json",
+          "faction_ref": "",
+          "known_events": [
+            "moses_defection"
+          ],
+          "known_figures": [
+            "morisson_moses"
+          ],
+          "world_history": ""
+        }
+      }
+    }
+  }
+}
