@@ -1,0 +1,132 @@
+{
+  "scenario_id": "door_guard_night",
+  "player_choice_log": [
+    {
+      "node_id": "start",
+      "choice_id": "open_diplomacy",
+      "text": "I understand your caution \u2014 you'd be a fool not to have it. Let me explain how what I bring serves what you're trying to protect."
+    },
+    {
+      "node_id": "challenge",
+      "choice_id": "concrete_value",
+      "text": "I can bring you things you can't get here \u2014 food, medicine, weapons. That's not words, that's logistics. What do you need?"
+    }
+  ],
+  "npcs": {
+    "krystian_'krakk'_klikowicz": {
+      "name": "Krystian 'Krakk' Klikowicz",
+      "conversation": {
+        "conversation_id": "door_guard_night:krystian_'krakk'_klikowicz",
+        "stage": "opening",
+        "topic": "Assess and either admit or turn away this stranger",
+        "turn_count": 2,
+        "history": []
+      },
+      "choices_made": [
+        "open_diplomacy",
+        "concrete_value"
+      ],
+      "history": [
+        {
+          "turn": 0,
+          "speaker": "Narrator",
+          "text": "Don't move. State your business."
+        },
+        {
+          "turn": 0,
+          "speaker": "Player",
+          "text": "I understand your caution \u2014 you'd be a fool not to have it. Let me explain how what I bring serves what you're trying to protect."
+        },
+        {
+          "turn": 1,
+          "speaker": "Krystian 'Krakk' Klikowicz",
+          "text": "You make your point clear, but I still sense a hidden agenda. Let's see how far you can go without crossing the line.",
+          "metadata": {
+            "thought": {
+              "internal_thought": "They're thinking the same way I do. Can't fake that.",
+              "subjective_belief": "Their values and mine are close enough to matter.",
+              "cognitive_state": {
+                "self_esteem": 0.5,
+                "locus_of_control": 0.8,
+                "cog_flexibility": 0.456530857681122
+              },
+              "emotional_valence": 0.45,
+              "bias_type": "confirmation_bias"
+            },
+            "desire": {
+              "immediate_desire": "Evaluate if they align with our mission",
+              "desire_type": "information-seeking",
+              "intensity": 0.6
+            },
+            "intention": {
+              "intention_type": "Neutral Evaluation",
+              "confrontation_level": 0.5,
+              "emotional_expression": "analytical",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "propose_alliance",
+              "stance_delta": {
+                "cognitive.cog_flexibility": 0.05
+              },
+              "relation_delta": 0.1,
+              "intention_shift": "Propose Alliance",
+              "min_response": "Everyone has a pitch. What makes yours worth hearing?",
+              "max_response": "You're thinking. Good. Keep going.",
+              "scripted": false
+            }
+          }
+        },
+        {
+          "turn": 1,
+          "speaker": "Player",
+          "text": "I can bring you things you can't get here \u2014 food, medicine, weapons. That's not words, that's logistics. What do you need?"
+        }
+      ],
+      "terminal_outcome": {
+        "terminal_id": "succeed",
+        "result": "Guard grants entry to the Insurgency hideout. Trust established.",
+        "final_dialogue": "I see your value, but my defenses won't always be so high. Allow me to show you what I mean with this first transaction."
+      },
+      "final_npc_state": {
+        "name": "Krystian 'Krakk' Klikowicz",
+        "age": 28,
+        "cognitive": {
+          "self_esteem": 0.5,
+          "locus_of_control": 0.8,
+          "cog_flexibility": 0.4
+        },
+        "social": {
+          "assertion": 0.3,
+          "conf_indep": 0.9,
+          "empathy": 0.8,
+          "ideology": {
+            "Libertarianism": 0.9,
+            "Individualism": 0.1
+          },
+          "wildcard": "Inferiority",
+          "faction": "Runners",
+          "social_position": "Boss"
+        },
+        "world": {
+          "personal_history": "Krakk grew up navigating the fragmented rooftops of Romance City, learning to read emotional cues and urban signals as survival tools. He organizes the Runner networks, enforcing decentralized coordination and prioritizing autonomy over allegiance. Krakk respects cultural and ideological influences from Amourie Othella, Clark Tolie, and Jessa Reid-Othella, viewing them as historical pillars of structured civic resistance and artistic stewardship. His focus remains on terrain, information flow, and maintaining movement freedom, rather than deep engagement with older historical figures.",
+          "player_history": "",
+          "player_relation": 0.75,
+          "world_history_ref": "data/world.json",
+          "faction_ref": "Runners",
+          "known_events": [
+            "hop_removal",
+            "dysphoria_expansion",
+            "runner_coordination"
+          ],
+          "known_figures": [
+            "amourie_othella",
+            "morisson_moses",
+            "jean_pope_chautlier"
+          ],
+          "world_history": ""
+        }
+      }
+    }
+  }
+}

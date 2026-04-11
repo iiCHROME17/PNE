@@ -1,0 +1,234 @@
+{
+  "scenario_id": "door_guard_night",
+  "player_choice_log": [
+    {
+      "node_id": "start",
+      "choice_id": "open_authority",
+      "text": "I don't need to justify myself to a door guard. We're fighting the same war. Open the door."
+    },
+    {
+      "node_id": "start",
+      "choice_id": "authority_soften",
+      "text": "I pushed too hard. Look \u2014 I need in. What do you actually need from me?"
+    },
+    {
+      "node_id": "challenge",
+      "choice_id": "mutual_challenge",
+      "text": "You've been testing me since I walked up. Fine. But you and I are fighting the same war. Either let me prove that, or we both lose."
+    },
+    {
+      "node_id": "challenge",
+      "choice_id": "concrete_value",
+      "text": "I can bring you things you can't get here \u2014 food, medicine, weapons. That's not words, that's logistics. What do you need?"
+    }
+  ],
+  "npcs": {
+    "morisson_moses": {
+      "name": "Morisson Moses",
+      "conversation": {
+        "conversation_id": "door_guard_night:morisson_moses",
+        "stage": "opening",
+        "topic": "Assess and either admit or turn away this stranger",
+        "turn_count": 4,
+        "history": []
+      },
+      "choices_made": [
+        "open_authority",
+        "authority_soften",
+        "mutual_challenge",
+        "concrete_value"
+      ],
+      "history": [
+        {
+          "turn": 0,
+          "speaker": "Narrator",
+          "text": "Don't move. State your business."
+        },
+        {
+          "turn": 0,
+          "speaker": "Player",
+          "text": "I don't need to justify myself to a door guard. We're fighting the same war. Open the door."
+        },
+        {
+          "turn": 1,
+          "speaker": "Morisson Moses",
+          "text": "You've got more questions than answers, pal. Move it or lose your balls.",
+          "metadata": {
+            "thought": {
+              "internal_thought": "They're framing this wrong. The whole premise is off.",
+              "subjective_belief": "The way they're framing this tells me they haven't fully reckoned with what this costs.",
+              "cognitive_state": {
+                "self_esteem": 0.8,
+                "locus_of_control": 0.475,
+                "cog_flexibility": 0.3
+              },
+              "emotional_valence": -0.45,
+              "bias_type": "ideological_filter"
+            },
+            "desire": {
+              "immediate_desire": "Maintain distance and protect boundaries",
+              "desire_type": "protection",
+              "intensity": 0.75
+            },
+            "intention": {
+              "intention_type": "Defend Cause Passionately",
+              "confrontation_level": 0.9775,
+              "emotional_expression": "explosive",
+              "wildcard_triggered": true
+            },
+            "interaction_outcome": {
+              "outcome_id": "reject_authority",
+              "stance_delta": {},
+              "relation_delta": -0.15,
+              "intention_shift": "Reject Authority",
+              "min_response": "Wrong place, wrong attitude. Move.",
+              "max_response": "You picked the wrong door to be rude at.",
+              "scripted": false
+            }
+          }
+        },
+        {
+          "turn": 1,
+          "speaker": "Player",
+          "text": "I pushed too hard. Look \u2014 I need in. What do you actually need from me?"
+        },
+        {
+          "turn": 2,
+          "speaker": "Morisson Moses",
+          "text": "That's a start, but we'll see how far that goes. Keep your proposals concrete and specific.",
+          "metadata": {
+            "thought": {
+              "internal_thought": "I need to know if they actually believe this or if they just know what to say.",
+              "subjective_belief": "The pitch is solid. The real question is whether they'd still be here when it got harder.",
+              "cognitive_state": {
+                "self_esteem": 0.8,
+                "locus_of_control": 0.475,
+                "cog_flexibility": 0.34198402615129325
+              },
+              "emotional_valence": 0.45,
+              "bias_type": "ideological_filter"
+            },
+            "desire": {
+              "immediate_desire": "Acknowledge but remain guarded",
+              "desire_type": "information-seeking",
+              "intensity": 0.55
+            },
+            "intention": {
+              "intention_type": "Challenge to Reveal Truth",
+              "confrontation_level": 0.9,
+              "emotional_expression": "direct",
+              "wildcard_triggered": false
+            },
+            "interaction_outcome": {
+              "outcome_id": "soften_stance",
+              "stance_delta": {
+                "cognitive.cog_flexibility": 0.03
+              },
+              "relation_delta": 0.08,
+              "intention_shift": "Soften Stance",
+              "min_response": "At least you can read the room.",
+              "max_response": "That's better. Keep talking.",
+              "scripted": false
+            }
+          }
+        },
+        {
+          "turn": 2,
+          "speaker": "Player",
+          "text": "You've been testing me since I walked up. Fine. But you and I are fighting the same war. Either let me prove that, or we both lose."
+        },
+        {
+          "turn": 3,
+          "speaker": "Morisson Moses",
+          "text": "That's a start, but you need more than vague promises. Keep it real and tangible from here on out.",
+          "metadata": {
+            "thought": {
+              "internal_thought": "They're framing this wrong. The whole premise is off.",
+              "subjective_belief": "Their framing is ideologically misaligned \u2014 they're not seeing what I see.",
+              "cognitive_state": {
+                "self_esteem": 0.8,
+                "locus_of_control": 0.475,
+                "cog_flexibility": 0.3719840261512932
+              },
+              "emotional_valence": 0.45,
+              "bias_type": "ideological_filter"
+            },
+            "desire": {
+              "immediate_desire": "Maintain distance and protect boundaries",
+              "desire_type": "protection",
+              "intensity": 0.75
+            },
+            "intention": {
+              "intention_type": "Defend Cause Passionately",
+              "confrontation_level": 0.9775,
+              "emotional_expression": "explosive",
+              "wildcard_triggered": true
+            },
+            "interaction_outcome": {
+              "outcome_id": "challenge_accepted",
+              "stance_delta": {
+                "social.assertion": 0.1
+              },
+              "relation_delta": 0.1,
+              "intention_shift": "Challenge to Reveal Truth",
+              "min_response": "Prove it. You've got thirty seconds.",
+              "max_response": "You've got guts. I respect that. But respect isn't the key.",
+              "scripted": false
+            }
+          }
+        },
+        {
+          "turn": 3,
+          "speaker": "Player",
+          "text": "I can bring you things you can't get here \u2014 food, medicine, weapons. That's not words, that's logistics. What do you need?"
+        }
+      ],
+      "terminal_outcome": {
+        "terminal_id": "succeed",
+        "result": "Guard grants entry to the Insurgency hideout. Trust established.",
+        "final_dialogue": "You showed potential with your offers, now deliver on them or step back."
+      },
+      "final_npc_state": {
+        "name": "Morisson Moses",
+        "age": 35,
+        "cognitive": {
+          "self_esteem": 0.8,
+          "locus_of_control": 0.475,
+          "cog_flexibility": 0.3
+        },
+        "social": {
+          "assertion": 1.0,
+          "conf_indep": 0.7,
+          "empathy": 0.45,
+          "ideology": {
+            "Utilitarianism": 0.8,
+            "Authoritarianism": 0.2
+          },
+          "wildcard": "Martyr",
+          "faction": "Insurgency",
+          "social_position": "Boss"
+        },
+        "world": {
+          "personal_history": "Morisson Moses served as a military officer under Romancian command before exposing corruption and killing a senior official in 2679. He vanished from formal record and now leads the Insurgency from the shadows. His strategy and ethical compass are informed by Jean Pope Chautlier\u00e2\u20ac\u2122s philosophies. Moses treats city-wide Dysphoria as a systemic imbalance, acting decisively where corruption threatens survival. He respects the intellectual lineage of Chautlier, integrating it selectively to guide insurgent action without directly engaging with other historical figures.",
+          "player_history": "",
+          "player_relation": 0.68,
+          "world_history_ref": "data/world.json",
+          "faction_ref": "Insurgency",
+          "known_events": [
+            "moses_defection",
+            "hop_removal",
+            "dysphoria_expansion",
+            "romancian_takeover",
+            "commonman_formed"
+          ],
+          "known_figures": [
+            "jean_pope_chautlier",
+            "amourie_othella",
+            "krystian_krakk"
+          ],
+          "world_history": ""
+        }
+      }
+    }
+  }
+}
