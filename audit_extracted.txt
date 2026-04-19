@@ -1,0 +1,163 @@
+DISSERTATION AUDIT
+Psychological Narrative Engine
+CS3IP Individual Project  —  Jerome Bawa  —  University of Reading
+Summary metrics
+Estimated report score
+78–84
+out of 100 (report component)
+Word count (body)
+~25,400
+Limit: 20,000 — over by ~27%
+References
+~26
+Well-cited primary sources
+Classification band
+1st
+Currently 70–79% range
+Word count — critical issue for criterion #9
+The body text (excluding references and appendices) sits at approximately 25,400 words against a 20,000-word ceiling. This is the single biggest risk to the Organisation & Presentation mark. Chapters 5 and 4 are the primary targets for reduction. Some appendix content referenced via external file paths will also not be visible to markers in the PDF submission.
+Report criteria scoring  (60% of total)
+Criterion
+Score
+Level
+Audit notes
+#1  Project context & aims/objectives
+Background knowledge, research problem, commercial context — 10 marks
+8–9 / 10
+Outstanding
+The introduction and motivation sections are very strong. The research question (BDI + local LLM = psychological coherence + player agency) is precisely articulated.
+Commercial context is well handled — the Stardew Valley analogy grounds the democratisation argument effectively.
+Minor gap: could more explicitly state why this combination has not been attempted before at the outset, rather than deferring to Chapters 3 and 8.
+#2  Social, legal, ethical & risk management
+Social impact, legal compliance, ethics, risk register — 5 marks
+4–5 / 5
+Outstanding
+Chapter 2 is one of the strongest sections. Social considerations are genuinely nuanced (small / mid / large studio analysis is well-differentiated).
+Legal compliance covers licences correctly (MIT, Apache 2.0, Qwen2.5:3b). Data governance is accurate — no personal data, no GDPR exposure.
+The risk register has likelihood / impact / mitigation columns and is specific to the system.
+Strength to keep: the transparency discussion on AI-generated dialogue content is sophisticated and adds originality to this chapter.
+#3  Literature review
+State-of-the-art, critical analysis, trade-offs — 15 marks
+12–13 / 15
+Good
+Coverage of four domains (cognitive psychology, social psychology, BDI, interactive narrative) is broad and well-integrated. Neisser, Heider, Cialdini, Bratman, Mateas & Stern, Park et al. are all engaged critically, not just summarised.
+Gap for Outstanding: Section 3.6 (LLMs) leans descriptive — it could more critically compare Ollama-based local deployment trade-offs against cloud API alternatives.
+The synthesis in 3.7 is good but could be sharper about exactly which gaps in prior work the PNE closes (this is done better in 8.2 — consider pulling some of that framing forward).
+#4  Methodology
+Data collection, system design, information security, ethical approach — 15 marks
+12–13 / 15
+Good
+The BDI pipeline documentation (4.2.1–4.2.5) is detailed and traceable — formulas, clamping logic, and the closed intention vocabulary are clearly presented.
+Data collection rationale (log-based, no user studies) is honestly justified. Information security and ethical approach sections (4.3) are present and appropriate.
+Gap for Outstanding: Using only self-generated system logs without external validation (even a small expert review or heuristic evaluation) is a limitation that is acknowledged but not sufficiently mitigated. This is likely to draw scrutiny from markers.
+#5  Experimentations / implementations
+Completeness and quality of the system built — 15 marks
+13–14 / 15
+Outstanding
+The system is genuinely complete: REST/WebSocket API, skill-check FSM, four-layer BDI pipeline, Ollama integration, three distinct NPC profiles, and a CHANGELOG evidencing iterative development.
+The CHANGELOG tracing failure → architectural response (e.g. CognitiveThoughtMatcher replacing LLM cognitive layer) is a particularly strong methodological contribution.
+Minor: Chapter 5 is somewhat bloated with design documentation that overlaps with Chapter 4 — this is the primary target for cuts during downsizing.
+#6  Results
+Presentation of outcomes, clarity, correctness — 15 marks
+12–13 / 15
+Good
+Chapter 6 presents turn-by-turn BDI logs for three NPCs (Krakk, Moses, Troy) and a dual-build comparison. Personality differentiation is clearly evidenced — different profiles produce traceable differences in judgement scores and intention selections.
+The NPC trajectory chart and dual-build table are effective visuals.
+Gap for Outstanding: Results are exclusively from system logs — there are no user-facing metrics. The absence of any external benchmark needs a brief acknowledgement within Chapter 6 itself, not only deferred to Chapter 7.
+#7  Discussion & analysis
+Validation of outputs, justification/critique of achievements — 10 marks
+8–9 / 10
+Outstanding
+Chapter 7 separates deterministic layer validation from LLM output validation — this is intellectually honest and methodologically mature.
+The self-critique of the log-only evaluation approach is present and handled well. Limitations (VRAM ceiling, single scenario, no human evaluation) are acknowledged clearly.
+Strength to keep: the 'what the PNE cannot verify' framing in 7.2 is sophisticated and shows genuine critical thinking.
+#8  Originality of contributions
+Innovative solution approach adopted/adapted — 5 marks
+4–5 / 5
+Outstanding
+Section 8.2 articulates the originality claim clearly: no prior system combines personality-parameterised BDI + deterministic reasoning + locally-deployable LLM + closed intention vocabulary + engine-agnostic API.
+The comparison against Facade, Generative Agents, and Bordini et al. is specific and well-grounded.
+The 'emergence on the NPC side' framing is genuinely novel in the relevant literature context.
+#9  Organisation & presentation
+Structure, writing quality, references, citations, word limit — 5 marks
+3 / 5
+Satisfactory
+CRITICAL: Word count overage is the primary risk. At ~25,400 body words against a 20,000-word ceiling, the dissertation is approximately 27% over limit.
+Structure is logical and headings are consistent. Writing quality is high — confident, clear, and technical without being impenetrable.
+Reference style is mostly consistent Harvard, but in-text citations are underused in Chapters 4–6 (heavy on formulas, light on cited support for design decisions).
+Several appendices reference external Markdown files that will not be visible to a marker reading the PDF submission.
+#10  Reflection
+Reflection on project and learning experience — 5 marks
+4–5 / 5
+Outstanding
+Section 8.4 is personal, specific, and insightful. The admission that BDI was unfamiliar before the project, and that Ollama surprised in the opposite direction to expectations, shows genuine intellectual honesty.
+The 'passion comes first' framing is authentic and not generic.
+Keep this section intact — it is one of the strongest passages in the dissertation.
+Word count by chapter
+Chapter
+Word count
+Recommendation
+Chapter 1 — Introduction
+1,734
+—
+Chapter 2 — Social, Legal & Ethical
+1,510
+Well-sized
+Chapter 3 — Literature Review
+5,526
+Trim 10–15%
+Chapter 4 — Methodology
+4,982
+Trim 10%
+Chapter 5 — Results & Discussion (design)
+3,729
+Cut 20–25%
+Chapter 6 — Results
+2,565
+Well-sized
+Chapter 7 — Discussion & Analysis
+3,958
+Trim 10%
+Chapter 8 — Conclusion & Reflection
+1,463
+Well-sized
+Body total (limit: 20,000 words)
+~25,400
+~5,400 words over limit
+References (not counted)
+~4,620
+—
+Priority actions before submission
+1.  Reduce Chapter 5 by 800–1,000 words  [CRITICAL]
+Chapter 5 — Design documentation overlap
+Sections 5.1.1–5.1.3 repeat architectural information already covered in Chapter 4. The 'core vs supporting components' breakdown (5.1.2) can be condensed to a table. The NPC data structure prose (5.1.4) is very granular — move to an appendix or cut. Target: reduce from ~3,729 to ~2,800 words.
+2.  Trim Chapter 3 literature review by 500–700 words  [HIGH]
+Chapter 3 — Description before critique
+Subsections 3.3.2 (Guimond) and 3.4.2 (Wooldridge) describe the source material at length before critiquing it. Compress description and foreground the critique. The 'gap the PNE fills' argument in 3.7 can be tightened by pulling in some of the sharper framing from Section 8.2. Target: ~4,800 words.
+3.  Trim Chapter 7 discussion by 300–400 words  [MEDIUM]
+Chapter 7 — Some passages re-summarise prior chapters
+Several paragraphs in 7.1 restate results from Chapter 6 before analysing them. Tighten by removing restatement and leading directly with the analytical point. The limitation acknowledgements in 7.3 are slightly repetitive across sub-sections.
+4.  Strengthen in-text citations in Chapters 4–6  [MEDIUM]
+Chapters 4–6 — Sparse inline citation
+The technical chapters have very few bracketed citations. Where formulas or design decisions are grounded in the literature (Ellis 1962 for emotional valence rules, Bratman 1987 for BDI, Heider 1958 for attribution logic), these should be cited inline at the point of use, not only in the literature review chapter.
+5.  Fix appendix accessibility  [MEDIUM]
+Appendices — External file references not visible in PDF
+Appendices H, I, J, K, and L reference external Markdown files ('see Dissertation/Literature Material/Drafts/Graphs/...'). These will not be visible to a marker reading the PDF. Either inline the key tables into the appendix body, or add a clear note that they are in the submitted code repository with a path the marker can follow.
+6.  Add limitations paragraph to Chapter 6  [LOW]
+Chapter 6 — Evaluation limitations deferred entirely to Chapter 7
+The results chapter should briefly acknowledge the log-only evaluation approach within the chapter itself. One short paragraph noting that results are drawn from system-generated logs and no human participant evaluation was conducted suffices — this pre-empts a marker's concern at the point of reading rather than making them wait for Chapter 7.
+Strengths to preserve during editing
+The following sections are high quality and should not be substantially altered during the downsizing pass:
+Section 8.4 (Reflection) — personal, specific, and intellectually honest. Do not cut.
+Section 8.2 (Originality of Contributions) — the comparison against Facade, Generative Agents, and Bordini et al. is precise and well-grounded.
+Section 2.5 (Risk Register) — the table format with likelihood/impact/mitigation columns is exactly what the mark scheme rewards.
+Chapter 2 overall — the three-tier studio analysis (small/mid/large) is one of the most sophisticated social impact discussions in any CS3IP dissertation.
+The CHANGELOG narrative in Section 8.1 — tracing architectural decisions from observed failures is a genuine methodological contribution that differentiates this project.
+Section 7.1 framing — separating deterministic layer validation from LLM output validation is intellectually mature and will impress an experienced marker.
+Overall assessment
+This is a high-quality, intellectually serious dissertation with a genuinely original system at its centre. The writing is confident and precise, the architecture is well-motivated and clearly explained, and the reflection is one of the strongest in the cohort.
+The primary risks to the final mark are structural:
+The word count overage directly threatens criterion #9 (Organisation & Presentation) — this is the most urgent fix.
+The absence of any external evaluation (user study, expert review, or heuristic evaluation) caps criteria #4 and #6. This is a known limitation; it needs to be acknowledged proactively at the point of the results, not only in the discussion.
+After trimming to within the 20,000-word limit and adding inline citations in the technical chapters, this dissertation is comfortably in the first-class 70–79% band, with a realistic path to 80%+ if the methodology limitation is addressed more proactively in Chapters 4 and 6.
+Bottom line for Claude Code: Reduce body word count to under 20,000 by cutting Chapters 5 and 3 first. Do not touch the Reflection (8.4) or the Originality section (8.2). Add inline citations at formula/design-decision points in Chapters 4 and 5. Inline or annotate the external appendix file references.
