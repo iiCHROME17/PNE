@@ -1,0 +1,912 @@
+{
+  "id": "door_guard_night_demo",
+  "title": "The Door",
+  "opening": "You're not getting through here. State your business or turn around.",
+
+  "conversation_config": {
+    "max_turns": 6,
+    "enable_coherence_filtering": false,
+    "track_dialogue_momentum": false
+  },
+
+  "npc_role": {
+    "display_name": "Guard"
+  },
+
+  "npc_intent": {
+    "baseline_belief": "Anyone I don't recognise is a risk. My job is this door and I take that seriously.",
+    "long_term_desire": "Keep whoever is behind this door safe and prove I'm the right person standing in front of it.",
+    "immediate_intention": "Figure out who this person is and whether they're worth the trouble.",
+    "stakes": "The door, the guard's judgment, and whether this stranger walks away or walks through."
+  },
+
+  "nodes": [
+
+    {
+      "id": "start",
+      "npc_mood": "guarded",
+      "_comment": "First exchange. Judgement starts at 50. Catastrophic opener ends immediately; brilliant opener skips to succeed; standard routes to challenge.",
+      "npc_dialogue_prompt": "You've just stopped someone at the door. You don't know them. Give them one measured line — not aggressive, but not welcoming either. Make the door's weight felt without slamming it shut.",
+
+      "transitions": [
+        { "_comment": "Catastrophic opener", "condition": "judgement <= 10", "target": "fail" },
+        { "_comment": "Perfect opener — rare", "condition": "judgement >= 90", "target": "succeed" },
+        { "_comment": "Standard — move to challenge", "condition": "turn_count >= 1", "target": "challenge" }
+      ],
+      "default_transition": "challenge",
+
+      "choices": [
+        {
+          "choice_id": "open_common_cause",
+          "text": "I'm not your enemy. Whatever's behind that door, I'm on the same side of it as you.",
+          "language_art": "empathetic",
+          "authority_tone": 0.2,
+          "diplomacy_tone": 0.5,
+          "empathy_tone": 0.8,
+          "manipulation_tone": 0.1,
+          "judgement_delta_success": 10,
+          "judgement_delta_fail": -5,
+          "interaction_outcomes": [
+            {
+              "outcome_id": "consider_common_ground",
+              "stance_delta": { "social.empathy": 0.05 },
+              "relation_delta": 0.1,
+              "intention_shift": "Consider Common Ground",
+              "min_response": "Everyone says that.",
+              "max_response": "Maybe. Keep talking.",
+              "scripted": false
+            }
+          ],
+          "failure_outcomes": [
+            {
+              "outcome_id": "dismiss_common_cause",
+              "stance_delta": {},
+              "relation_delta": -0.05,
+              "intention_shift": "Dismiss Common Cause",
+              "min_response": "You don't know what's behind this door.",
+              "max_response": "That's exactly what someone with bad intentions would say.",
+              "scripted": false
+            }
+          ],
+          "recovery_choices": [
+            {
+              "choice_id": "common_cause_press",
+              "text": "Then test me. Ask me something. I'm not asking for free passage.",
+              "language_art": "empathetic",
+              "authority_tone": 0.2,
+              "diplomacy_tone": 0.5,
+              "empathy_tone": 0.7,
+              "manipulation_tone": 0.1,
+              "judgement_delta_success": 8,
+              "judgement_delta_fail": -6,
+              "interaction_outcomes": [
+                {
+                  "outcome_id": "invite_test",
+                  "stance_delta": { "social.empathy": 0.03 },
+                  "relation_delta": 0.1,
+                  "intention_shift": "Test the Stranger",
+                  "min_response": "You're asking me to do the work.",
+                  "max_response": "Fair enough. That's a reasonable thing to offer.",
+                  "scripted": false
+                }
+              ],
+              "failure_outcomes": [
+                {
+                  "outcome_id": "test_refused",
+                  "stance_delta": {},
+                  "relation_delta": -0.08,
+                  "intention_shift": "Refuse to Engage",
+                  "min_response": "I'm not running interviews. Move.",
+                  "max_response": "That's not how this works.",
+                  "scripted": false
+                }
+              ]
+            }
+          ]
+        },
+
+        {
+          "choice_id": "open_authority",
+          "text": "You know who sent me. I don't need to negotiate with the door.",
+          "language_art": "challenge",
+          "authority_tone": 0.9,
+          "diplomacy_tone": 0.1,
+          "empathy_tone": 0.1,
+          "manipulation_tone": 0.3,
+          "judgement_delta_success": 8,
+          "judgement_delta_fail": -10,
+          "requirements": { "min_authority": 5 },
+          "interaction_outcomes": [
+            {
+              "outcome_id": "authority_acknowledged",
+              "stance_delta": { "social.assertion": 0.1 },
+              "relation_delta": -0.05,
+              "intention_shift": "Demand Proof of Authority",
+              "min_response": "Then whoever sent you should've sent word ahead.",
+              "max_response": "Bold. Doesn't open anything, but I'm listening.",
+              "scripted": false
+            }
+          ],
+          "failure_outcomes": [
+            {
+              "outcome_id": "authority_rejected",
+              "stance_delta": {},
+              "relation_delta": -0.15,
+              "intention_shift": "Reject Authority Claim",
+              "min_response": "Wrong door for that attitude.",
+              "max_response": "Names I don't recognise don't open anything here.",
+              "scripted": false
+            }
+          ],
+          "recovery_choices": [
+            {
+              "choice_id": "authority_walk_back",
+              "text": "Let me start over. I came in too hard. Hear me out — thirty seconds.",
+              "language_art": "diplomatic",
+              "authority_tone": 0.3,
+              "diplomacy_tone": 0.7,
+              "empathy_tone": 0.4,
+              "manipulation_tone": 0.1,
+              "judgement_delta_success": 7,
+              "judgement_delta_fail": -5,
+              "interaction_outcomes": [
+                {
+                  "outcome_id": "tone_accepted",
+                  "stance_delta": { "cognitive.cog_flexibility": 0.03 },
+                  "relation_delta": 0.08,
+                  "intention_shift": "Give Thirty Seconds",
+                  "min_response": "You've got twenty. Talk.",
+                  "max_response": "Better. Go on.",
+                  "scripted": false
+                }
+              ],
+              "failure_outcomes": [
+                {
+                  "outcome_id": "tone_too_late",
+                  "stance_delta": {},
+                  "relation_delta": -0.05,
+                  "intention_shift": "Too Late to Recover",
+                  "min_response": "You already showed me who you are.",
+                  "max_response": "Doesn't undo the first thirty seconds.",
+                  "scripted": false
+                }
+              ]
+            }
+          ]
+        },
+
+        {
+          "choice_id": "open_honest",
+          "text": "I'll be straight with you. I need in. I know you don't know me. What would it take?",
+          "language_art": "diplomatic",
+          "authority_tone": 0.2,
+          "diplomacy_tone": 0.8,
+          "empathy_tone": 0.5,
+          "manipulation_tone": 0.1,
+          "judgement_delta_success": 12,
+          "judgement_delta_fail": -3,
+          "interaction_outcomes": [
+            {
+              "outcome_id": "honesty_noted",
+              "stance_delta": { "cognitive.cog_flexibility": 0.05 },
+              "relation_delta": 0.12,
+              "intention_shift": "Respect the Directness",
+              "min_response": "At least you're not pretending. Answer's still no, for now.",
+              "max_response": "Honest. I can work with that. So — who are you?",
+              "scripted": false
+            }
+          ],
+          "failure_outcomes": [
+            {
+              "outcome_id": "honesty_dismissed",
+              "stance_delta": {},
+              "relation_delta": -0.03,
+              "intention_shift": "Dismiss the Honesty",
+              "min_response": "Good start. Not enough.",
+              "max_response": "You're asking me to do the work for you.",
+              "scripted": false
+            }
+          ],
+          "recovery_choices": [
+            {
+              "choice_id": "honest_follow",
+              "text": "I know someone on the other side of that door. Just ask them. I'll wait.",
+              "language_art": "diplomatic",
+              "authority_tone": 0.2,
+              "diplomacy_tone": 0.7,
+              "empathy_tone": 0.4,
+              "manipulation_tone": 0.2,
+              "judgement_delta_success": 8,
+              "judgement_delta_fail": -5,
+              "interaction_outcomes": [
+                {
+                  "outcome_id": "verify_offer",
+                  "stance_delta": {},
+                  "relation_delta": 0.1,
+                  "intention_shift": "Consider Verification",
+                  "min_response": "Give me a name worth checking.",
+                  "max_response": "That's a reasonable ask. Name.",
+                  "scripted": false
+                }
+              ],
+              "failure_outcomes": [
+                {
+                  "outcome_id": "verify_refused",
+                  "stance_delta": {},
+                  "relation_delta": -0.07,
+                  "intention_shift": "Refuse to Verify",
+                  "min_response": "I don't go knocking for strangers.",
+                  "max_response": "That's not how this works.",
+                  "scripted": false
+                }
+              ]
+            }
+          ]
+        },
+
+        {
+          "choice_id": "open_bluff",
+          "text": "We've both been standing here long enough. This doesn't look good for either of us. Open the door.",
+          "language_art": "manipulative",
+          "authority_tone": 0.4,
+          "diplomacy_tone": 0.3,
+          "empathy_tone": 0.2,
+          "manipulation_tone": 0.9,
+          "judgement_delta_success": 5,
+          "judgement_delta_fail": -12,
+          "interaction_outcomes": [
+            {
+              "outcome_id": "bluff_lands",
+              "stance_delta": {},
+              "relation_delta": 0.04,
+              "intention_shift": "Assess the Pressure",
+              "min_response": "I see one person. You.",
+              "max_response": "You might have a point. Make it quick.",
+              "scripted": false
+            }
+          ],
+          "failure_outcomes": [
+            {
+              "outcome_id": "bluff_called",
+              "stance_delta": {},
+              "relation_delta": -0.2,
+              "intention_shift": "Distrust the Manipulation",
+              "min_response": "Nobody's watching. Try again.",
+              "max_response": "That kind of play closes doors faster than it opens them.",
+              "scripted": false
+            }
+          ],
+          "recovery_choices": [
+            {
+              "choice_id": "bluff_abandon",
+              "text": "You're right. That was stupid. I'm nervous. Let me just tell you why I'm actually here.",
+              "language_art": "empathetic",
+              "authority_tone": 0.1,
+              "diplomacy_tone": 0.5,
+              "empathy_tone": 0.7,
+              "manipulation_tone": 0.1,
+              "judgement_delta_success": 9,
+              "judgement_delta_fail": -4,
+              "interaction_outcomes": [
+                {
+                  "outcome_id": "honesty_after_bluff",
+                  "stance_delta": { "social.empathy": 0.03 },
+                  "relation_delta": 0.08,
+                  "intention_shift": "Hear the Real Reason",
+                  "min_response": "Now I'm actually curious. Talk.",
+                  "max_response": "Better. You had me losing patience.",
+                  "scripted": false
+                }
+              ],
+              "failure_outcomes": [
+                {
+                  "outcome_id": "trust_burned",
+                  "stance_delta": {},
+                  "relation_delta": -0.1,
+                  "intention_shift": "Trust Already Burned",
+                  "min_response": "You started with a lie. Hard to come back from.",
+                  "max_response": "Should've led with that.",
+                  "scripted": false
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "id": "challenge",
+      "npc_mood": "confrontational",
+      "_comment": "Guard presses harder. Progressive terminal windows tighten. Five choices, all with recoveries.",
+      "npc_dialogue_prompt": "You've heard their opener. You're not satisfied. Press them — demand something specific, call out what felt off, or ask the question that matters. One pointed line. Don't let them settle.",
+
+      "transitions": [
+        { "condition": "judgement <= 10", "target": "fail" },
+        { "condition": "judgement >= 90", "target": "succeed" },
+        { "condition": "turn_count >= 2 and judgement <= 30", "target": "fail" },
+        { "condition": "turn_count >= 2 and judgement >= 70", "target": "succeed" },
+        { "condition": "turn_count >= 4 and judgement <= 45", "target": "fail" },
+        { "condition": "turn_count >= 4 and judgement >= 55", "target": "succeed" },
+        { "condition": "turn_count >= 4", "target": "standoff" }
+      ],
+      "default_transition": null,
+
+      "choices": [
+        {
+          "choice_id": "personal_cost",
+          "text": "I didn't get here by accident. I've already paid to be standing in front of this door. That should mean something.",
+          "language_art": "empathetic",
+          "authority_tone": 0.2,
+          "diplomacy_tone": 0.3,
+          "empathy_tone": 0.9,
+          "manipulation_tone": 0.1,
+          "judgement_delta_success": 14,
+          "judgement_delta_fail": -5,
+          "requirements": { "min_empathy": 3 },
+          "interaction_outcomes": [
+            {
+              "outcome_id": "cost_acknowledged",
+              "stance_delta": { "social.empathy": 0.08 },
+              "relation_delta": 0.2,
+              "intention_shift": "Acknowledge the Sacrifice",
+              "min_response": "Everyone who turns up here paid something.",
+              "max_response": "That's not nothing. Keep talking.",
+              "scripted": false
+            }
+          ],
+          "failure_outcomes": [
+            {
+              "outcome_id": "cost_dismissed",
+              "stance_delta": {},
+              "relation_delta": -0.05,
+              "intention_shift": "Dismiss the Sacrifice",
+              "min_response": "Loss doesn't make you trustworthy. It makes you desperate.",
+              "max_response": "Everyone's paid something. That's not a key.",
+              "scripted": false
+            }
+          ],
+          "recovery_choices": [
+            {
+              "choice_id": "cost_clarify",
+              "text": "I'm not asking for sympathy. I'm saying I have no reason to burn this. I need it to work.",
+              "language_art": "empathetic",
+              "authority_tone": 0.2,
+              "diplomacy_tone": 0.4,
+              "empathy_tone": 0.7,
+              "manipulation_tone": 0.1,
+              "judgement_delta_success": 8,
+              "judgement_delta_fail": -7,
+              "interaction_outcomes": [
+                {
+                  "outcome_id": "motive_accepted",
+                  "stance_delta": { "social.empathy": 0.04 },
+                  "relation_delta": 0.1,
+                  "intention_shift": "Accept the Motive",
+                  "min_response": "Or you're the kind of desperate that gets people killed.",
+                  "max_response": "Different argument. I'll take it.",
+                  "scripted": false
+                }
+              ],
+              "failure_outcomes": [
+                {
+                  "outcome_id": "motive_rejected",
+                  "stance_delta": {},
+                  "relation_delta": -0.08,
+                  "intention_shift": "Reject the Motive",
+                  "min_response": "Needing it doesn't give you a right to it.",
+                  "max_response": "Need isn't a reason.",
+                  "scripted": false
+                }
+              ]
+            }
+          ]
+        },
+
+        {
+          "choice_id": "offer_proof",
+          "text": "I've got something worth trading. Information you don't have. Let me through and you'll have all of it.",
+          "language_art": "diplomatic",
+          "authority_tone": 0.3,
+          "diplomacy_tone": 0.7,
+          "empathy_tone": 0.2,
+          "manipulation_tone": 0.4,
+          "judgement_delta_success": 11,
+          "judgement_delta_fail": -6,
+          "interaction_outcomes": [
+            {
+              "outcome_id": "deal_considered",
+              "stance_delta": {},
+              "relation_delta": 0.12,
+              "intention_shift": "Consider the Trade",
+              "min_response": "Information. Everyone claims that. What kind?",
+              "max_response": "Now you're being practical. What is it?",
+              "scripted": false
+            }
+          ],
+          "failure_outcomes": [
+            {
+              "outcome_id": "deal_rejected",
+              "stance_delta": {},
+              "relation_delta": -0.08,
+              "intention_shift": "Reject the Trade",
+              "min_response": "You want in first. That's not how deals work here.",
+              "max_response": "Nice try. Trade happens after, not before.",
+              "scripted": false
+            }
+          ],
+          "recovery_choices": [
+            {
+              "choice_id": "proof_specific",
+              "text": "Three patrol rotations. Times and positions. Tell me that's not useful.",
+              "language_art": "diplomatic",
+              "authority_tone": 0.4,
+              "diplomacy_tone": 0.7,
+              "empathy_tone": 0.1,
+              "manipulation_tone": 0.2,
+              "judgement_delta_success": 10,
+              "judgement_delta_fail": -5,
+              "interaction_outcomes": [
+                {
+                  "outcome_id": "intel_valued",
+                  "stance_delta": {},
+                  "relation_delta": 0.15,
+                  "intention_shift": "Value the Intelligence",
+                  "min_response": "Could be stale. Could be fed to you on purpose.",
+                  "max_response": "That's the first thing you've said that actually means something.",
+                  "scripted": false
+                }
+              ],
+              "failure_outcomes": [
+                {
+                  "outcome_id": "intel_doubted",
+                  "stance_delta": {},
+                  "relation_delta": -0.1,
+                  "intention_shift": "Doubt the Intelligence",
+                  "min_response": "Sounds like bait.",
+                  "max_response": "Too convenient. You were sent here.",
+                  "scripted": false
+                }
+              ]
+            }
+          ]
+        },
+
+        {
+          "choice_id": "read_the_guard",
+          "text": "You've been watching me for two minutes and you're still talking. That means you're not sure. So let's stop wasting each other's time.",
+          "language_art": "challenge",
+          "authority_tone": 0.7,
+          "diplomacy_tone": 0.4,
+          "empathy_tone": 0.2,
+          "manipulation_tone": 0.4,
+          "judgement_delta_success": 9,
+          "judgement_delta_fail": -8,
+          "interaction_outcomes": [
+            {
+              "outcome_id": "read_acknowledged",
+              "stance_delta": { "social.assertion": 0.08 },
+              "relation_delta": 0.08,
+              "intention_shift": "Acknowledge the Read",
+              "min_response": "It means I'm thorough.",
+              "max_response": "Sharp. Doesn't get you through. But sharp.",
+              "scripted": false
+            }
+          ],
+          "failure_outcomes": [
+            {
+              "outcome_id": "read_dismissed",
+              "stance_delta": {},
+              "relation_delta": -0.05,
+              "intention_shift": "Dismiss the Read",
+              "min_response": "It means I'm careful. Don't flatter yourself.",
+              "max_response": "Two minutes means I'm patient, not convinced.",
+              "scripted": false
+            }
+          ],
+          "recovery_choices": [
+            {
+              "choice_id": "read_pivot",
+              "text": "Fine — I read that wrong. Then just tell me what you actually need to hear.",
+              "language_art": "diplomatic",
+              "authority_tone": 0.3,
+              "diplomacy_tone": 0.7,
+              "empathy_tone": 0.4,
+              "manipulation_tone": 0.1,
+              "judgement_delta_success": 7,
+              "judgement_delta_fail": -5,
+              "interaction_outcomes": [
+                {
+                  "outcome_id": "guard_engages",
+                  "stance_delta": { "cognitive.cog_flexibility": 0.04 },
+                  "relation_delta": 0.1,
+                  "intention_shift": "Engage Directly",
+                  "min_response": "That's not how this works.",
+                  "max_response": "Better question than most ask. Give me a reason.",
+                  "scripted": false
+                }
+              ],
+              "failure_outcomes": [
+                {
+                  "outcome_id": "guard_shuts_down",
+                  "stance_delta": {},
+                  "relation_delta": -0.05,
+                  "intention_shift": "Shut Down",
+                  "min_response": "I don't coach people through this.",
+                  "max_response": "You want me to do your job for you.",
+                  "scripted": false
+                }
+              ]
+            }
+          ]
+        },
+
+        {
+          "choice_id": "appeal_urgency",
+          "text": "I don't have time for a long conversation and neither do you. Something's moving and I need to be on the right side of this door when it does.",
+          "language_art": "challenge",
+          "authority_tone": 0.6,
+          "diplomacy_tone": 0.3,
+          "empathy_tone": 0.3,
+          "manipulation_tone": 0.5,
+          "judgement_delta_success": 8,
+          "judgement_delta_fail": -9,
+          "interaction_outcomes": [
+            {
+              "outcome_id": "urgency_noted",
+              "stance_delta": {},
+              "relation_delta": 0.05,
+              "intention_shift": "Assess the Urgency",
+              "min_response": "Then you'd better be convincing fast.",
+              "max_response": "Explain. Quickly.",
+              "scripted": false
+            }
+          ],
+          "failure_outcomes": [
+            {
+              "outcome_id": "urgency_rejected",
+              "stance_delta": {},
+              "relation_delta": -0.12,
+              "intention_shift": "Reject the Urgency",
+              "min_response": "You're trying to rush me. That's a red flag.",
+              "max_response": "Pressure closes doors. It doesn't open them.",
+              "scripted": false
+            }
+          ],
+          "recovery_choices": [
+            {
+              "choice_id": "urgency_slow_down",
+              "text": "You're right — I came in too fast. Let me slow down and just tell you what's actually happening.",
+              "language_art": "diplomatic",
+              "authority_tone": 0.2,
+              "diplomacy_tone": 0.6,
+              "empathy_tone": 0.5,
+              "manipulation_tone": 0.1,
+              "judgement_delta_success": 8,
+              "judgement_delta_fail": -4,
+              "interaction_outcomes": [
+                {
+                  "outcome_id": "reset_accepted",
+                  "stance_delta": { "social.empathy": 0.03 },
+                  "relation_delta": 0.1,
+                  "intention_shift": "Allow the Reset",
+                  "min_response": "Short leash now. Talk.",
+                  "max_response": "Fine. I'm listening.",
+                  "scripted": false
+                }
+              ],
+              "failure_outcomes": [
+                {
+                  "outcome_id": "reset_denied",
+                  "stance_delta": {},
+                  "relation_delta": -0.05,
+                  "intention_shift": "No Second Chance",
+                  "min_response": "You already used your reset.",
+                  "max_response": "Too many pivots. Pick a lane.",
+                  "scripted": false
+                }
+              ]
+            }
+          ]
+        },
+
+        {
+          "choice_id": "quiet_stand",
+          "text": "I'm not going anywhere. You can make this a long night or a short one. Your choice.",
+          "language_art": "challenge",
+          "authority_tone": 0.8,
+          "diplomacy_tone": 0.2,
+          "empathy_tone": 0.1,
+          "manipulation_tone": 0.3,
+          "judgement_delta_success": 7,
+          "judgement_delta_fail": -10,
+          "requirements": { "min_authority": 4 },
+          "interaction_outcomes": [
+            {
+              "outcome_id": "resolve_measured",
+              "stance_delta": { "social.assertion": 0.06 },
+              "relation_delta": 0.05,
+              "intention_shift": "Measure the Resolve",
+              "min_response": "You've got guts. Don't mistake that for progress.",
+              "max_response": "Either you're telling the truth or you're very committed to a lie. Interesting.",
+              "scripted": false
+            }
+          ],
+          "failure_outcomes": [
+            {
+              "outcome_id": "standoff_failed",
+              "stance_delta": {},
+              "relation_delta": -0.12,
+              "intention_shift": "Remove the Obstruction",
+              "min_response": "Wrong answer. Walk away.",
+              "max_response": "That's not patience. That's a threat.",
+              "scripted": false
+            }
+          ],
+          "recovery_choices": [
+            {
+              "choice_id": "standoff_soften",
+              "text": "That came out wrong. I meant — I'm not leaving because I'm committed. Not because I'm trying to push you.",
+              "language_art": "diplomatic",
+              "authority_tone": 0.3,
+              "diplomacy_tone": 0.6,
+              "empathy_tone": 0.5,
+              "manipulation_tone": 0.1,
+              "judgement_delta_success": 7,
+              "judgement_delta_fail": -6,
+              "interaction_outcomes": [
+                {
+                  "outcome_id": "commitment_heard",
+                  "stance_delta": {},
+                  "relation_delta": 0.08,
+                  "intention_shift": "Hear the Commitment",
+                  "min_response": "Being committed doesn't change the answer.",
+                  "max_response": "Alright. Heard. Now convince me.",
+                  "scripted": false
+                }
+              ],
+              "failure_outcomes": [
+                {
+                  "outcome_id": "commitment_rejected",
+                  "stance_delta": {},
+                  "relation_delta": -0.06,
+                  "intention_shift": "Unmoved",
+                  "min_response": "You don't decide what happens here. I do.",
+                  "max_response": "I don't take it back regardless of how you frame it.",
+                  "scripted": false
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "id": "standoff",
+      "npc_mood": "calculating",
+      "_comment": "Anti-softlock. Neither side has broken. Guard makes a calculation — last question before the door resolves.",
+      "npc_dialogue_prompt": "You've been at this a while. Neither of you has moved. You're not sure they're a threat, but you're not sure they're not. Give them one final honest challenge. This is where it ends.",
+
+      "transitions": [
+        { "condition": "judgement <= 10", "target": "fail" },
+        { "condition": "judgement >= 90", "target": "succeed" },
+        { "condition": "judgement <= 35", "target": "fail" },
+        { "condition": "judgement >= 65", "target": "succeed" },
+        { "condition": "judgement < 50", "target": "negotiate" },
+        { "condition": "judgement >= 50", "target": "succeed" }
+      ],
+      "default_transition": "negotiate",
+
+      "choices": [
+        {
+          "choice_id": "final_honest",
+          "text": "I'll tell you exactly what I need and why I need it. After that — it's your call, and I'll respect whatever you decide.",
+          "language_art": "diplomatic",
+          "authority_tone": 0.2,
+          "diplomacy_tone": 0.7,
+          "empathy_tone": 0.6,
+          "manipulation_tone": 0.1,
+          "judgement_delta_success": 15,
+          "judgement_delta_fail": -4,
+          "interaction_outcomes": [
+            {
+              "outcome_id": "final_respect",
+              "stance_delta": { "cognitive.cog_flexibility": 0.06 },
+              "relation_delta": 0.2,
+              "intention_shift": "Respect the Candour",
+              "min_response": "Go on. Short window.",
+              "max_response": "That's the most honest thing anyone's said standing there. Go ahead.",
+              "scripted": false
+            }
+          ],
+          "failure_outcomes": [
+            {
+              "outcome_id": "candour_too_late",
+              "stance_delta": {},
+              "relation_delta": -0.03,
+              "intention_shift": "Too Late for Honesty",
+              "min_response": "Should've opened with that.",
+              "max_response": "A little late for candour.",
+              "scripted": false
+            }
+          ]
+        },
+
+        {
+          "choice_id": "final_yield",
+          "text": "If there's something I need to do before you open that door — tell me. I'll do it.",
+          "language_art": "diplomatic",
+          "authority_tone": 0.1,
+          "diplomacy_tone": 0.8,
+          "empathy_tone": 0.5,
+          "manipulation_tone": 0.1,
+          "judgement_delta_success": 13,
+          "judgement_delta_fail": -2,
+          "interaction_outcomes": [
+            {
+              "outcome_id": "yield_received",
+              "stance_delta": { "social.empathy": 0.05 },
+              "relation_delta": 0.18,
+              "intention_shift": "Set Conditions",
+              "min_response": "There's something that needs handling. Come back when it's done.",
+              "max_response": "That willingness is half the answer. Get inside.",
+              "scripted": false
+            }
+          ],
+          "failure_outcomes": [
+            {
+              "outcome_id": "yield_wasted",
+              "stance_delta": {},
+              "relation_delta": -0.03,
+              "intention_shift": "Nothing to Give",
+              "min_response": "I don't have anything for you. That's the problem.",
+              "max_response": "There's no errand that fixes this.",
+              "scripted": false
+            }
+          ]
+        },
+
+        {
+          "choice_id": "final_deal",
+          "text": "Give me something to prove. Anything. A task, a test — I'll come back with results.",
+          "language_art": "diplomatic",
+          "authority_tone": 0.3,
+          "diplomacy_tone": 0.8,
+          "empathy_tone": 0.4,
+          "manipulation_tone": 0.1,
+          "judgement_delta_success": 12,
+          "judgement_delta_fail": -3,
+          "interaction_outcomes": [
+            {
+              "outcome_id": "task_offered",
+              "stance_delta": { "cognitive.cog_flexibility": 0.05 },
+              "relation_delta": 0.15,
+              "intention_shift": "Offer a Trial Task",
+              "min_response": "Maybe. There is something that needs doing.",
+              "max_response": "Now you're thinking. There's something I need handled.",
+              "scripted": false
+            }
+          ],
+          "failure_outcomes": [
+            {
+              "outcome_id": "task_refused",
+              "stance_delta": {},
+              "relation_delta": -0.05,
+              "intention_shift": "No Errands",
+              "min_response": "I'm a door guard, not a handler. Either you're through or you're not.",
+              "max_response": "That's not how this works.",
+              "scripted": false
+            }
+          ]
+        },
+
+        {
+          "choice_id": "final_push",
+          "text": "You've had enough time to make up your mind. Either let me through or tell me to go. I'm done waiting on a decision.",
+          "language_art": "challenge",
+          "authority_tone": 0.8,
+          "diplomacy_tone": 0.2,
+          "empathy_tone": 0.1,
+          "manipulation_tone": 0.3,
+          "judgement_delta_success": 8,
+          "judgement_delta_fail": -12,
+          "requirements": { "min_authority": 5 },
+          "interaction_outcomes": [
+            {
+              "outcome_id": "push_respected",
+              "stance_delta": { "social.assertion": 0.08 },
+              "relation_delta": 0.08,
+              "intention_shift": "Respect the Nerve",
+              "min_response": "Maybe I haven't. Doesn't mean you're right.",
+              "max_response": "You read it right. Get in. But I'm watching you.",
+              "scripted": false
+            }
+          ],
+          "failure_outcomes": [
+            {
+              "outcome_id": "push_backfires",
+              "stance_delta": {},
+              "relation_delta": -0.2,
+              "intention_shift": "Door Closed",
+              "min_response": "That's exactly why the door stays shut.",
+              "max_response": "Wrong move at the worst time. We're done.",
+              "scripted": false
+            }
+          ]
+        },
+
+        {
+          "choice_id": "walk_away_offer",
+          "text": "Maybe I've got this wrong. Tell me to come back another way and I will. I just need an answer.",
+          "language_art": "empathetic",
+          "authority_tone": 0.1,
+          "diplomacy_tone": 0.6,
+          "empathy_tone": 0.7,
+          "manipulation_tone": 0.1,
+          "judgement_delta_success": 10,
+          "judgement_delta_fail": -2,
+          "interaction_outcomes": [
+            {
+              "outcome_id": "redirect_offered",
+              "stance_delta": { "social.empathy": 0.04 },
+              "relation_delta": 0.12,
+              "intention_shift": "Consider Redirect",
+              "min_response": "There might be another way. Might.",
+              "max_response": "That kind of flexibility is exactly what we need. Let me think.",
+              "scripted": false
+            }
+          ],
+          "failure_outcomes": [
+            {
+              "outcome_id": "redirect_denied",
+              "stance_delta": {},
+              "relation_delta": -0.02,
+              "intention_shift": "No Other Way",
+              "min_response": "There isn't another way. Not for you.",
+              "max_response": "The answer is just no.",
+              "scripted": false
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "id": "succeed",
+      "npc_mood": "reluctant_trust",
+      "_comment": "TERMINAL — player earned the door. Reluctant but real.",
+      "npc_dialogue_prompt": "You've decided to let them through. It wasn't easy and it's not unconditional. One final line — short, honest, and a quiet warning. Then step aside.",
+      "terminal": true,
+      "terminal_id": "succeed",
+      "terminal_result": "Guard steps aside. The door opens.",
+      "transitions": [],
+      "choices": []
+    },
+
+    {
+      "id": "negotiate",
+      "npc_mood": "transactional",
+      "_comment": "TERMINAL — conditional entry. Guard sends the player on a task before they're allowed through.",
+      "npc_dialogue_prompt": "You're not ready to let them in, but you're not ready to send them away either. Give them a task — something specific and testable. Make clear: do it and come back, then you'll talk. No warmth. Just the terms.",
+      "terminal": true,
+      "terminal_id": "negotiate",
+      "terminal_result": "Guard gives the player a task. Entry granted only on completion.",
+      "transitions": [],
+      "choices": []
+    },
+
+    {
+      "id": "fail",
+      "npc_mood": "hostile",
+      "_comment": "TERMINAL — player failed. Door stays shut.",
+      "npc_dialogue_prompt": "You're done with this person. They said the wrong thing, pushed too hard, or gave you nothing. End it — one line, final, no appeal.",
+      "terminal": true,
+      "terminal_id": "fail",
+      "terminal_result": "Guard turns the player away.",
+      "transitions": [],
+      "choices": []
+    }
+
+  ]
+}

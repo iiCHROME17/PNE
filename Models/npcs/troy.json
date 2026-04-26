@@ -17,8 +17,8 @@
   },
   "world": {
     "personal_history": "Troy is one of the earliest members of the Insurgency. He is not a founder of the insurgency, nor was he a higher-up when he first joined but he witnessed countless insurgent deaths in the more chaotic early RI conflicts. He is devout loyal to Moses. He might question his logic, but he doesn't question his heart.",
-    "player_history": "[2026-03-24] SUCCEED: Guard grants entry to the Insurgency hideout. Trust established.\n[2026-03-24] SUCCEED: Guard grants entry to the Insurgency hideout. Trust established.\n[2026-03-24] SUCCEED: Guard grants entry to the Insurgency hideout. Trust established.",
-    "player_relation": 1.0,
+    "player_history": "[2026-03-24] SUCCEED: Guard grants entry to the Insurgency hideout. Trust established.\n[2026-03-24] SUCCEED: Guard grants entry to the Insurgency hideout. Trust established.\n[2026-03-24] SUCCEED: Guard grants entry to the Insurgency hideout. Trust established.\n[2026-04-24] SUCCEED: Guard grants entry to the Insurgency hideout. Trust established.\n[2026-04-24] SUCCEED: Guard grants entry to the Insurgency hideout. Trust established.\n[2026-04-24] SUCCEED: Guard grants entry to the Insurgency hideout. Trust established.\n[2026-04-24] SUCCEED: Guard grants entry to the Insurgency hideout. Trust established.\n[2026-04-25] FAIL: Guard turns the player away.",
+    "player_relation": 0.5099999999999999,
     "world_history_ref": "data/world.json",
     "faction_ref": "",
     "known_events": [
