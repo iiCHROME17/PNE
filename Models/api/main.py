@@ -463,4 +463,7 @@ async def ws_play(websocket: WebSocket, session_id: str):
     except WebSocketDisconnect:
         pass
     finally:
-        await websocket.close()
+        try:
+            await websocket.close()
+        except Exception:
+            pass

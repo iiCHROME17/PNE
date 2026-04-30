@@ -19,6 +19,9 @@
     "social_position": "Boss"
   },
   "world": {
+    "personal_history": "Morisson Moses served as a military officer under Romancian command before exposing corruption and killing a senior official in 2679. He vanished from formal record and now leads the Insurgency from the shadows. His strategy and ethical compass are informed by Jean Pope ChautlierÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢s philosophies. Moses treats city-wide Dysphoria as a systemic imbalance, acting decisively where corruption threatens survival. He respects the intellectual lineage of Chautlier, integrating it selectively to guide insurgent action without directly engaging with other historical figures.",
+    "player_history": "[2026-04-30] SUCCEED: Guard steps aside. The door opens.\n[2026-04-30] FAIL: Guard turns the player away.\n[2026-04-30] SUCCEED: Guard steps aside. The door opens.",
+    "player_relation": 0.72,
     "world_history_ref": "data/world.json",
     "faction_ref": "Insurgency",
     "known_events": [
@@ -33,8 +36,6 @@
       "amourie_othella",
       "krystian_krakk"
     ],
-    "personal_history": "Morisson Moses served as a military officer under Romancian command before exposing corruption and killing a senior official in 2679. He vanished from formal record and now leads the Insurgency from the shadows. His strategy and ethical compass are informed by Jean Pope Chautlier’s philosophies. Moses treats city-wide Dysphoria as a systemic imbalance, acting decisively where corruption threatens survival. He respects the intellectual lineage of Chautlier, integrating it selectively to guide insurgent action without directly engaging with other historical figures.",
-    "player_history": "",
-    "player_relation": 0.5
+    "world_history": ""
   }
 }

@@ -535,7 +535,6 @@ class OllamaResponseGenerator:
         Yields token strings as Ollama produces them.
         Falls back to yielding the calibration min_response on error.
         """
-        from typing import Generator
         prompt = self._build_prompt_with_direction(
             npc, thought, intention, interaction_outcome, history,
             scene_direction, check_success, dice_description, is_recovery,
@@ -585,6 +584,53 @@ class OllamaResponseGenerator:
             for word in fallback.split():
                 yield word + " "
 
+    def _build_terminal_prompt(self, npc, terminal_prompt: str, history: list) -> str:
+        """Build the terminal-node prompt with full NPC identity and voice grounding."""
+        def _get(obj, *attrs, default=""):
+            try:
+                for attr in attrs:
+                    obj = getattr(obj, attr)
+                return obj if obj is not None else default
+            except Exception:
+                return default
+
+        name = _get(npc, "name", default="NPC")
+        age = _get(npc, "age", default="")
+        age_str = f", age {age}" if age else ""
+
+        faction = _get(npc, "social", "faction", default="")
+        position = _get(npc, "social", "social_position", default="")
+        position_str = position.value if hasattr(position, "value") else str(position) if position else ""
+
+        personal_history = _get(npc, "world", "personal_history", default="")
+        relation = float(_get(npc, "world", "player_relation", default=0.5))
+
+        recent = history[-4:] if len(history) > 4 else history
+        history_lines = "\n".join(f"{e['speaker']}: {e['text']}" for e in recent)
+
+        parts = [f"You are {name}{age_str}."]
+        if position_str and faction:
+            parts.append(f"Role: {position_str} of the {faction}.")
+        elif faction:
+            parts.append(f"Faction: {faction}.")
+        if personal_history:
+            parts.append(f"Background: {personal_history}")
+        parts.append(f"Your disposition toward this person: {_relation_note(relation)}")
+        parts.append("")
+        parts.append("VOICE: Speak in short, blunt sentences. No corporate language. No filler phrases. Sound like this character, not an assistant.")
+        parts.append("")
+        if history_lines:
+            parts.append("RECENT CONVERSATION:")
+            parts.append(history_lines)
+            parts.append("")
+        parts.append(f"TERMINAL INSTRUCTION: {terminal_prompt}")
+        parts.append("")
+        parts.append(
+            f"Generate ONE final line of dialogue as {name}. "
+            "Stay in character. Do NOT describe actions in brackets. Under 30 words."
+        )
+        return "\n".join(parts)
+
     def generate_terminal(
         self,
         npc,
@@ -593,30 +639,8 @@ class OllamaResponseGenerator:
     ) -> str:
         """
         Generate a final NPC line for a terminal node.
-
-        Uses a stripped-down prompt: NPC identity, recent conversation,
-        and the terminal node's npc_dialogue_prompt as the instruction.
         """
-        name = getattr(npc, "name", "NPC")
-        recent = history[-4:] if len(history) > 4 else history
-        history_lines = "\n".join(
-            f"{e['speaker']}: {e['text']}" for e in recent
-        )
-
-        relation = 0.5
-        try:
-            relation = float(npc.world.player_relation)
-        except Exception:
-            pass
-
-        prompt = (
-            f"You are {name}.\n"
-            f"Your current disposition toward this person: {_relation_note(relation)}\n\n"
-            f"RECENT CONVERSATION:\n{history_lines}\n\n"
-            f"INSTRUCTION: {terminal_prompt}\n\n"
-            f"Generate ONE final line of dialogue as {name}. "
-            "Stay in character. Do NOT describe actions in brackets. Under 30 words."
-        )
+        prompt = self._build_terminal_prompt(npc, terminal_prompt, history)
 
         options = self._build_ollama_options(npc)
         options["num_predict"] = 60  # shorter for final lines
@@ -648,27 +672,7 @@ class OllamaResponseGenerator:
         Streaming version of generate_terminal.
         Yields token strings as Ollama produces them.
         """
-        name = getattr(npc, "name", "NPC")
-        recent = history[-4:] if len(history) > 4 else history
-        history_lines = "\n".join(
-            f"{e['speaker']}: {e['text']}" for e in recent
-        )
-
-        relation = 0.5
-        try:
-            relation = float(npc.world.player_relation)
-        except Exception:
-            pass
-
-        prompt = (
-            f"You are {name}.\n"
-            f"Your current disposition toward this person: {_relation_note(relation)}\n\n"
-            f"RECENT CONVERSATION:\n{history_lines}\n\n"
-            f"INSTRUCTION: {terminal_prompt}\n\n"
-            f"Generate ONE final line of dialogue as {name}. "
-            "Stay in character. Do NOT describe actions in brackets. Under 30 words."
-        )
-
+        prompt = self._build_terminal_prompt(npc, terminal_prompt, history)
         options = self._build_ollama_options(npc)
         options["num_predict"] = 60
 

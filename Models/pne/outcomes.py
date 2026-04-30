@@ -38,8 +38,7 @@ class InteractionOutcome:
         elif emotional_valence < -0.3:
             return self.min_response
         else:
-            print(f"  [Fallback] Ollama unavailable — using concatenated response (valence={emotional_valence:.2f})")
-            return f"{self.min_response} But... {self.max_response}"
+            return f"{self.min_response} {self.max_response}"
     
     def to_dict(self) -> Dict[str, Any]:
         return {
