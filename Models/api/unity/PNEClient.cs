@@ -30,14 +30,22 @@ public class PNEClient : MonoBehaviour
     [Tooltip("Base URL of the PNE API server (no trailing slash).")]
     public string apiBaseUrl = "http://localhost:8000";
 
-    [Header("Session")]
+    [Header("Encounter (optional — drag a PNEEncounter asset here)")]
+    [Tooltip("If set, StartSession() uses this encounter's NPC/scenario. Call StartEncounter() to set it at runtime.")]
+    public PNEEncounter encounter;
+    [Tooltip("Automatically start the encounter on Play.")]
+    public bool autoStart = false;
+
+    [Header("Session (used when no Encounter is set)")]
     public List<string> npcPaths = new List<string> { "npcs/troy.json" };
     public string scenarioPath = "scenarios/dgn.json";
     public string difficulty = "STANDARD";
     public bool useOllama = true;
+    [Tooltip("When enabled, player actions update NPC relations, judgement, and state. Disable to run sessions without any persistent changes.")]
+    public bool updatePNE = true;
 
     [Header("Debug")]
-    [Tooltip("Save NPC JSON state to disk when the session ends. Uncheck to keep JSON files unchanged during testing.")]
+    [Tooltip("Save NPC JSON state to disk when the session ends. Has no effect if Update PNE is off.")]
     public bool updateJsons = true;
 
     [Header("Player Skills (0–10)")]
@@ -81,7 +89,21 @@ public class PNEClient : MonoBehaviour
     // ── Public API ────────────────────────────────────────────────────────────
 
     /// <summary>
+    /// Load an encounter asset and start the session it defines.
+    /// Outcome bindings on the encounter fire automatically on terminal.
+    /// </summary>
+    public void StartEncounter(PNEEncounter pneEncounter)
+    {
+        encounter     = pneEncounter;
+        npcPaths      = new List<string>(pneEncounter.npcPaths);
+        scenarioPath  = pneEncounter.scenarioPath;
+        difficulty    = pneEncounter.difficulty;
+        StartSession();
+    }
+
+    /// <summary>
     /// Create a session on the server and open the WebSocket.
+    /// Uses the encounter asset if set, otherwise uses Inspector fields.
     /// Fires OnSessionReady when complete.
     /// </summary>
     public void StartSession()
@@ -117,7 +139,7 @@ public class PNEClient : MonoBehaviour
     {
         if (!string.IsNullOrEmpty(SessionId))
         {
-            if (updateJsons)
+            if (updatePNE && updateJsons)
                 StartCoroutine(SaveSessionCoroutine());
             StartCoroutine(DeleteSessionCoroutine());
         }
@@ -128,6 +150,15 @@ public class PNEClient : MonoBehaviour
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
+
+    private void Start()
+    {
+        if (autoStart)
+        {
+            if (encounter != null) StartEncounter(encounter);
+            else                   StartSession();
+        }
+    }
 
     private void Update()
     {
@@ -152,6 +183,7 @@ public class PNEClient : MonoBehaviour
             ScenarioPath  = scenarioPath,
             Difficulty    = difficulty,
             UseOllama     = useOllama,
+            UpdatePNE     = updatePNE,
             PlayerSkills  = new PlayerSkills
             {
                 Authority    = authority,

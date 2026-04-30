@@ -58,6 +58,7 @@ public class PNEDialogueUI : MonoBehaviour
 
     private Phase            _phase            = Phase.Idle;
     private Coroutine        _typingCoroutine;
+    private int              _advanceReadyFrame = -1;   // prevents same-frame skip+advance double-fire
     private string           _npcBuffer        = "";    // accumulates streaming tokens
     private string           _pendingNpcText;           // buffered if NPC arrives during PlayerTyping
     private List<ChoiceItem> _pendingChoices;           // stored until player advances past NPC text
@@ -187,6 +188,8 @@ public class PNEDialogueUI : MonoBehaviour
                 break;
 
             case Phase.TextComplete:
+                if (Time.frameCount < _advanceReadyFrame) break;
+                if (_isTerminal) { ShowJudgementOnly(); break; }
                 if (_pendingChoices != null && _pendingChoices.Count > 0)
                 {
                     SetDialoguePanelVisible(false);
@@ -236,8 +239,8 @@ public class PNEDialogueUI : MonoBehaviour
     {
         _typingCoroutine = null;
         _phase = Phase.TextComplete;
+        _advanceReadyFrame = Time.frameCount + 1;
         onComplete?.Invoke();
-        if (_isTerminal) { ShowJudgementOnly(); return; }
         SetInteractHint(true, continueHint);
     }
 

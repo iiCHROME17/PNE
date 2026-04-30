@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PNE Dialogue Graph Designer</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  *{box-sizing:border-box;}
+  body{background:#0b0917;color:#e2d8f5;min-height:100vh;font-family:system-ui,sans-serif;overflow:hidden;}
+  #app{display:grid;grid-template-rows:44px 34px 1fr;height:100vh;}
+  #toolbar{background:#12101f;border-bottom:1px solid #3b2d6e;padding:0 1rem;display:flex;align-items:center;gap:0.5rem;flex-shrink:0;}
+  /* Main view tab bar */
+  #mtabs{background:#0d0b1a;border-bottom:1px solid #2d2050;padding:0 1rem;display:flex;align-items:center;gap:.1rem;flex-shrink:0;}
+  .mtab{padding:.3rem 1rem;font-size:.78rem;cursor:pointer;color:#7c6b99;border:none;background:none;border-bottom:2px solid transparent;font-weight:500;transition:color .1s;}
+  .mtab.on{color:#c084fc;border-bottom-color:#7c3aed;font-weight:700;}
+  .mtab:hover{color:#a78bfa;}
+  .mtab-sep{width:1px;height:16px;background:#2d2050;margin:0 .25rem;}
+  /* Content area */
+  #content-area{overflow:hidden;}
+  #main{display:grid;grid-template-columns:1fr 440px;overflow:hidden;height:100%;}
+  /* Choice editor panel */
+  #choice-panel{display:none;grid-template-columns:270px 1fr;overflow:hidden;height:100%;}
+  #choice-panel.show{display:grid;}
+  /* Node list panel */
+  #clist{background:#0f0d1c;border-right:1px solid #3b2d6e;overflow-y:auto;display:flex;flex-direction:column;}
+  #cdetail{overflow-y:auto;padding:1.1rem;background:#0b0917;}
+  .clist-header{padding:.55rem .8rem;font-size:.68rem;color:#7c6b99;border-bottom:1px solid #1a1535;background:#12101f;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+  .clist-header span{color:#c084fc;font-weight:700;}
+  .cli{padding:.42rem .8rem;cursor:pointer;border-bottom:1px solid #1a1535;display:flex;align-items:center;gap:.35rem;transition:background .08s;}
+  .cli:hover{background:#1a1535;}
+  .cli.on{background:#221c42;border-left:2px solid #7c3aed;}
+  .cli.rec{padding-left:1.6rem;background:#0c0a18;}
+  .cli.rec.on{background:#1a1535;border-left:2px solid #6d28d9;}
+  .cli-text{font-size:.72rem;color:#e2d8f5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;}
+  .cli-sub{font-size:.62rem;color:#7c6b99;flex-shrink:0;}
+  #nodelist-panel{display:none;overflow:hidden;height:100%;}
+  #nodelist-panel.show{display:block;overflow-y:auto;padding:1rem;}
+  .nl-row{display:grid;grid-template-columns:130px 110px 1fr 70px 70px 80px;gap:.5rem;align-items:center;padding:.45rem .65rem;border-bottom:1px solid #1a1535;font-size:.75rem;}
+  .nl-head{background:#1e1b2e;border-radius:.4rem .4rem 0 0;font-size:.65rem;color:#c084fc;font-weight:700;letter-spacing:.08em;text-transform:uppercase;}
+  .nl-row:hover:not(.nl-head){background:#1a1535;cursor:pointer;}
+
+  /* Graph */
+  #graph-wrap{position:relative;overflow:auto;background:#0b0917;cursor:default;}
+  #graph-canvas{position:relative;min-width:2400px;min-height:1600px;}
+  #svg-layer{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:visible;}
+
+  /* Node cards */
+  .nc{position:absolute;width:210px;background:#1e1b2e;border:2px solid #4a3980;border-radius:0.75rem;padding:0.7rem 0.85rem;cursor:pointer;user-select:none;z-index:10;transition:border-color .12s,box-shadow .12s;}
+  .nc:hover{border-color:#7c3aed;}
+  .nc.sel{border-color:#c084fc;box-shadow:0 0 0 3px #7c3aed33;}
+  .nc.t-succeed{border-color:#16a34a;}
+  .nc.t-succeed.sel{border-color:#4ade80;box-shadow:0 0 0 3px #16a34a33;}
+  .nc.t-fail{border-color:#dc2626;}
+  .nc.t-fail.sel{border-color:#f87171;}
+  .nc.t-negotiate{border-color:#d97706;}
+  .nc.t-negotiate.sel{border-color:#fbbf24;}
+  .nc.t-other{border-color:#0891b2;}
+  .nc-id{font-size:.82rem;font-weight:700;color:#c084fc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .nc-mood{font-size:.65rem;color:#a78bfa;font-style:italic;min-height:14px;}
+  .nc-prompt{font-size:.65rem;color:#7c6b99;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:28px;margin:4px 0;}
+  .nc-foot{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px;}
+  .nb{font-size:.58rem;padding:1px 5px;border-radius:9999px;font-weight:600;}
+  .nb-c{background:#3b0764;color:#e9d5ff;}
+  .nb-t{background:#14532d;color:#86efac;}
+  .nb-tr{background:#1e3a5f;color:#93c5fd;}
+
+  /* Inspector */
+  #inspector{background:#12101f;border-left:1px solid #3b2d6e;display:flex;flex-direction:column;overflow:hidden;}
+  .ihead{padding:.7rem 1rem;border-bottom:1px solid #2d2050;background:#0f0d1c;flex-shrink:0;}
+  .itabs{display:flex;border-bottom:1px solid #3b2d6e;background:#0f0d1c;flex-shrink:0;}
+  .itab{padding:.45rem .9rem;font-size:.78rem;cursor:pointer;color:#7c6b99;border:none;background:none;border-bottom:2px solid transparent;}
+  .itab.on{color:#c084fc;border-bottom-color:#7c3aed;font-weight:600;}
+  .itab:hover{color:#a78bfa;}
+  #icontent{padding:1rem;overflow-y:auto;flex:1;}
+
+  /* Form */
+  input[type=range]{accent-color:#7c3aed;}
+  input[type=text],input[type=number],textarea,select{
+    background:#12101f;color:#e2d8f5;border:1px solid #4a3980;
+    border-radius:.4rem;padding:.35rem .55rem;width:100%;font-size:.82rem;outline:none;}
+  input:focus,textarea:focus,select:focus{border-color:#7c3aed;}
+  textarea{resize:vertical;}
+  label{color:#d1c4e9;font-size:.78rem;display:block;margin-bottom:.15rem;}
+  .hint{color:#7c6b99;font-size:.68rem;}
+
+  .sec{background:#1e1b2e;border:1px solid #3b2d6e;border-radius:.65rem;padding:1rem;margin-bottom:.65rem;}
+  .sec-t{color:#c084fc;font-size:.65rem;letter-spacing:.12em;text-transform:uppercase;font-weight:700;margin-bottom:.7rem;}
+  .sub{background:#120f22;border:1px solid #2d2050;border-radius:.4rem;padding:.65rem;margin-bottom:.45rem;}
+
+  .fr{margin-bottom:.55rem;}
+  .fr2{display:grid;grid-template-columns:1fr 1fr;gap:.45rem;margin-bottom:.55rem;}
+  .fr3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.35rem;margin-bottom:.55rem;}
+
+  .slrow{display:flex;align-items:center;gap:8px;margin-bottom:.45rem;}
+  .slrow input[type=range]{flex:1;}
+  .vb{background:#2d1f5e;color:#a78bfa;border-radius:3px;padding:1px 6px;font-size:.75rem;font-family:monospace;min-width:3rem;text-align:center;flex-shrink:0;}
+
+  .btn{border:none;border-radius:.4rem;padding:.38rem .85rem;font-size:.78rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:.3rem;white-space:nowrap;}
+  .bp{background:#7c3aed;color:#fff;}.bp:hover{background:#6d28d9;}
+  .bs{background:#2d1f5e;color:#c084fc;border:1px solid #4a3980;}.bs:hover{background:#3b2d6e;}
+  .bd{background:#7f1d1d;color:#fca5a5;}.bd:hover{background:#991b1b;}
+  .bsm{padding:.18rem .55rem!important;font-size:.72rem!important;}
+  .bxs{padding:.1rem .38rem!important;font-size:.65rem!important;border-radius:.3rem!important;}
+
+  /* Choices */
+  .ci{background:#1a1535;border:1px solid #2d2050;border-radius:.5rem;margin-bottom:.45rem;overflow:hidden;}
+  .ch{display:flex;align-items:center;justify-content:space-between;padding:.45rem .65rem;cursor:pointer;}
+  .ch:hover{background:#221c42;}
+  .cb{padding:.65rem;border-top:1px solid #2d2050;display:none;}
+  .cb.open{display:block;}
+
+  /* Outcomes */
+  .oi{background:#0f0d1c;border:1px solid #2d2050;border-radius:.4rem;padding:.5rem .65rem;margin-bottom:.35rem;}
+
+  /* Transitions */
+  .trow{display:flex;gap:.35rem;align-items:center;margin-bottom:.35rem;background:#0f0d1c;border-radius:.35rem;padding:.35rem .5rem;}
+
+  /* Lang badges */
+  .lc{font-size:.6rem;padding:1px 5px;border-radius:9999px;font-weight:600;}
+  .lchallenge{background:#4c1d1d;color:#fca5a5;}
+  .ldiplomatic{background:#1a3040;color:#93c5fd;}
+  .lempathetic{background:#1a3024;color:#86efac;}
+  .lmanipulative{background:#3b2a00;color:#fde68a;}
+  .lneutral{background:#27272a;color:#a1a1aa;}
+
+  /* JSON modal */
+  #jmod{display:none;position:fixed;inset:0;background:#0009;z-index:1000;align-items:center;justify-content:center;}
+  #jmod.open{display:flex;}
+  #jbox{background:#0f0f1a;border:1px solid #4a3980;border-radius:.75rem;padding:1.1rem;max-width:920px;width:96%;max-height:88vh;display:flex;flex-direction:column;gap:.75rem;}
+  #jcontent{color:#a78bfa;font-family:monospace;font-size:.7rem;overflow-y:auto;white-space:pre;flex:1;}
+
+  ::-webkit-scrollbar{width:5px;height:5px;}
+  ::-webkit-scrollbar-track{background:#0b0917;}
+  ::-webkit-scrollbar-thumb{background:#3b2d6e;border-radius:3px;}
+  ::-webkit-scrollbar-thumb:hover{background:#7c3aed;}
+
+  /* Recovery section */
+  .rec-wrap{background:#0c0a1a;border:1px solid #2d2050;border-radius:.45rem;padding:.65rem;margin-top:.5rem;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Toolbar -->
+  <div id="toolbar">
+    <span style="color:#c084fc;font-weight:700;font-size:.88rem;letter-spacing:.04em;margin-right:.25rem;">PNE ◈ Dialogue Graph</span>
+    <button class="btn bs bsm" onclick="newScenario()">＋ New</button>
+    <button class="btn bs bsm" onclick="importJSON()">⬆ Import</button>
+    <input type="file" id="file-input" accept=".json" style="display:none" onchange="handleFile(event)">
+    <button class="btn bs bsm" onclick="exportJSON()">⬇ Export</button>
+    <button class="btn bs bsm" onclick="showJSONModal()">{ } JSON</button>
+    <div style="flex:1"></div>
+    <button class="btn bp bsm" onclick="addNode()">＋ Node</button>
+    <button class="btn bs bsm" onclick="autoLayout()">⊞ Layout</button>
+    <span id="ttitle" style="color:#7c6b99;font-size:.75rem;margin-left:.5rem;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+  </div>
+
+  <!-- Main view tabs -->
+  <div id="mtabs">
+    <button class="mtab on" onclick="switchMainTab('graph')"    id="mtab-graph">◈ Graph</button>
+    <button class="mtab"    onclick="switchMainTab('choices')"  id="mtab-choices">↳ Choices</button>
+    <button class="mtab"    onclick="switchMainTab('nodes')"    id="mtab-nodes">≡ Node List</button>
+  </div>
+
+  <!-- Content area (all panels live here) -->
+  <div id="content-area">
+
+  <!-- Graph panel (default) -->
+  <div id="main">
+
+    <!-- Graph canvas -->
+    <div id="graph-wrap">
+      <div id="graph-canvas">
+        <svg id="svg-layer" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="arr" markerWidth="7" markerHeight="5" refX="5" refY="2.5" orient="auto">
+              <polygon points="0 0,7 2.5,0 5" fill="#7c3aed" opacity=".75"/>
+            </marker>
+            <marker id="arr-s" markerWidth="7" markerHeight="5" refX="5" refY="2.5" orient="auto">
+              <polygon points="0 0,7 2.5,0 5" fill="#16a34a" opacity=".75"/>
+            </marker>
+            <marker id="arr-f" markerWidth="7" markerHeight="5" refX="5" refY="2.5" orient="auto">
+              <polygon points="0 0,7 2.5,0 5" fill="#dc2626" opacity=".75"/>
+            </marker>
+            <marker id="arr-d" markerWidth="7" markerHeight="5" refX="5" refY="2.5" orient="auto">
+              <polygon points="0 0,7 2.5,0 5" fill="#6b7280" opacity=".75"/>
+            </marker>
+          </defs>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Inspector -->
+    <div id="inspector">
+      <div class="ihead">
+        <div style="font-size:.8rem;color:#c084fc;font-weight:700;">Inspector</div>
+        <div id="isub" style="font-size:.68rem;color:#7c6b99;margin-top:1px;">No node selected</div>
+      </div>
+      <div class="itabs">
+        <button class="itab on" onclick="switchTab('scenario')" id="tab-scenario">Scenario</button>
+        <button class="itab" onclick="switchTab('node')" id="tab-node">Node</button>
+        <button class="itab" onclick="switchTab('json')" id="tab-json">JSON</button>
+      </div>
+      <div id="icontent"></div>
+    </div>
+
+  </div><!-- /#main -->
+
+  <!-- Choice editor panel -->
+  <div id="choice-panel">
+    <div id="clist"></div>
+    <div id="cdetail"><p style="color:#7c6b99;font-size:.8rem;padding:1rem;">Select a node, then pick a choice from the list.</p></div>
+  </div>
+
+  <!-- Node list panel -->
+  <div id="nodelist-panel"></div>
+
+  </div><!-- /#content-area -->
+
+</div><!-- /#app -->
+
+<!-- JSON Modal -->
+<div id="jmod">
+  <div id="jbox">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <span style="color:#c084fc;font-weight:700;">JSON Output</span>
+      <div style="display:flex;gap:.4rem;">
+        <button class="btn bs bsm" onclick="copyJSON()">Copy</button>
+        <button class="btn bs bsm" onclick="document.getElementById('jmod').classList.remove('open')">✕ Close</button>
+      </div>
+    </div>
+    <pre id="jcontent"></pre>
+  </div>
+</div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let S = blankScenario();   // scenario data
+let P = {};                // positions: { nodeId: {x,y} }
+let sel = null;            // selected node id
+let tab = 'scenario';      // inspector tab
+let mainTab = 'graph';     // main view tab: 'graph' | 'choices' | 'nodes'
+let open = {};             // open choice accordions: { nodeId_ci: bool }
+let selCi = null;          // selected choice index in choice editor
+let selRi = undefined;     // selected recovery index (undefined = not a recovery)
+let drag = null;           // dragging node id
+let dragOff = {x:0,y:0};
+
+// ─── BLANK ───────────────────────────────────────────────────────────────────
+function blankScenario() {
+  return {
+    id:'new_scenario', title:'New Scenario', opening:'',
+    conversation_config:{max_turns:6,enable_coherence_filtering:false,track_dialogue_momentum:false},
+    npc_role:{display_name:'NPC'},
+    npc_intent:{baseline_belief:'',long_term_desire:'',immediate_intention:'',stakes:''},
+    nodes:[
+      {id:'start',npc_mood:'',_comment:'',npc_dialogue_prompt:'',transitions:[],default_transition:null,choices:[]},
+      {id:'succeed',npc_mood:'',_comment:'TERMINAL',npc_dialogue_prompt:'',terminal:true,terminal_id:'succeed',terminal_result:'',transitions:[],choices:[]},
+      {id:'fail',npc_mood:'',_comment:'TERMINAL',npc_dialogue_prompt:'',terminal:true,terminal_id:'fail',terminal_result:'',transitions:[],choices:[]}
+    ]
+  };
+}
+
+// ─── LAYOUT ──────────────────────────────────────────────────────────────────
+function autoLayout() {
+  const nodes = S.nodes;
+  if (!nodes.length) { renderAll(); return; }
+  const adj = {};
+  nodes.forEach(n => adj[n.id] = []);
+  nodes.forEach(n => {
+    (n.transitions||[]).forEach(t => { if(t.target && adj[t.target]!==undefined) adj[n.id].push(t.target); });
+    if(n.default_transition && adj[n.default_transition]!==undefined) adj[n.id].push(n.default_transition);
+  });
+  const startId = nodes.find(n=>n.id==='start')?.id || nodes[0].id;
+  const levels = {}, vis = new Set(), q = [{id:startId,lv:0}];
+  vis.add(startId);
+  while(q.length) {
+    const {id,lv} = q.shift(); levels[id] = lv;
+    (adj[id]||[]).forEach(nx => { if(!vis.has(nx)){vis.add(nx);q.push({id:nx,lv:lv+1});} });
+  }
+  nodes.forEach(n => { if(levels[n.id]===undefined) levels[n.id]=99; });
+  const lvIdx = {};
+  nodes.forEach(n => {
+    const lv = levels[n.id];
+    lvIdx[lv] = lvIdx[lv]||0;
+    P[n.id] = {x: 70 + lvIdx[lv]*260, y: 70 + lv*210};
+    lvIdx[lv]++;
+  });
+  renderAll();
+}
+
+// ─── RENDER ──────────────────────────────────────────────────────────────────
+function renderAll() {
+  const canvas = document.getElementById('graph-canvas');
+  canvas.querySelectorAll('.nc').forEach(e=>e.remove());
+  S.nodes.forEach(n => { if(!P[n.id]) P[n.id]={x:80+S.nodes.indexOf(n)%4*260,y:80+Math.floor(S.nodes.indexOf(n)/4)*210}; });
+  S.nodes.forEach(renderCard);
+  renderArrows();
+  document.getElementById('ttitle').textContent = S.title||S.id;
+}
+
+function nodeClass(n) {
+  let c = 'nc';
+  if(n.terminal) {
+    const t = n.terminal_id||n.id;
+    c += t==='succeed'?' t-succeed':t==='fail'?' t-fail':t==='negotiate'?' t-negotiate':' t-other';
+  }
+  if(n.id===sel) c+=' sel';
+  return c;
+}
+
+function renderCard(n) {
+  const canvas = document.getElementById('graph-canvas');
+  const pos = P[n.id]||{x:80,y:80};
+  const d = document.createElement('div');
+  d.className = nodeClass(n);
+  d.id = 'nd-'+n.id;
+  d.style.left = pos.x+'px';
+  d.style.top  = pos.y+'px';
+  const cc = (n.choices||[]).length, tc = (n.transitions||[]).length;
+  d.innerHTML = `
+    <div class="nc-id">${esc(n.id)}</div>
+    <div class="nc-mood">${esc(n.npc_mood||'')}</div>
+    <div class="nc-prompt">${esc(n.npc_dialogue_prompt||'')}</div>
+    <div class="nc-foot">
+      ${n.terminal?`<span class="nb nb-t">⊛ ${esc(n.terminal_id||'terminal')}</span>`:''}
+      ${cc?`<span class="nb nb-c">↳ ${cc} choice${cc!==1?'s':''}</span>`:''}
+      ${tc?`<span class="nb nb-tr">→ ${tc} trans</span>`:''}
+    </div>`;
+  d.addEventListener('click', e => { if(!drag) selectNode(n.id); });
+  d.addEventListener('mousedown', e => {
+    if(e.button!==0) return;
+    drag = n.id;
+    const r = d.getBoundingClientRect();
+    dragOff.x = e.clientX - r.left;
+    dragOff.y = e.clientY - r.top;
+    e.preventDefault();
+  });
+  canvas.appendChild(d);
+}
+
+function renderArrows() {
+  const svg = document.getElementById('svg-layer');
+  svg.querySelectorAll('.ar').forEach(e=>e.remove());
+  S.nodes.forEach(n => {
+    const all = [...(n.transitions||[])];
+    if(n.default_transition) all.push({target:n.default_transition,condition:'default',_def:true});
+    all.forEach(t => { if(t.target) drawArrow(svg,n.id,t.target,t.condition,t._def); });
+  });
+}
+
+function drawArrow(svg, src, dst, cond, isDef) {
+  const sp = P[src], dp = P[dst];
+  if(!sp||!dp) return;
+  const NW=210, NH=120;
+  let color,mid;
+  if(isDef){ color='#6b7280'; mid='arr-d'; }
+  else if(cond&&cond.includes('>=')){ color='#16a34a'; mid='arr-s'; }
+  else if(cond&&cond.includes('<=')){ color='#dc2626'; mid='arr-f'; }
+  else { color='#7c3aed'; mid='arr'; }
+
+  // choose exit/entry sides based on relative position
+  let sx,sy,ex,ey;
+  const dxr = dp.x - sp.x;
+  if(Math.abs(dxr) > 80) {
+    // horizontal
+    if(dxr > 0) { sx=sp.x+NW; sy=sp.y+NH/2; ex=dp.x; ey=dp.y+NH/2; }
+    else         { sx=sp.x;    sy=sp.y+NH/2; ex=dp.x+NW; ey=dp.y+NH/2; }
+  } else {
+    // vertical
+    const dyr = dp.y - sp.y;
+    if(dyr >= 0) { sx=sp.x+NW/2; sy=sp.y+NH; ex=dp.x+NW/2; ey=dp.y; }
+    else          { sx=sp.x+NW/2; sy=sp.y;    ex=dp.x+NW/2; ey=dp.y+NH; }
+  }
+
+  const ddx=Math.abs(ex-sx), ddy=Math.abs(ey-sy);
+  const cx1=sx+(ex>sx?Math.max(ddx*.5,50):-Math.max(ddx*.5,50));
+  const cy1=sy;
+  const cx2=ex-(ex>sx?Math.max(ddx*.5,50):-Math.max(ddx*.5,50));
+  const cy2=ey;
+
+  const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+  path.setAttribute('class','ar');
+  path.setAttribute('d',`M${sx} ${sy} C${cx1} ${cy1},${cx2} ${cy2},${ex} ${ey}`);
+  path.setAttribute('stroke',color);
+  path.setAttribute('stroke-width','1.5');
+  path.setAttribute('fill','none');
+  path.setAttribute('opacity','.55');
+  path.setAttribute('marker-end',`url(#${mid})`);
+  svg.appendChild(path);
+
+  // label
+  const lx=(sx+ex)/2, ly=(sy+ey)/2-9;
+  const label = dst.substring(0,10)+(dst.length>10?'…':'');
+  const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+  t.setAttribute('class','ar');
+  t.setAttribute('x',lx); t.setAttribute('y',ly);
+  t.setAttribute('text-anchor','middle');
+  t.setAttribute('fill',color); t.setAttribute('font-size','8.5');
+  t.setAttribute('opacity','0.8');
+  t.textContent = '→ '+label;
+  svg.appendChild(t);
+}
+
+// ─── MAIN TAB SWITCHING ──────────────────────────────────────────────────────
+function switchMainTab(t) {
+  mainTab = t;
+  document.querySelectorAll('.mtab').forEach(b=>b.classList.remove('on'));
+  document.getElementById('mtab-'+t).classList.add('on');
+  document.getElementById('main').style.display         = t==='graph'   ? '' : 'none';
+  document.getElementById('choice-panel').classList.toggle('show', t==='choices');
+  document.getElementById('nodelist-panel').classList.toggle('show', t==='nodes');
+  if(t==='choices') renderChoicePanel();
+  if(t==='nodes')   renderNodeList();
+}
+
+function openChoiceEditor(ci, ri) {
+  selCi = ci; selRi = ri;
+  switchMainTab('choices');
+}
+
+// ─── CHOICE EDITOR PANEL ─────────────────────────────────────────────────────
+function renderChoicePanel() {
+  const n = node();
+  const clistEl  = document.getElementById('clist');
+  const cdetailEl = document.getElementById('cdetail');
+
+  if(!n) {
+    clistEl.innerHTML = '<div style="padding:1rem;color:#7c6b99;font-size:.8rem;">Select a node on the graph first.</div>';
+    cdetailEl.innerHTML = '';
+    return;
+  }
+
+  const choices = n.choices||[];
+
+  // ── Left: choice list ──
+  let lh = `<div class="clist-header"><span>${esc(n.id)}</span> &nbsp;${choices.length} choice${choices.length!==1?'s':''}</div>`;
+  choices.forEach((ch,ci) => {
+    const act = selCi===ci && selRi===undefined;
+    const lc  = `l${ch.language_art||'neutral'}`;
+    const rc  = ch.recovery_choices||[];
+    lh += `<div class="cli${act?' on':''}" onclick="selCi=${ci};selRi=undefined;renderChoicePanel()">
+      <span class="lc ${lc}" style="flex-shrink:0;">${esc(ch.language_art||'neutral')}</span>
+      <span class="cli-text">${esc((ch.text||'').substring(0,42))}</span>
+      ${rc.length?`<span class="cli-sub">+${rc.length}rec</span>`:''}
+    </div>`;
+    rc.forEach((rcx,ri) => {
+      const ract = selCi===ci && selRi===ri;
+      const rlc  = `l${rcx.language_art||'neutral'}`;
+      lh += `<div class="cli rec${ract?' on':''}" onclick="selCi=${ci};selRi=${ri};renderChoicePanel()">
+        <span class="cli-sub" style="flex-shrink:0;">↳ rec ${ri+1}</span>
+        <span class="lc ${rlc}" style="flex-shrink:0;">${esc(rcx.language_art||'neutral')}</span>
+        <span class="cli-text">${esc((rcx.text||'').substring(0,35))}</span>
+      </div>`;
+    });
+  });
+  if(!choices.length) lh += '<div style="padding:.75rem .8rem;color:#4a3980;font-size:.75rem;">No choices yet.</div>';
+  lh += `<div style="padding:.65rem .8rem;border-top:1px solid #2d2050;margin-top:auto;">
+    <button class="btn bp bsm" style="width:100%;" onclick="addChoice();renderChoicePanel()">＋ Add Choice</button>
+  </div>`;
+  clistEl.innerHTML = lh;
+
+  // ── Right: choice detail ──
+  if(selCi!==null && choices[selCi]) {
+    const ch = selRi!==undefined ? (choices[selCi].recovery_choices||[])[selRi] : choices[selCi];
+    if(ch) {
+      const isRec = selRi!==undefined;
+      cdetailEl.innerHTML = `
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:.9rem;gap:.5rem;">
+          <div>
+            <div style="font-size:.62rem;color:#7c6b99;text-transform:uppercase;letter-spacing:.1em;">${isRec?`Recovery ${selRi+1} of choice ${selCi}`:'Choice'}</div>
+            <div style="font-size:.95rem;color:#c084fc;font-weight:700;margin-top:2px;">${esc(ch.choice_id||'')}</div>
+          </div>
+          <div style="display:flex;gap:.4rem;">
+            ${!isRec?`<button class="btn bd bsm" onclick="if(confirm('Delete?')){rmChoice(${selCi});selCi=null;renderChoicePanel()}">⊗ Delete</button>`:''}
+            <button class="btn bs bsm" onclick="switchMainTab('graph');selectNode('${esc(n.id)}')">← Graph</button>
+          </div>
+        </div>
+        <div style="max-width:860px;">${choiceEditor(ch, selCi, selRi)}</div>`;
+    }
+  } else {
+    cdetailEl.innerHTML = '<div style="color:#7c6b99;font-size:.8rem;padding:.5rem;">Select a choice from the list.</div>';
+  }
+}
+
+// ─── NODE LIST PANEL ─────────────────────────────────────────────────────────
+function renderNodeList() {
+  const el = document.getElementById('nodelist-panel');
+  const rows = S.nodes.map(n => {
+    const tc = (n.transitions||[]).length + (n.default_transition?1:0);
+    const cc = (n.choices||[]).length;
+    const termBadge = n.terminal
+      ? `<span class="nb nb-t">${esc(n.terminal_id||'terminal')}</span>`
+      : `<span style="color:#4a3980;font-size:.68rem;">—</span>`;
+    return `<div class="nl-row" onclick="selectNode('${esc(n.id)}');switchMainTab('graph')">
+      <span style="color:#c084fc;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(n.id)}</span>
+      <span style="color:#a78bfa;font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(n.npc_mood||'—')}</span>
+      <span style="color:#7c6b99;font-size:.7rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc((n.npc_dialogue_prompt||'').substring(0,60))}</span>
+      <span style="text-align:center;color:#93c5fd;">${tc}</span>
+      <span style="text-align:center;color:#e9d5ff;">${cc}</span>
+      ${termBadge}
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="margin-bottom:.75rem;display:flex;align-items:center;justify-content:space-between;">
+      <span style="color:#c084fc;font-weight:700;font-size:.88rem;">All Nodes</span>
+      <button class="btn bp bsm" onclick="addNode()">＋ Add Node</button>
+    </div>
+    <div style="background:#1e1b2e;border:1px solid #3b2d6e;border-radius:.5rem;overflow:hidden;">
+      <div class="nl-row nl-head">
+        <span>Node ID</span><span>Mood</span><span>Dialogue Prompt</span>
+        <span style="text-align:center;">Trans</span><span style="text-align:center;">Choices</span><span>Terminal</span>
+      </div>
+      ${rows||'<div style="padding:1rem;color:#7c6b99;font-size:.8rem;">No nodes.</div>'}
+    </div>`;
+}
+
+// ─── SELECTION ───────────────────────────────────────────────────────────────
+function selectNode(id) {
+  sel = id;
+  selCi = null; selRi = undefined;
+  S.nodes.forEach(n => {
+    const el=document.getElementById('nd-'+n.id);
+    if(el) el.className = nodeClass(n);
+  });
+  document.getElementById('isub').textContent = 'Node: '+id;
+  switchTab('node');
+}
+
+function switchTab(t) {
+  tab = t;
+  document.querySelectorAll('.itab').forEach(b=>b.classList.remove('on'));
+  document.getElementById('tab-'+t).classList.add('on');
+  renderInspector();
+}
+
+// ─── INSPECTOR ───────────────────────────────────────────────────────────────
+function renderInspector() {
+  const c = document.getElementById('icontent');
+  if(tab==='scenario') c.innerHTML = tScenario();
+  else if(tab==='node') c.innerHTML = sel ? tNode(S.nodes.find(n=>n.id===sel)) : '<p style="color:#7c6b99;font-size:.8rem;padding:.5rem;">Select a node in the graph.</p>';
+  else if(tab==='json') c.innerHTML = tJSON();
+}
+
+// ─── SCENARIO TAB ────────────────────────────────────────────────────────────
+function tScenario() {
+  const s=S, c=s.conversation_config||{};
+  return `
+  <div class="sec">
+    <div class="sec-t">Identity</div>
+    <div class="fr"><label>Scenario ID</label><input type="text" value="${esc(s.id)}" oninput="S.id=this.value;document.getElementById('ttitle').textContent=S.title||S.id"></div>
+    <div class="fr"><label>Title</label><input type="text" value="${esc(s.title)}" oninput="S.title=this.value;document.getElementById('ttitle').textContent=S.title||S.id"></div>
+    <div class="fr"><label>Opening Line</label><textarea rows="3" oninput="S.opening=this.value">${esc(s.opening)}</textarea></div>
+  </div>
+  <div class="sec">
+    <div class="sec-t">NPC Role &amp; Intent</div>
+    <div class="fr"><label>Display Name</label><input type="text" value="${esc((s.npc_role||{}).display_name||'')}" oninput="S.npc_role.display_name=this.value"></div>
+    <div class="fr"><label>Baseline Belief</label><textarea rows="2" oninput="S.npc_intent.baseline_belief=this.value">${esc((s.npc_intent||{}).baseline_belief||'')}</textarea></div>
+    <div class="fr"><label>Long-Term Desire</label><textarea rows="2" oninput="S.npc_intent.long_term_desire=this.value">${esc((s.npc_intent||{}).long_term_desire||'')}</textarea></div>
+    <div class="fr"><label>Immediate Intention</label><textarea rows="2" oninput="S.npc_intent.immediate_intention=this.value">${esc((s.npc_intent||{}).immediate_intention||'')}</textarea></div>
+    <div class="fr"><label>Stakes</label><textarea rows="2" oninput="S.npc_intent.stakes=this.value">${esc((s.npc_intent||{}).stakes||'')}</textarea></div>
+  </div>
+  <div class="sec">
+    <div class="sec-t">Config</div>
+    <div class="fr2">
+      <div><label>Max Turns</label><input type="number" min="1" max="99" value="${c.max_turns||6}" oninput="S.conversation_config.max_turns=parseInt(this.value)||6"></div>
+      <div style="display:flex;flex-direction:column;gap:6px;padding-top:18px;">
+        <label style="display:flex;align-items:center;gap:6px;margin:0;"><input type="checkbox" ${c.enable_coherence_filtering?'checked':''} onchange="S.conversation_config.enable_coherence_filtering=this.checked"> Coherence Filter</label>
+        <label style="display:flex;align-items:center;gap:6px;margin:0;"><input type="checkbox" ${c.track_dialogue_momentum?'checked':''} onchange="S.conversation_config.track_dialogue_momentum=this.checked"> Track Momentum</label>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ─── NODE TAB ────────────────────────────────────────────────────────────────
+function tNode(n) {
+  if(!n) return '';
+  const isTerm = !!n.terminal;
+  const termSec = isTerm ? `
+    <div class="sec">
+      <div class="sec-t">Terminal</div>
+      <div class="fr2">
+        <div><label>Terminal ID</label><input type="text" value="${esc(n.terminal_id||'')}" oninput="nf('terminal_id',this.value)"></div>
+        <div><label>Terminal Result</label><input type="text" value="${esc(n.terminal_result||'')}" oninput="nf('terminal_result',this.value)"></div>
+      </div>
+    </div>` : '';
+
+  const tranRows = (n.transitions||[]).map((t,i) => `
+    <div class="trow">
+      <input type="text" placeholder="condition" value="${esc(t.condition||'')}" oninput="utrans(${i},'condition',this.value)" style="flex:2;font-size:.72rem;">
+      <span style="color:#7c6b99;font-size:.72rem;flex-shrink:0;">→</span>
+      <select onchange="utrans(${i},'target',this.value)" style="flex:1.2;font-size:.72rem;">
+        ${S.nodes.map(nd=>`<option value="${nd.id}" ${t.target===nd.id?'selected':''}>${nd.id}</option>`).join('')}
+      </select>
+      <input type="text" placeholder="note" value="${esc(t._comment||'')}" oninput="utrans(${i},'_comment',this.value)" style="flex:1.5;font-size:.65rem;">
+      <button class="btn bd bxs" onclick="rmtrans(${i})">✕</button>
+    </div>`).join('');
+
+  const defOpts = `<option value="">— none —</option>${S.nodes.map(nd=>`<option value="${nd.id}" ${n.default_transition===nd.id?'selected':''}>${nd.id}</option>`).join('')}`;
+
+  const choicesSec = !isTerm ? `
+    <div class="sec">
+      <div class="sec-t">Player Choices</div>
+      <div id="choices-list">${(n.choices||[]).map((ch,ci)=>renderChoiceItem(n.id,ch,ci)).join('')}</div>
+      <button class="btn bs bsm" style="margin-top:.4rem;" onclick="addChoice()">＋ Add Choice</button>
+    </div>` : '';
+
+  return `
+  <div class="sec">
+    <div class="sec-t">Node</div>
+    <div class="fr2">
+      <div><label>ID</label><input type="text" value="${esc(n.id)}" onblur="renameNode(this.value)"></div>
+      <div><label>Mood</label><input type="text" value="${esc(n.npc_mood||'')}" oninput="nf('npc_mood',this.value)"></div>
+    </div>
+    <div class="fr"><label>Dialogue Prompt</label><textarea rows="4" oninput="nf('npc_dialogue_prompt',this.value)">${esc(n.npc_dialogue_prompt||'')}</textarea></div>
+    <div class="fr"><label>Design Comment</label><input type="text" value="${esc(n._comment||'')}" oninput="nf('_comment',this.value)"></div>
+    <label style="display:flex;align-items:center;gap:6px;margin-top:4px;"><input type="checkbox" ${isTerm?'checked':''} onchange="toggleTerm(this.checked)"> Terminal node</label>
+  </div>
+  ${termSec}
+  <div class="sec">
+    <div class="sec-t">Transitions</div>
+    ${tranRows}
+    <div style="display:flex;gap:.4rem;align-items:center;margin:.35rem 0;">
+      <label style="flex-shrink:0;margin:0;font-size:.75rem;">Default →</label>
+      <select onchange="nf('default_transition',this.value||null)" style="flex:1;font-size:.75rem;">${defOpts}</select>
+    </div>
+    <button class="btn bs bsm" onclick="addTrans()">＋ Add Transition</button>
+  </div>
+  ${choicesSec}
+  <div style="display:flex;gap:.4rem;margin-top:.3rem;">
+    <button class="btn bd bsm" onclick="deleteNode()">⊗ Delete Node</button>
+  </div>`;
+}
+
+// ─── CHOICE RENDERING ────────────────────────────────────────────────────────
+function renderChoiceItem(nodeId, ch, ci) {
+  const key = nodeId+'_'+ci, isOpen = open[key]||false;
+  const lc = `l${ch.language_art||'neutral'}`;
+  const short = (ch.text||'').substring(0,55)+((ch.text||'').length>55?'…':'');
+  return `
+  <div class="ci" id="ci-${nodeId}-${ci}">
+    <div class="ch" onclick="toggleChoice('${nodeId}',${ci})">
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:.3rem;margin-bottom:2px;">
+          <span class="lc ${lc}">${esc(ch.language_art||'neutral')}</span>
+          <span style="font-size:.65rem;color:#7c6b99;">${esc(ch.choice_id||'')}</span>
+        </div>
+        <div style="font-size:.75rem;color:#e2d8f5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(short)}</div>
+      </div>
+      <div style="display:flex;gap:.3rem;align-items:center;margin-left:.4rem;flex-shrink:0;">
+        <button class="btn bs bxs" onclick="event.stopPropagation();openChoiceEditor(${ci},undefined)" title="Open in Choice Editor">↗</button>
+        <button class="btn bd bxs" onclick="event.stopPropagation();rmChoice(${ci})">✕</button>
+        <span style="color:#7c6b99;font-size:.75rem;">${isOpen?'▲':'▼'}</span>
+      </div>
+    </div>
+    <div class="cb${isOpen?' open':''}" id="cb-${nodeId}-${ci}">
+      ${choiceEditor(ch, ci, undefined)}
+    </div>
+  </div>`;
+}
+
+function choiceEditor(ch, ci, ri) {
+  // ri=undefined → normal choice; ri=number → recovery choice within choice ci
+  const pfx = ri!==undefined ? `r_${ci}_${ri}` : `c_${ci}`;
+  const langOpts = ['challenge','diplomatic','empathetic','manipulative','neutral'].map(l=>`<option value="${l}" ${ch.language_art===l?'selected':''}>${l}</option>`).join('');
+  const req = ch.requirements||{};
+
+  const succ = outcomeList(ch.interaction_outcomes||[], ci, ri, 'interaction');
+  const fail = outcomeList(ch.failure_outcomes||[], ci, ri, 'failure');
+  const recov = ri===undefined ? recoverySection(ch.recovery_choices||[], ci) : '';
+
+  return `
+    <div class="fr"><label>Choice ID</label><input type="text" value="${esc(ch.choice_id||'')}" oninput="uch(${ci},${ri!==undefined?ri:'undefined'},'choice_id',this.value)"></div>
+    <div class="fr"><label>Player Text</label><textarea rows="3" oninput="uch(${ci},${ri!==undefined?ri:'undefined'},'text',this.value)">${esc(ch.text||'')}</textarea></div>
+    <div class="fr2">
+      <div><label>Language Art</label><select onchange="uch(${ci},${ri!==undefined?ri:'undefined'},'language_art',this.value)">${langOpts}</select></div>
+      <div>
+        <label>Judgement Δ &nbsp;<span style="color:#86efac;font-size:.65rem;">success</span> / <span style="color:#fca5a5;font-size:.65rem;">fail</span></label>
+        <div style="display:flex;gap:4px;">
+          <input type="number" step="1" value="${ch.judgement_delta_success||0}" oninput="uch(${ci},${ri!==undefined?ri:'undefined'},'judgement_delta_success',parseInt(this.value)||0)" style="flex:1;">
+          <input type="number" step="1" value="${ch.judgement_delta_fail||0}" oninput="uch(${ci},${ri!==undefined?ri:'undefined'},'judgement_delta_fail',parseInt(this.value)||0)" style="flex:1;">
+        </div>
+      </div>
+    </div>
+    ${sliderRow('Authority','authority_tone',ch,ci,ri,pfx)}
+    ${sliderRow('Diplomacy','diplomacy_tone',ch,ci,ri,pfx)}
+    ${sliderRow('Empathy','empathy_tone',ch,ci,ri,pfx)}
+    ${sliderRow('Manipulation','manipulation_tone',ch,ci,ri,pfx)}
+    <div class="fr2">
+      <div><label>Min Authority Req.</label><input type="number" step="0.1" min="0" max="10" value="${req.min_authority!==undefined?req.min_authority:''}" placeholder="—" oninput="ureq(${ci},${ri!==undefined?ri:'undefined'},'min_authority',this.value)"></div>
+      <div><label>Min Empathy Req.</label><input type="number" step="0.1" min="0" max="10" value="${req.min_empathy!==undefined?req.min_empathy:''}" placeholder="—" oninput="ureq(${ci},${ri!==undefined?ri:'undefined'},'min_empathy',this.value)"></div>
+    </div>
+    <div style="font-size:.65rem;color:#86efac;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin:.6rem 0 .3rem;">Success Outcomes</div>
+    ${succ}<button class="btn bs bxs" onclick="addOutcome(${ci},${ri!==undefined?ri:'undefined'},'interaction')">＋ Add</button>
+    <div style="font-size:.65rem;color:#fca5a5;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin:.6rem 0 .3rem;">Failure Outcomes</div>
+    ${fail}<button class="btn bs bxs" onclick="addOutcome(${ci},${ri!==undefined?ri:'undefined'},'failure')">＋ Add</button>
+    ${recov}`;
+}
+
+function sliderRow(label, field, ch, ci, ri, pfx) {
+  const v = ch[field]!==undefined ? ch[field] : 0.5;
+  return `
+  <div class="slrow">
+    <span style="font-size:.72rem;color:#d1c4e9;min-width:80px;">${label}</span>
+    <input type="range" min="0" max="1" step="0.01" value="${v}"
+      oninput="uch(${ci},${ri!==undefined?ri:'undefined'},'${field}',parseFloat(this.value));document.getElementById('vb-${pfx}-${field}').textContent=parseFloat(this.value).toFixed(2)">
+    <span class="vb" id="vb-${pfx}-${field}">${v.toFixed(2)}</span>
+  </div>`;
+}
+
+function outcomeList(outcomes, ci, ri, type) {
+  return outcomes.map((o,oi) => `
+  <div class="oi">
+    <div style="display:flex;gap:.4rem;align-items:flex-start;">
+      <div style="flex:1;">
+        <div class="fr2">
+          <div><label>Outcome ID</label><input type="text" value="${esc(o.outcome_id||'')}" oninput="uout(${ci},${ri!==undefined?ri:'undefined'},${oi},'${type}','outcome_id',this.value)"></div>
+          <div><label>Intention Shift</label><input type="text" value="${esc(o.intention_shift||'')}" oninput="uout(${ci},${ri!==undefined?ri:'undefined'},${oi},'${type}','intention_shift',this.value)"></div>
+        </div>
+        <div class="fr2">
+          <div><label>Min Response</label><textarea rows="2" oninput="uout(${ci},${ri!==undefined?ri:'undefined'},${oi},'${type}','min_response',this.value)">${esc(o.min_response||'')}</textarea></div>
+          <div><label>Max Response</label><textarea rows="2" oninput="uout(${ci},${ri!==undefined?ri:'undefined'},${oi},'${type}','max_response',this.value)">${esc(o.max_response||'')}</textarea></div>
+        </div>
+        <div class="fr2">
+          <div><label>Relation Δ</label><input type="number" step="0.01" value="${o.relation_delta||0}" oninput="uout(${ci},${ri!==undefined?ri:'undefined'},${oi},'${type}','relation_delta',parseFloat(this.value)||0)"></div>
+          <div><label>Stance Δ (JSON obj)</label><input type="text" value="${esc(JSON.stringify(o.stance_delta||{}))}" onblur="try{uout(${ci},${ri!==undefined?ri:'undefined'},${oi},'${type}','stance_delta',JSON.parse(this.value))}catch(e){}"></div>
+        </div>
+      </div>
+      <button class="btn bd bxs" style="flex-shrink:0;margin-top:18px;" onclick="rmOutcome(${ci},${ri!==undefined?ri:'undefined'},${oi},'${type}')">✕</button>
+    </div>
+  </div>`).join('');
+}
+
+function recoverySection(recoveries, ci) {
+  const items = recoveries.map((rc,ri) => `
+    <div class="sub" style="border-color:#3b2d6e;margin-bottom:.5rem;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem;">
+        <span style="font-size:.72rem;color:#a78bfa;font-weight:600;">Recovery ${ri+1}: ${esc(rc.choice_id||'')}</span>
+        <button class="btn bd bxs" onclick="rmRecovery(${ci},${ri})">✕</button>
+      </div>
+      ${choiceEditor(rc, ci, ri)}
+    </div>`).join('');
+  return `
+    <div style="font-size:.65rem;color:#fde68a;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin:.75rem 0 .3rem;">Recovery Choices</div>
+    <div class="rec-wrap">${items||'<span style="color:#4a3980;font-size:.75rem;">No recovery choices.</span>'}</div>
+    <button class="btn bs bxs" style="margin-top:.35rem;" onclick="addRecovery(${ci})">＋ Add Recovery</button>`;
+}
+
+// ─── JSON TAB ────────────────────────────────────────────────────────────────
+function tJSON() {
+  return `
+  <div style="display:flex;gap:.4rem;margin-bottom:.6rem;flex-wrap:wrap;">
+    <button class="btn bs bsm" onclick="copyJSON()">Copy</button>
+    <button class="btn bs bsm" onclick="exportJSON()">⬇ Download</button>
+  </div>
+  <pre style="background:#0f0f1a;color:#a78bfa;font-size:.65rem;border-radius:.5rem;padding:.65rem;overflow:auto;max-height:calc(100vh - 260px);white-space:pre;">${esc(JSON.stringify(S,null,2))}</pre>`;
+}
+
+// ─── NODE MUTATIONS ──────────────────────────────────────────────────────────
+function nf(field, val) {
+  const n = node(); if(!n) return;
+  n[field] = val;
+  refreshCard(n);
+  if(field==='npc_mood'||field==='npc_dialogue_prompt'||field==='terminal_id'||field==='terminal') renderArrows();
+}
+
+function toggleTerm(v) {
+  const n = node(); if(!n) return;
+  n.terminal = v;
+  if(v){ n.terminal_id=n.terminal_id||n.id; n.terminal_result=n.terminal_result||''; n.transitions=[]; n.choices=[]; }
+  refreshCard(n); renderArrows(); renderInspector();
+}
+
+function renameNode(newId) {
+  newId = newId.trim();
+  const n = node(); if(!n||newId===n.id||!newId) return;
+  if(S.nodes.find(x=>x.id===newId)){ alert(`"${newId}" already exists.`); renderInspector(); return; }
+  const old = n.id;
+  S.nodes.forEach(x => {
+    (x.transitions||[]).forEach(t=>{ if(t.target===old) t.target=newId; });
+    if(x.default_transition===old) x.default_transition=newId;
+  });
+  n.id = newId;
+  P[newId] = P[old]; delete P[old];
+  sel = newId;
+  renderAll(); renderInspector();
+}
+
+function addTrans() {
+  const n = node(); if(!n) return;
+  n.transitions = n.transitions||[];
+  n.transitions.push({condition:'turn_count >= 1', target: S.nodes[0]?.id||'', _comment:''});
+  renderInspector();
+}
+
+function utrans(i, field, val) {
+  const n = node(); if(!n||!n.transitions[i]) return;
+  n.transitions[i][field] = val;
+  if(field==='target') renderArrows();
+}
+
+function rmtrans(i) {
+  const n = node(); if(!n) return;
+  n.transitions.splice(i,1); renderArrows(); renderInspector();
+}
+
+function addNode() {
+  const id = prompt('Node ID:', 'node_'+Date.now().toString(36).slice(-4));
+  if(!id||!id.trim()) return;
+  if(S.nodes.find(n=>n.id===id.trim())){ alert('Already exists.'); return; }
+  const newN = {id:id.trim(),npc_mood:'',_comment:'',npc_dialogue_prompt:'',transitions:[],default_transition:null,choices:[]};
+  S.nodes.push(newN);
+  const c = document.getElementById('graph-wrap');
+  P[id.trim()] = {x:c.scrollLeft+c.clientWidth/2-105, y:c.scrollTop+c.clientHeight/2-60};
+  renderAll(); selectNode(id.trim());
+}
+
+function deleteNode() {
+  if(!sel) return;
+  if(sel==='start'){ alert('Cannot delete start node.'); return; }
+  if(!confirm(`Delete node "${sel}"?`)) return;
+  S.nodes = S.nodes.filter(n=>n.id!==sel);
+  delete P[sel]; sel=null; selCi=null; selRi=undefined;
+  document.getElementById('isub').textContent = 'No node selected';
+  renderAll();
+  if(mainTab==='nodes') renderNodeList();
+  else if(mainTab==='choices') renderChoicePanel();
+  else switchTab('scenario');
+}
+
+// ─── CHOICE MUTATIONS ────────────────────────────────────────────────────────
+function toggleChoice(nodeId, ci) {
+  const key = nodeId+'_'+ci; open[key]=!open[key];
+  const b = document.getElementById('cb-'+nodeId+'-'+ci);
+  if(b) b.classList.toggle('open', open[key]);
+  const h = b?.previousElementSibling;
+  if(h){ const ch=h.querySelector('span:last-child'); if(ch) ch.textContent=open[key]?'▲':'▼'; }
+}
+
+function addChoice() {
+  const n = node(); if(!n) return;
+  n.choices = n.choices||[];
+  const ci = n.choices.length;
+  n.choices.push({choice_id:'choice_'+Date.now().toString(36).slice(-5),text:'New choice',language_art:'neutral',
+    authority_tone:.5,diplomacy_tone:.5,empathy_tone:.5,manipulation_tone:.5,
+    judgement_delta_success:5,judgement_delta_fail:-5,
+    interaction_outcomes:[],failure_outcomes:[],recovery_choices:[]});
+  refreshCard(n);
+  if(mainTab==='choices') { selCi=ci; selRi=undefined; renderChoicePanel(); }
+  else renderInspector();
+}
+
+function rmChoice(ci) {
+  const n = node(); if(!n||!confirm('Delete choice?')) return;
+  n.choices.splice(ci,1); refreshCard(n); renderInspector();
+}
+
+// uch / ureq work on normal choices (ri=undefined) or recovery (ri=number)
+function getChoice(ci, ri) {
+  const n = node(); if(!n) return null;
+  const ch = n.choices[ci]; if(!ch) return null;
+  return ri!==undefined ? (ch.recovery_choices||[])[ri]||null : ch;
+}
+
+function uch(ci, ri, field, val) {
+  const ch = getChoice(ci, ri); if(ch) ch[field]=val;
+}
+
+function ureq(ci, ri, field, val) {
+  const ch = getChoice(ci, ri); if(!ch) return;
+  if(!ch.requirements) ch.requirements={};
+  const v = parseFloat(val);
+  if(!val||isNaN(v)) delete ch.requirements[field];
+  else ch.requirements[field]=v;
+  if(!Object.keys(ch.requirements).length) delete ch.requirements;
+}
+
+function addOutcome(ci, ri, type) {
+  const ch = getChoice(ci, ri); if(!ch) return;
+  const key = type==='interaction'?'interaction_outcomes':'failure_outcomes';
+  ch[key]=ch[key]||[];
+  ch[key].push({outcome_id:'out_'+Date.now().toString(36).slice(-4),stance_delta:{},relation_delta:0,intention_shift:'',min_response:'',max_response:'',scripted:false});
+  renderInspector();
+}
+
+function uout(ci, ri, oi, type, field, val) {
+  const ch = getChoice(ci, ri); if(!ch) return;
+  const key = type==='interaction'?'interaction_outcomes':'failure_outcomes';
+  if(ch[key]&&ch[key][oi]) ch[key][oi][field]=val;
+}
+
+function rmOutcome(ci, ri, oi, type) {
+  const ch = getChoice(ci, ri); if(!ch) return;
+  const key = type==='interaction'?'interaction_outcomes':'failure_outcomes';
+  if(ch[key]) { ch[key].splice(oi,1); renderInspector(); }
+}
+
+function addRecovery(ci) {
+  const n = node(); if(!n||!n.choices[ci]) return;
+  n.choices[ci].recovery_choices = n.choices[ci].recovery_choices||[];
+  n.choices[ci].recovery_choices.push({choice_id:'rec_'+Date.now().toString(36).slice(-4),text:'Recovery text',
+    language_art:'diplomatic',authority_tone:.3,diplomacy_tone:.6,empathy_tone:.4,manipulation_tone:.1,
+    judgement_delta_success:7,judgement_delta_fail:-5,interaction_outcomes:[],failure_outcomes:[]});
+  renderInspector();
+}
+
+function rmRecovery(ci, ri) {
+  const n = node(); if(!n||!n.choices[ci]||!confirm('Delete recovery choice?')) return;
+  n.choices[ci].recovery_choices.splice(ri,1); renderInspector();
+}
+
+// ─── FILE OPS ────────────────────────────────────────────────────────────────
+function newScenario() {
+  if(!confirm('Start new? Unsaved changes lost.')) return;
+  S=blankScenario(); P={}; sel=null; open={}; selCi=null; selRi=undefined;
+  autoLayout(); switchMainTab('graph'); switchTab('scenario');
+}
+
+function importJSON() { document.getElementById('file-input').click(); }
+
+function handleFile(e) {
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=ev=>{ try{ S=JSON.parse(ev.target.result); P={}; sel=null; open={}; selCi=null; selRi=undefined; autoLayout(); switchMainTab('graph'); switchTab('scenario'); }
+    catch(err){ alert('Parse error: '+err.message); } };
+  r.readAsText(f); e.target.value='';
+}
+
+function exportJSON() {
+  const b=new Blob([JSON.stringify(S,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(b);
+  a.download=(S.id||'scenario')+'.json'; a.click(); URL.revokeObjectURL(a.href);
+}
+
+function showJSONModal() {
+  document.getElementById('jcontent').textContent=JSON.stringify(S,null,2);
+  document.getElementById('jmod').classList.add('open');
+}
+
+function copyJSON() {
+  const j=JSON.stringify(S,null,2);
+  navigator.clipboard?.writeText(j).catch(()=>fallbackCopy(j))||fallbackCopy(j);
+}
+function fallbackCopy(t){const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);}
+
+// ─── DRAG ────────────────────────────────────────────────────────────────────
+document.addEventListener('mousemove', e => {
+  if(!drag) return;
+  const w=document.getElementById('graph-wrap'), r=w.getBoundingClientRect();
+  const x=e.clientX-r.left+w.scrollLeft-dragOff.x;
+  const y=e.clientY-r.top+w.scrollTop-dragOff.y;
+  P[drag]={x:Math.max(0,x),y:Math.max(0,y)};
+  const el=document.getElementById('nd-'+drag);
+  if(el){el.style.left=P[drag].x+'px';el.style.top=P[drag].y+'px';}
+  renderArrows();
+});
+document.addEventListener('mouseup', ()=>{ drag=null; });
+
+// ─── UTILS ───────────────────────────────────────────────────────────────────
+function node() { return sel ? S.nodes.find(n=>n.id===sel) : null; }
+
+function refreshCard(n) {
+  const old = document.getElementById('nd-'+n.id);
+  if(old) old.remove();
+  renderCard(n);
+}
+
+function esc(s) {
+  if(s===null||s===undefined) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Close modal on backdrop
+document.getElementById('jmod').addEventListener('click', e=>{ if(e.target===document.getElementById('jmod')) e.target.classList.remove('open'); });
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+autoLayout();
+switchMainTab('graph');
+switchTab('scenario');
+</script>
+</body>
+</html>

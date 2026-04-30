@@ -20,6 +20,7 @@ namespace PNE
         [JsonProperty("difficulty")]     public string Difficulty           { get; set; } = "STANDARD";
         [JsonProperty("player_skills")]  public PlayerSkills PlayerSkills   { get; set; } = new PlayerSkills();
         [JsonProperty("use_ollama")]     public bool UseOllama              { get; set; } = true;
+        [JsonProperty("update_pne")]     public bool UpdatePNE              { get; set; } = true;
     }
 
     [Serializable]
